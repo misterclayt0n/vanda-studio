@@ -28,7 +28,7 @@ function SiteHeader() {
           <p className="text-xs uppercase tracking-[0.4em] text-white/60">
             Vanda Studio
           </p>
-          <p className="text-white/80">Reformulações conceituais em um toque</p>
+          <p className="text-white/80">Social media as a service</p>
         </div>
       </div>
       <SignedOut>
@@ -55,12 +55,13 @@ function Hero() {
           SALA DE CONCEITOS
         </p>
         <h1 className="text-4xl font-medium leading-tight text-white sm:text-5xl md:text-6xl">
-          Envie um @. Veja a Vanda repintar a narrativa.
+          Social media as a service. Envie um @ e veja a Vanda repintar a
+          narrativa.
         </h1>
         <p className="mx-auto max-w-2xl text-base text-white/70 md:text-lg">
-          Esta é a maneira mais simples de mostrar aos clientes o que é
-          possível. Um link do Instagram entra e uma narrativa, clima e direção
-          de conteúdo refinados saem — antes mesmo de você abrir um deck.
+          Cole o link do Instagram da sua loja. A Vanda devolve em minutos uma
+          narrativa clara, o clima e ideias de conteúdo prontas para usar —
+          antes mesmo de você abrir um deck.
         </p>
         <button
           onClick={() => setShowPrompt(true)}

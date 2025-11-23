@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Vanda Studio — OS de marketing nativo em IA",
   description:
-    "Envie um perfil social e veja a Vanda Studio reconstruir o sistema de marketing com precisão em IA.",
+    "Social media as a service da Vanda Studio: envie um perfil social e receba narrativa, clima e direção de conteúdo prontos para usar.",
 };
 
 export default function RootLayout({
