@@ -28,13 +28,13 @@ function SiteHeader() {
           <p className="text-xs uppercase tracking-[0.4em] text-white/60">
             Vanda Studio
           </p>
-          <p className="text-white/80">Conceptual overhauls in one tap</p>
+          <p className="text-white/80">Reformulações conceituais em um toque</p>
         </div>
       </div>
       <SignedOut>
         <SignInButton mode="modal">
           <button className="rounded-full border border-white/20 px-4 py-2 text-white/80 transition hover:border-white/60 hover:text-white">
-            Sign in
+            Entrar
           </button>
         </SignInButton>
       </SignedOut>
@@ -52,22 +52,22 @@ function Hero() {
     <>
       <div className="space-y-6">
         <p className="text-xs uppercase tracking-[0.6em] text-white/40">
-          AI CONCEPT ROOM
+          SALA DE CONCEITOS
         </p>
         <h1 className="text-4xl font-medium leading-tight text-white sm:text-5xl md:text-6xl">
-          Drop a handle. Watch Vanda repaint the story.
+          Envie um @. Veja a Vanda repintar a narrativa.
         </h1>
         <p className="mx-auto max-w-2xl text-base text-white/70 md:text-lg">
-          This is the simplest way to show clients what&apos;s possible. One
-          Instagram link in, a refined narrative, mood, and content direction
-          out—before you even open a deck.
+          Esta é a maneira mais simples de mostrar aos clientes o que é
+          possível. Um link do Instagram entra e uma narrativa, clima e direção
+          de conteúdo refinados saem — antes mesmo de você abrir um deck.
         </p>
         <button
           onClick={() => setShowPrompt(true)}
           className="group relative mx-auto mt-4 inline-flex items-center gap-3 rounded-full border border-white/20 bg-white/5 px-8 py-3 text-sm font-semibold uppercase tracking-[0.4em] text-white transition hover:border-white/40 hover:bg-white/10"
         >
           <span className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-[#A855F7] via-[#EC4899] to-transparent opacity-0 blur-2xl transition group-hover:opacity-40" />
-          Begin overhaul
+          INICIAR REFORMULAÇÃO
           <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
         </button>
       </div>
@@ -94,38 +94,39 @@ function PromptPanel({ open }: PromptPanelProps) {
       <div className="rounded-[28px] border border-white/10 bg-[#070214]/90 p-8 text-left shadow-2xl shadow-black/40">
         <div className="flex flex-col gap-2 text-sm text-white/60">
           <p className="text-xs uppercase tracking-[0.5em] text-white/40">
-            OVERHAUL INPUT
+            ENTRADA DA REFORMULAÇÃO
           </p>
           <h2 className="text-2xl font-semibold text-white">
-            What should we reimagine first?
+            O que devemos reimaginar primeiro?
           </h2>
           <p>
-            Vanda studies your grid, post cadence, and comments. Add any edge
-            cases or guardrails below to teach the model how you pitch.
+            A Vanda analisa sua grade, cadência de posts e comentários. Adicione
+            casos extremos ou limites abaixo para ensinar ao modelo como você
+            apresenta propostas.
           </p>
         </div>
         <form className="mt-6 space-y-5">
           <label className="block">
             <span className="text-xs uppercase tracking-[0.4em] text-white/40">
-              Instagram or social URL
+              URL DO INSTAGRAM OU REDE SOCIAL
             </span>
             <input
               type="url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://instagram.com/brand"
+              placeholder="https://instagram.com/sua-marca"
               className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-white/70 focus:outline-none"
               required
             />
           </label>
           <label className="block">
             <span className="text-xs uppercase tracking-[0.4em] text-white/40">
-              Additional context
+              CONTEXTO ADICIONAL
             </span>
             <textarea
               value={context}
               onChange={(event) => setContext(event.target.value)}
-              placeholder="Tone, campaigns to highlight, audiences to chase, or anything your stakeholders obsess over."
+              placeholder="Tom, campanhas para destacar, públicos para perseguir ou qualquer coisa de que seus interessados não abrem mão."
               rows={4}
               className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-white/70 focus:outline-none"
             />
@@ -135,7 +136,7 @@ function PromptPanel({ open }: PromptPanelProps) {
               type="button"
               className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#A855F7] to-[#EC4899] px-6 py-3 text-sm font-semibold uppercase tracking-[0.5em] text-white transition hover:opacity-90"
             >
-              Generate overhaul preview
+              GERAR PRÉVIA DA REFORMULAÇÃO
             </button>
           </SignedIn>
           <SignedOut>
@@ -144,7 +145,7 @@ function PromptPanel({ open }: PromptPanelProps) {
                 type="button"
                 className="w-full rounded-2xl border border-white/30 px-6 py-3 text-sm font-semibold uppercase tracking-[0.5em] text-white/80 transition hover:text-white"
               >
-                Sign in to submit
+                ENTRAR PARA ENVIAR
               </button>
             </SignInButton>
           </SignedOut>

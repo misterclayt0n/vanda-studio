@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vanda Studio — AI-native marketing OS",
+  title: "Vanda Studio — OS de marketing nativo em IA",
   description:
-    "Drop a social handle and watch Vanda Studio rebuild the marketing system with AI precision.",
+    "Envie um perfil social e veja a Vanda Studio reconstruir o sistema de marketing com precisão em IA.",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
