@@ -129,3 +129,40 @@ export const get = query({
         return project;
     },
 });
+
+export const remove = mutation({
+    args: { projectId: v.id("projects") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Called remove project without authentication");
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            throw new Error("Not authorized to delete this project");
+        }
+
+        const cleanupTables = ["instagram_posts", "brand_analysis", "content_calendar", "assets"] as const;
+        for (const table of cleanupTables) {
+            const docs = await ctx.db
+                .query(table)
+                .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+                .collect();
+            for (const doc of docs) {
+                await ctx.db.delete(doc._id);
+            }
+        }
+
+        await ctx.db.delete(args.projectId);
+    },
+});

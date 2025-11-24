@@ -3,20 +3,23 @@
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Plus, Instagram, ArrowRight } from "lucide-react";
+import { Plus, Instagram, ArrowRight, Trash } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
     const projects = useQuery(api.projects.list);
     const createProject = useMutation(api.projects.create);
+    const deleteProject = useMutation(api.projects.remove);
     const fetchInstagramProfile = useAction(api.instagram.fetchProfile);
 
     const [newProjectUrl, setNewProjectUrl] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+    const [deletingProjectId, setDeletingProjectId] = useState<Id<"projects"> | null>(null);
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -42,6 +45,21 @@ export default function DashboardPage() {
             console.error("Failed to create project:", error);
         } finally {
             setIsCreating(false);
+        }
+    };
+
+    const handleDeleteProject = async (projectId: Id<"projects">) => {
+        if (deletingProjectId) return;
+        const confirmDelete = window.confirm("Deseja realmente excluir este projeto? Essa ação não pode ser desfeita.");
+        if (!confirmDelete) return;
+
+        setDeletingProjectId(projectId);
+        try {
+            await deleteProject({ projectId });
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+        } finally {
+            setDeletingProjectId(null);
         }
     };
 
@@ -117,13 +135,33 @@ export default function DashboardPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                    <span>Criado em {new Date(project.createdAt).toLocaleDateString()}</span>
-                                    <Button variant="ghost" size="sm" className="group-hover:translate-x-1 transition-transform" asChild>
-                                        <Link href={`/dashboard/projects/${project._id}`}>
-                                            Abrir <ArrowRight className="ml-2 h-4 w-4" />
-                                        </Link>
-                                    </Button>
+                                <div className="flex items-center justify-between text-sm text-muted-foreground gap-4">
+                                    <span className="truncate">Criado em {new Date(project.createdAt).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="group-hover:translate-x-1 transition-transform"
+                                            asChild
+                                        >
+                                            <Link href={`/dashboard/projects/${project._id}`}>
+                                                Abrir <ArrowRight className="ml-2 h-4 w-4" />
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            size="icon"
+                                            title="Excluir projeto"
+                                            disabled={deletingProjectId === project._id}
+                                            onClick={() => handleDeleteProject(project._id)}
+                                        >
+                                            {deletingProjectId === project._id ? (
+                                                <span className="text-xs">...</span>
+                                            ) : (
+                                                <Trash className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

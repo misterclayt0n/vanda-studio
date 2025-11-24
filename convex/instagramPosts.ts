@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 export const replaceForProject = mutation({
     args: {
@@ -52,5 +52,37 @@ export const replaceForProject = mutation({
                 ...post,
             });
         }
+    },
+});
+
+export const listByProject = query({
+    args: {
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            return [];
+        }
+
+        return await ctx.db
+            .query("instagram_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .collect();
     },
 });
