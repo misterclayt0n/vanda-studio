@@ -41,44 +41,58 @@ export const fetchProfile = action({
         const normalizedUrl = normalizeInstagramUrl(args.instagramUrl);
         const actorId = process.env.APIFY_INSTAGRAM_ACTOR_ID ?? DEFAULT_ACTOR_ID;
 
-        const run = await client.actor(actorId).call({
-            directUrls: [normalizedUrl],
-            resultsType: "posts",
-            resultsLimit: 200,
-            addParentData: true,
-            searchType: "user",
-        });
-
-        if (!run.defaultDatasetId) {
-            throw new Error("Apify run did not return a dataset");
-        }
-
-        const { items } = await client.dataset(run.defaultDatasetId).listItems({ clean: true });
-        const datasetItems = (items as RawInstagramItem[]) ?? [];
-
-        if (datasetItems.length === 0) {
-            throw new Error("Apify did not return any Instagram data");
-        }
-
-        const profile = buildProfileFromItems(datasetItems, normalizedUrl);
-        const posts = buildPostsFromItems(datasetItems, normalizedUrl);
-
         await ctx.runMutation(api.projects.updateProfileData, {
             projectId: args.projectId,
-            ...profile,
+            isFetching: true,
         });
 
-        if (posts.length > 0) {
-            await ctx.runMutation(api.instagramPosts.replaceForProject, {
-                projectId: args.projectId,
-                posts,
+        try {
+            const run = await client.actor(actorId).call({
+                directUrls: [normalizedUrl],
+                resultsType: "posts",
+                resultsLimit: 200,
+                addParentData: true,
+                searchType: "user",
             });
-        }
 
-        return {
-            profile,
-            postsInserted: posts.length,
-        };
+            if (!run.defaultDatasetId) {
+                throw new Error("Apify run did not return a dataset");
+            }
+
+            const { items } = await client.dataset(run.defaultDatasetId).listItems({ clean: true });
+            const datasetItems = (items as RawInstagramItem[]) ?? [];
+
+            if (datasetItems.length === 0) {
+                throw new Error("Apify did not return any Instagram data");
+            }
+
+            const profile = buildProfileFromItems(datasetItems, normalizedUrl);
+            const posts = buildPostsFromItems(datasetItems, normalizedUrl);
+
+            await ctx.runMutation(api.projects.updateProfileData, {
+                projectId: args.projectId,
+                ...profile,
+                isFetching: false,
+            });
+
+            if (posts.length > 0) {
+                await ctx.runMutation(api.instagramPosts.replaceForProject, {
+                    projectId: args.projectId,
+                    posts,
+                });
+            }
+
+            return {
+                profile,
+                postsInserted: posts.length,
+            };
+        } catch (error) {
+            await ctx.runMutation(api.projects.updateProfileData, {
+                projectId: args.projectId,
+                isFetching: false,
+            });
+            throw error;
+        }
     },
 });
 
@@ -105,11 +119,13 @@ function normalizeInstagramUrl(rawUrl: string): string {
 function buildProfileFromItems(items: RawInstagramItem[], fallbackUrl: string) {
     const first = items[0] ?? {};
     const owner = first.owner ?? first.ownerObject ?? {};
+    const meta = first.metaData ?? first.metadata ?? {};
 
     const instagramHandle =
         coalesce<string>(
             first.ownerUsername,
             owner.username,
+            meta.username,
             extractHandleFromUrl(fallbackUrl),
         ) ?? undefined;
 
@@ -117,22 +133,43 @@ function buildProfileFromItems(items: RawInstagramItem[], fallbackUrl: string) {
         owner.followersCount,
         owner.followedBy,
         owner.followedByCount,
+        owner.followers,
+        owner.followed_by,
+        owner.followers_count,
         first.ownerFollowers,
         first.followersCount,
         first.ownerFollowerCount,
+        first.owner_followers,
+        meta.followersCount,
+        meta.followers,
+        meta.followedBy,
     );
 
     const following = coalesce<number>(
+        owner.followingCount,
         owner.followsCount,
         owner.follows,
+        owner.following,
+        owner.follow,
+        owner.followed,
+        owner.followedCount,
         first.ownerFollowing,
+        first.ownerFollowingCount,
+        first.owner_following,
         first.followingCount,
+        first.following,
+        meta.followingCount,
+        meta.followsCount,
+        meta.follows,
     );
 
     const postsCount = coalesce<number>(
         owner.postsCount,
         first.ownerPostsCount,
         first.postsCount,
+        first.posts_count,
+        meta.postsCount,
+        meta.posts_count,
     );
 
     return {
@@ -140,18 +177,39 @@ function buildProfileFromItems(items: RawInstagramItem[], fallbackUrl: string) {
         profilePictureUrl: coalesce<string>(
             owner.profilePicUrl,
             owner.profilePictureUrl,
+            owner.profilePicUrlHd,
+            owner.profilePicUrlHD,
+            owner.profilePic,
+            owner.profile_pic_url,
+            owner.profile_pic_url_hd,
             first.ownerProfilePicUrl,
+            first.ownerProfilePicUrlHd,
+            first.ownerProfilePicUrlHD,
+            first.owner_profile_pic_url,
+            first.owner_profile_pic_url_hd,
             first.profilePicUrl,
+            first.profile_pic_url,
+            first.profile_picture_url,
+            meta.profilePicUrl,
+            meta.profilePicUrlHd,
+            meta.profilePicUrlHD,
+            meta.profile_pic_url,
+            meta.profile_pic_url_hd,
         ),
-        bio: coalesce<string>(owner.biography, first.ownerBiography, first.biography),
+        bio: coalesce<string>(owner.biography, first.ownerBiography, first.biography, meta.biography),
         followersCount: followers,
         followingCount: following,
         postsCount: postsCount ?? items.length,
         website: coalesce<string>(
             owner.externalUrl,
+            owner.external_url,
             owner.website,
             first.ownerExternalUrl,
+            first.owner_external_url,
             first.externalUrl,
+            first.website,
+            meta.externalUrl,
+            meta.external_url,
         ),
     };
 }
@@ -161,6 +219,10 @@ function buildPostsFromItems(items: RawInstagramItem[], fallbackUrl: string): In
 
     return items
         .map((item, index) => {
+            if (isVideoItem(item)) {
+                return null;
+            }
+
             const mediaUrl = coalesce<string>(
                 item.displayUrl,
                 item.imageUrl,
@@ -255,4 +317,18 @@ function coalesce<T>(...values: (T | null | undefined)[]): T | undefined {
         }
     }
     return undefined;
+}
+
+function isVideoItem(item: RawInstagramItem): boolean {
+    const type = String(item.type ?? item.mediaType ?? "").toUpperCase();
+    if (type === "VIDEO" || type === "CLIP" || type === "REEL") {
+        return true;
+    }
+
+    const productType = String(item.productType ?? "").toUpperCase();
+    if (productType.includes("VIDEO") || productType.includes("CLIP")) {
+        return true;
+    }
+
+    return Boolean(item.isVideo);
 }

@@ -20,6 +20,7 @@ export default defineSchema({
         followingCount: v.optional(v.number()),
         postsCount: v.optional(v.number()),
         website: v.optional(v.string()),
+        isFetching: v.optional(v.boolean()),
         createdAt: v.number(),
     }).index("by_user_id", ["userId"]),
 

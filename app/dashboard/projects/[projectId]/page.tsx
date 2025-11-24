@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Instagram } from "lucide-react";
+import { ArrowLeft, Instagram, Loader2 } from "lucide-react";
 
 export default function ProjectDetailsPage() {
     const params = useParams<{ projectId: string }>();
@@ -36,7 +36,12 @@ export default function ProjectDetailsPage() {
     }
 
     if (project === undefined) {
-        return <div className="text-muted-foreground">Carregando projeto...</div>;
+        return (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p>Carregando projeto...</p>
+            </div>
+        );
     }
 
     if (project === null) {
@@ -45,6 +50,27 @@ export default function ProjectDetailsPage() {
                 <p className="text-muted-foreground">Projeto não encontrado.</p>
                 <Button onClick={() => router.push("/dashboard")}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                </Button>
+            </div>
+        );
+    }
+
+    if (project.isFetching) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 space-y-6">
+                <div className="relative h-28 w-28">
+                    <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+                    <div className="absolute inset-4 rounded-full border-4 border-primary/30 animate-pulse"></div>
+                    <div className="absolute inset-8 rounded-full border-4 border-primary/60 animate-spin border-t-transparent"></div>
+                </div>
+                <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold">Coletando perfil do Instagram...</p>
+                    <p className="text-sm text-muted-foreground">
+                        Isso pode levar alguns segundos enquanto buscamos posts e métricas da conta.
+                    </p>
+                </div>
+                <Button variant="ghost" onClick={() => router.push("/dashboard")}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para o dashboard
                 </Button>
             </div>
         );
@@ -122,7 +148,10 @@ export default function ProjectDetailsPage() {
                 </CardHeader>
                 <CardContent>
                     {posts === undefined ? (
-                        <p className="text-muted-foreground">Carregando posts...</p>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <p>Carregando posts...</p>
+                        </div>
                     ) : posts.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
                     ) : (

@@ -25,6 +25,7 @@ export const create = mutation({
             userId: user._id,
             name: args.name,
             instagramUrl: args.instagramUrl,
+            isFetching: true,
             createdAt: Date.now(),
         });
 
@@ -66,6 +67,7 @@ export const updateProfileData = mutation({
         followingCount: v.optional(v.number()),
         postsCount: v.optional(v.number()),
         website: v.optional(v.string()),
+        isFetching: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -95,6 +97,7 @@ export const updateProfileData = mutation({
         if (args.followingCount !== undefined) patch.followingCount = args.followingCount;
         if (args.postsCount !== undefined) patch.postsCount = args.postsCount;
         if (args.website !== undefined) patch.website = args.website;
+        if (args.isFetching !== undefined) patch.isFetching = args.isFetching;
 
         if (Object.keys(patch).length === 0) {
             return project;
