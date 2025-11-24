@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import Link from "next/link";
 export default function DashboardPage() {
     const projects = useQuery(api.projects.list);
     const createProject = useMutation(api.projects.create);
+    const fetchInstagramProfile = useAction(api.instagram.fetchProfile);
 
     const [newProjectUrl, setNewProjectUrl] = useState("");
     const [isCreating, setIsCreating] = useState(false);
@@ -26,8 +27,13 @@ export default function DashboardPage() {
             // Simple name extraction for now
             const name = newProjectUrl.split("/").filter(Boolean).pop() || "Novo Projeto";
 
-            await createProject({
+            const projectId = await createProject({
                 name: name,
+                instagramUrl: newProjectUrl,
+            });
+
+            await fetchInstagramProfile({
+                projectId,
                 instagramUrl: newProjectUrl,
             });
 

@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment variables
+
+Set the following variables before running Convex/Next.js locally:
+
+- `NEXT_PUBLIC_CONVEX_URL` – Provided by Convex.
+- `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` – Clerk auth.
+- `APIFY_TOKEN` – Apify API token used to fetch Instagram data. You may optionally override the Instagram actor with `APIFY_INSTAGRAM_ACTOR_ID`.
+
+Add them to `.env.local` and `.env` (for Convex) as needed.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
