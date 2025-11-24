@@ -8,11 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 
+import { BackgroundGrid } from "@/components/background-grid";
+import { FloatingParticles } from "@/components/floating-particles";
+
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground overflow-hidden">
+      <BackgroundGrid />
+      <FloatingParticles />
       <SiteHeader />
-      <main className="container mx-auto flex flex-col items-center justify-center px-4 py-16 text-center md:py-24">
+      <main className="container mx-auto flex flex-col items-center justify-center px-4 py-16 text-center md:py-24 relative z-10">
         <Hero />
       </main>
     </div>
