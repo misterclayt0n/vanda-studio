@@ -21,6 +21,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 export default function RootLayout({
   children,
@@ -41,6 +42,13 @@ export default function RootLayout({
           <ClerkProvider>
             <ConvexClientProvider>
               {children}
+              <Toaster
+                position="bottom-right"
+                toastOptions={{
+                  className: "bg-card border-border",
+                }}
+                richColors
+              />
             </ConvexClientProvider>
           </ClerkProvider>
         </ThemeProvider>

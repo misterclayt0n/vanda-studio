@@ -1,16 +1,16 @@
-// Prompt templates for AI analysis
+// Prompt templates for AI analysis (PT-BR)
 
-export const BRAND_ANALYSIS_SYSTEM_PROMPT = `You are a senior social media strategist and brand consultant specializing in Instagram marketing. Your role is to analyze Instagram profiles and provide actionable transformation strategies.
+export const BRAND_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista sênior de mídias sociais e consultor de marca especializado em marketing no Instagram. Seu papel é analisar perfis do Instagram e fornecer estratégias de transformação acionáveis.
 
-Your analysis must be:
-1. ACTIONABLE - Every recommendation must be immediately implementable
-2. SPECIFIC - Reference actual patterns you observe in the data
-3. REASONED - Explain WHY each change will improve performance
-4. CONSTRUCTIVE - Frame improvements positively while being honest
+Sua análise deve ser:
+1. ACIONÁVEL - Cada recomendação deve ser implementável imediatamente
+2. ESPECÍFICA - Referencie padrões reais que você observa nos dados
+3. FUNDAMENTADA - Explique POR QUE cada mudança vai melhorar a performance
+4. CONSTRUTIVA - Enquadre as melhorias de forma positiva sendo honesto
 
-You will receive profile data and recent posts. Analyze them holistically to understand the brand's current state and provide strategic recommendations.
+Você receberá dados do perfil e posts recentes. Analise-os de forma holística para entender o estado atual da marca e fornecer recomendações estratégicas.
 
-IMPORTANT: Respond ONLY with valid JSON matching the exact schema provided. No markdown, no explanations outside the JSON.`;
+IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
 
 export const BRAND_ANALYSIS_USER_PROMPT = (data: {
     handle: string;
@@ -24,66 +24,66 @@ export const BRAND_ANALYSIS_USER_PROMPT = (data: {
         mediaType: string;
         timestamp: string;
     }>;
-}) => `Analyze this Instagram profile and provide a comprehensive brand transformation strategy.
+}) => `Analise este perfil do Instagram e forneça uma estratégia completa de transformação da marca.
 
-## Profile Data
+## Dados do Perfil
 - Handle: @${data.handle}
-- Bio: ${data.bio || "(no bio)"}
-- Followers: ${data.followersCount?.toLocaleString() || "unknown"}
-- Total Posts: ${data.postsCount || "unknown"}
+- Bio: ${data.bio || "(sem bio)"}
+- Seguidores: ${data.followersCount?.toLocaleString("pt-BR") || "desconhecido"}
+- Total de Posts: ${data.postsCount || "desconhecido"}
 
-## Recent Posts (${data.posts.length} posts)
+## Posts Recentes (${data.posts.length} posts)
 ${data.posts.map((post, i) => `
 ### Post ${i + 1}
-- Type: ${post.mediaType}
-- Date: ${post.timestamp}
-- Likes: ${post.likeCount ?? "unknown"}
-- Comments: ${post.commentsCount ?? "unknown"}
-- Caption: "${post.caption || "(no caption)"}"
+- Tipo: ${post.mediaType}
+- Data: ${post.timestamp}
+- Curtidas: ${post.likeCount ?? "desconhecido"}
+- Comentários: ${post.commentsCount ?? "desconhecido"}
+- Legenda: "${post.caption || "(sem legenda)"}"
 `).join("\n")}
 
-## Required JSON Response Schema
+## Schema JSON Obrigatório (responda em português brasileiro)
 {
   "brandVoice": {
-    "current": "Description of current brand voice based on captions",
-    "recommended": "Recommended brand voice direction",
-    "reasoning": "Why this change will improve engagement",
-    "tone": ["adjective1", "adjective2", "adjective3"]
+    "current": "Descrição da voz atual da marca baseada nas legendas",
+    "recommended": "Direção recomendada para a voz da marca",
+    "reasoning": "Por que essa mudança vai melhorar o engajamento",
+    "tone": ["adjetivo1", "adjetivo2", "adjetivo3"]
   },
   "contentPillars": [
     {
-      "name": "Pillar name",
-      "description": "What this content pillar covers",
-      "reasoning": "Why this pillar fits the brand"
+      "name": "Nome do pilar",
+      "description": "O que este pilar de conteúdo abrange",
+      "reasoning": "Por que este pilar combina com a marca"
     }
   ],
   "visualDirection": {
-    "currentStyle": "Description of current visual style",
-    "recommendedStyle": "Recommended visual direction",
-    "reasoning": "Why this visual change will help"
+    "currentStyle": "Descrição do estilo visual atual",
+    "recommendedStyle": "Direção visual recomendada",
+    "reasoning": "Por que essa mudança visual vai ajudar"
   },
   "targetAudience": {
-    "current": "Who the content currently appeals to",
-    "recommended": "Ideal target audience",
-    "reasoning": "Why targeting this audience makes sense"
+    "current": "Para quem o conteúdo atual atrai",
+    "recommended": "Público-alvo ideal",
+    "reasoning": "Por que focar neste público faz sentido"
   },
   "overallScore": 75,
-  "strategySummary": "2-3 sentence summary of the key strategic recommendations"
+  "strategySummary": "Resumo de 2-3 frases das principais recomendações estratégicas"
 }
 
-Analyze thoroughly and respond with ONLY the JSON object.`;
+Analise profundamente e responda com APENAS o objeto JSON.`;
 
-export const POST_ANALYSIS_SYSTEM_PROMPT = `You are a senior content strategist reviewing Instagram posts like a code reviewer reviews pull requests. Your job is to provide specific, actionable feedback on each post's caption.
+export const POST_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista de conteúdo sênior revisando posts do Instagram como um revisor de código revisa pull requests. Seu trabalho é fornecer feedback específico e acionável sobre a legenda de cada post.
 
-For each post, you will:
-1. Rewrite the caption to maximize engagement
-2. Explain your reasoning (like PR comments)
-3. Score the original caption (0-100)
-4. List specific improvements by category
+Para cada post, você vai:
+1. Reescrever a legenda para maximizar o engajamento
+2. Explicar seu raciocínio (como comentários de PR)
+3. Dar uma nota para a legenda original (0-100)
+4. Listar melhorias específicas por categoria
 
-Be specific. Reference the actual content. Explain your reasoning clearly.
+Seja específico. Referencie o conteúdo real. Explique seu raciocínio claramente.
 
-IMPORTANT: Respond ONLY with valid JSON matching the exact schema provided. No markdown, no explanations outside the JSON.`;
+IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
 
 export const POST_ANALYSIS_USER_PROMPT = (data: {
     brandContext: {
@@ -99,42 +99,42 @@ export const POST_ANALYSIS_USER_PROMPT = (data: {
         commentsCount: number | undefined;
         timestamp: string;
     };
-}) => `Review this Instagram post and provide detailed feedback.
+}) => `Revise este post do Instagram e forneça feedback detalhado.
 
-## Brand Context
+## Contexto da Marca
 - Handle: @${data.brandContext.handle}
-- Target Voice: ${data.brandContext.brandVoice}
-- Target Audience: ${data.brandContext.targetAudience}
-- Content Pillars: ${data.brandContext.contentPillars.join(", ")}
+- Voz Alvo: ${data.brandContext.brandVoice}
+- Público-Alvo: ${data.brandContext.targetAudience}
+- Pilares de Conteúdo: ${data.brandContext.contentPillars.join(", ")}
 
-## Post to Review
-- Type: ${data.post.mediaType}
-- Date: ${data.post.timestamp}
-- Engagement: ${data.post.likeCount ?? 0} likes, ${data.post.commentsCount ?? 0} comments
-- Current Caption: "${data.post.caption || "(no caption)"}"
+## Post para Revisar
+- Tipo: ${data.post.mediaType}
+- Data: ${data.post.timestamp}
+- Engajamento: ${data.post.likeCount ?? 0} curtidas, ${data.post.commentsCount ?? 0} comentários
+- Legenda Atual: "${data.post.caption || "(sem legenda)"}"
 
-## Required JSON Response Schema
+## Schema JSON Obrigatório (responda em português brasileiro)
 {
-  "suggestedCaption": "The rewritten caption that addresses all issues and maximizes engagement",
-  "reasoning": "2-3 sentences explaining the key changes and why they improve the post",
+  "suggestedCaption": "A legenda reescrita que resolve todos os problemas e maximiza o engajamento",
+  "reasoning": "2-3 frases explicando as principais mudanças e por que elas melhoram o post",
   "score": 65,
   "improvements": [
     {
       "type": "hook",
-      "issue": "What's wrong with the current approach",
-      "suggestion": "Specific fix"
+      "issue": "O que está errado com a abordagem atual",
+      "suggestion": "Correção específica"
     },
     {
       "type": "cta",
-      "issue": "Issue with call-to-action",
-      "suggestion": "Better CTA approach"
+      "issue": "Problema com a chamada para ação",
+      "suggestion": "Melhor abordagem de CTA"
     }
   ]
 }
 
-Valid improvement types: "hook", "cta", "hashtags", "tone", "length", "emoji", "formatting", "value"
+Tipos de melhoria válidos: "hook" (gancho), "cta" (chamada para ação), "hashtags", "tone" (tom), "length" (tamanho), "emoji", "formatting" (formatação), "value" (valor)
 
-Analyze and respond with ONLY the JSON object.`;
+Analise e responda com APENAS o objeto JSON.`;
 
 // Types for parsed responses
 export interface BrandAnalysisResponse {

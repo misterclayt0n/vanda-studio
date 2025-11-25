@@ -80,19 +80,90 @@ export async function callLLM(
 export function parseJSONResponse<T>(response: string): T {
     // Try to extract JSON from the response
     // Sometimes LLMs wrap JSON in markdown code blocks
-    let jsonStr = response;
+    let jsonStr = response.trim();
 
-    // Remove markdown code blocks if present
-    const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-        jsonStr = jsonMatch[1].trim();
+    // Remove markdown code blocks if present (handle both complete and incomplete blocks)
+    // First try to match complete code blocks
+    const completeMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (completeMatch) {
+        jsonStr = completeMatch[1].trim();
+    } else {
+        // Handle incomplete code blocks (LLM response was truncated)
+        const incompleteMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*)/);
+        if (incompleteMatch) {
+            jsonStr = incompleteMatch[1].trim();
+        }
+    }
+
+    // Try to find JSON object boundaries if the response has extra content
+    const jsonStartIndex = jsonStr.indexOf('{');
+    const jsonEndIndex = jsonStr.lastIndexOf('}');
+
+    if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+        jsonStr = jsonStr.substring(jsonStartIndex, jsonEndIndex + 1);
     }
 
     try {
         return JSON.parse(jsonStr) as T;
     } catch (error) {
-        throw new Error(`Failed to parse JSON response: ${error}. Raw response: ${response.substring(0, 500)}`);
+        // If parsing fails, try to repair common issues
+        try {
+            // Sometimes JSON is truncated - try to complete it
+            const repaired = tryRepairJSON(jsonStr);
+            return JSON.parse(repaired) as T;
+        } catch {
+            throw new Error(`Failed to parse JSON response: ${error}. Raw response: ${response.substring(0, 500)}`);
+        }
     }
+}
+
+// Attempt to repair truncated or malformed JSON
+function tryRepairJSON(jsonStr: string): string {
+    let repaired = jsonStr;
+
+    // Count brackets to see if we need to close any
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (const char of repaired) {
+        if (escapeNext) {
+            escapeNext = false;
+            continue;
+        }
+        if (char === '\\') {
+            escapeNext = true;
+            continue;
+        }
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (!inString) {
+            if (char === '{') openBraces++;
+            else if (char === '}') openBraces--;
+            else if (char === '[') openBrackets++;
+            else if (char === ']') openBrackets--;
+        }
+    }
+
+    // If we're in a string, close it
+    if (inString) {
+        repaired += '"';
+    }
+
+    // Close any open brackets/braces
+    while (openBrackets > 0) {
+        repaired += ']';
+        openBrackets--;
+    }
+    while (openBraces > 0) {
+        repaired += '}';
+        openBraces--;
+    }
+
+    return repaired;
 }
 
 // Convex action wrapper for testing LLM connection

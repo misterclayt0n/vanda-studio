@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 interface AnalysisTriggerProps {
     projectId: Id<"projects">;
@@ -29,15 +30,46 @@ export function AnalysisTrigger({
         setError(null);
         onAnalysisStarted?.();
 
+        toast.loading("Iniciando análise de IA...", { id: "analysis" });
+
         try {
             await requestAnalysis({ projectId });
+            toast.success("Análise concluída com sucesso!", {
+                id: "analysis",
+                description: "Confira os resultados abaixo.",
+            });
             onAnalysisComplete?.();
         } catch (err) {
-            const message = err instanceof Error ? err.message : "Analysis failed";
+            const rawMessage = err instanceof Error ? err.message : "Erro desconhecido";
+            const message = translateError(rawMessage);
             setError(message);
+            toast.error("Falha na análise", {
+                id: "analysis",
+                description: message,
+            });
         } finally {
             setIsAnalyzing(false);
         }
+    };
+
+    // Translate common error messages to Portuguese
+    const translateError = (message: string): string => {
+        if (message.includes("No prompts remaining")) {
+            return "Você atingiu o limite de análises. Faça upgrade para continuar.";
+        }
+        if (message.includes("Not authenticated")) {
+            return "Você precisa estar logado para fazer análises.";
+        }
+        if (message.includes("Project not found")) {
+            return "Projeto não encontrado ou sem permissão de acesso.";
+        }
+        if (message.includes("Failed to parse JSON")) {
+            return "Erro ao processar resposta da IA. Tente novamente.";
+        }
+        if (message.includes("OpenRouter API error")) {
+            return "Erro de conexão com a IA. Tente novamente em alguns segundos.";
+        }
+        return message;
     };
 
     const remaining = usageStats ? usageStats.promptsLimit - usageStats.promptsUsed : 0;

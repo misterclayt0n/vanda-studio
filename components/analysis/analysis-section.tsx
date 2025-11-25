@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AnalysisTrigger } from "./analysis-trigger";
 import { BrandAnalysisCard } from "./brand-analysis-card";
 import { PostDiffCard } from "./post-diff-card";
+import { AnalysisHistory } from "./analysis-history";
 import {
     Loader2,
     AlertTriangle,
@@ -29,16 +30,26 @@ type ViewMode = "brand" | "posts";
 export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("brand");
     const [refreshKey, setRefreshKey] = useState(0);
+    const [selectedAnalysisId, setSelectedAnalysisId] = useState<Id<"brand_analysis"> | null>(null);
 
     const latestAnalysis = useQuery(
         api.ai.analysisMutations.getLatestAnalysis,
         { projectId }
     );
 
+    // Use selected analysis or fallback to latest
+    const currentAnalysisId = selectedAnalysisId || latestAnalysis?._id;
+
     const postAnalyses = useQuery(
         api.ai.analysisMutations.getPostAnalyses,
-        latestAnalysis?._id ? { analysisId: latestAnalysis._id } : "skip"
+        currentAnalysisId ? { analysisId: currentAnalysisId } : "skip"
     );
+
+    // Get the current analysis to display (either selected or latest)
+    const allAnalyses = useQuery(api.ai.analysisMutations.listAnalyses, { projectId });
+    const currentAnalysis = selectedAnalysisId
+        ? allAnalyses?.find((a) => a._id === selectedAnalysisId) ?? latestAnalysis
+        : latestAnalysis;
 
     // Loading state
     if (latestAnalysis === undefined) {
@@ -75,8 +86,8 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
         );
     }
 
-    // Analysis in progress
-    if (latestAnalysis.status === "pending" || latestAnalysis.status === "processing") {
+    // Analysis in progress (only show for latest, not selected)
+    if (!selectedAnalysisId && (latestAnalysis.status === "pending" || latestAnalysis.status === "processing")) {
         return (
             <Card>
                 <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
@@ -96,8 +107,8 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
         );
     }
 
-    // Analysis failed
-    if (latestAnalysis.status === "failed") {
+    // Analysis failed (only show for latest, not selected)
+    if (!selectedAnalysisId && latestAnalysis.status === "failed") {
         return (
             <Card className="border-destructive/50">
                 <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
@@ -117,6 +128,11 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
                 </CardContent>
             </Card>
         );
+    }
+
+    // Make sure we have a valid analysis to show
+    if (!currentAnalysis || currentAnalysis.status !== "completed") {
+        return null;
     }
 
     // Analysis completed - show results
@@ -148,7 +164,7 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
                         <Clock className="h-3 w-3" />
                         <span>
                             Analisado em{" "}
-                            {new Date(latestAnalysis.createdAt).toLocaleDateString("pt-BR", {
+                            {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {
                                 day: "2-digit",
                                 month: "short",
                                 hour: "2-digit",
@@ -158,14 +174,17 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
                     </div>
                     <AnalysisTrigger
                         projectId={projectId}
-                        onAnalysisComplete={() => setRefreshKey((k) => k + 1)}
+                        onAnalysisComplete={() => {
+                            setRefreshKey((k) => k + 1);
+                            setSelectedAnalysisId(null); // Reset to latest after new analysis
+                        }}
                     />
                 </div>
             </div>
 
             {/* Content based on view mode */}
             {viewMode === "brand" ? (
-                <BrandAnalysisCard analysis={latestAnalysis} />
+                <BrandAnalysisCard analysis={currentAnalysis} />
             ) : (
                 <div className="space-y-4">
                     {postAnalyses === undefined ? (
@@ -201,6 +220,13 @@ export function AnalysisSection({ projectId, posts }: AnalysisSectionProps) {
                     )}
                 </div>
             )}
+
+            {/* Analysis History */}
+            <AnalysisHistory
+                projectId={projectId}
+                onSelectAnalysis={(id) => setSelectedAnalysisId(id)}
+                currentAnalysisId={currentAnalysis._id}
+            />
         </div>
     );
 }

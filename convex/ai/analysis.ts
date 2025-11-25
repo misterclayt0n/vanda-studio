@@ -26,19 +26,22 @@ export const requestAnalysis = action({
             throw new Error("Not authenticated");
         }
 
-        // 2. Check quota
+        // 2. Ensure subscription exists (creates free tier if needed)
+        await ctx.runMutation(api.billing.usage.ensureSubscription, {});
+
+        // 3. Check quota
         const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
         if (!quota || !quota.hasQuota) {
             throw new Error("No prompts remaining. Please upgrade your plan.");
         }
 
-        // 3. Get project data
+        // 4. Get project data
         const project = await ctx.runQuery(api.projects.get, { projectId: args.projectId });
         if (!project) {
             throw new Error("Project not found or access denied");
         }
 
-        // 4. Create analysis record with status "pending"
+        // 5. Create analysis record with status "pending"
         const analysisId = await ctx.runMutation(api.ai.analysisMutations.createAnalysis, {
             projectId: args.projectId,
         });
@@ -117,7 +120,7 @@ export const requestAnalysis = action({
                             { role: "system", content: POST_ANALYSIS_SYSTEM_PROMPT },
                             { role: "user", content: postPrompt },
                         ],
-                        { temperature: 0.7, maxTokens: 1024 }
+                        { temperature: 0.7, maxTokens: 2048 }
                     );
 
                     const postAnalysis = parseJSONResponse<PostAnalysisResponse>(postResponse.content);
