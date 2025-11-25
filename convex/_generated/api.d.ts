@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as ai_llm from "../ai/llm.js";
+import type * as billing_usage from "../billing/usage.js";
 import type * as files from "../files.js";
 import type * as instagram from "../instagram.js";
 import type * as instagramPosts from "../instagramPosts.js";
@@ -21,6 +23,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "ai/llm": typeof ai_llm;
+  "billing/usage": typeof billing_usage;
   files: typeof files;
   instagram: typeof instagram;
   instagramPosts: typeof instagramPosts;

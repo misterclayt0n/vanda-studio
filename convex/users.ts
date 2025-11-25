@@ -1,5 +1,14 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { PLANS } from "./billing/usage";
+
+// Get the start and end of the current billing period (monthly)
+function getBillingPeriod(): { start: number; end: number } {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+    return { start, end };
+}
 
 export const store = mutation({
     args: {
@@ -28,12 +37,26 @@ export const store = mutation({
         }
 
         // If it's a new identity, create a new `User`.
-        return await ctx.db.insert("users", {
+        const userId = await ctx.db.insert("users", {
             name: args.name,
             email: args.email,
             clerkId: identity.subject,
             imageUrl: args.imageUrl,
         });
+
+        // Auto-create free tier subscription for new users
+        const period = getBillingPeriod();
+        await ctx.db.insert("user_subscriptions", {
+            userId,
+            plan: "free",
+            promptsLimit: PLANS.free.promptsLimit,
+            promptsUsed: 0,
+            periodStart: period.start,
+            periodEnd: period.end,
+            createdAt: Date.now(),
+        });
+
+        return userId;
     },
 });
 

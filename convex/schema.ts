@@ -42,14 +42,82 @@ export default defineSchema({
         analysis: v.optional(v.any()),
     }).index("by_project_id", ["projectId"]),
 
+    // User subscription & quota tracking
+    user_subscriptions: defineTable({
+        userId: v.id("users"),
+        plan: v.string(), // "free" | "pro"
+        promptsLimit: v.number(),
+        promptsUsed: v.number(),
+        periodStart: v.number(),
+        periodEnd: v.number(),
+        createdAt: v.number(),
+    }).index("by_user_id", ["userId"]),
+
+    // AI brand analysis results
     brand_analysis: defineTable({
         projectId: v.id("projects"),
-        strategy: v.string(), // JSON string or structured text
-        brandVoice: v.string(),
-        targetAudience: v.string(),
-        contentPillars: v.array(v.string()),
+        status: v.string(), // "pending" | "processing" | "completed" | "failed"
+        brandVoice: v.optional(v.object({
+            current: v.string(),
+            recommended: v.string(),
+            reasoning: v.string(),
+            tone: v.array(v.string()),
+        })),
+        contentPillars: v.optional(v.array(v.object({
+            name: v.string(),
+            description: v.string(),
+            reasoning: v.string(),
+        }))),
+        visualDirection: v.optional(v.object({
+            currentStyle: v.string(),
+            recommendedStyle: v.string(),
+            reasoning: v.string(),
+        })),
+        targetAudience: v.optional(v.object({
+            current: v.string(),
+            recommended: v.string(),
+            reasoning: v.string(),
+        })),
+        overallScore: v.optional(v.number()),
+        strategySummary: v.optional(v.string()),
+        errorMessage: v.optional(v.string()),
         createdAt: v.number(),
     }).index("by_project_id", ["projectId"]),
+
+    // Per-post AI feedback (like PR comments)
+    post_analysis: defineTable({
+        projectId: v.id("projects"),
+        analysisId: v.id("brand_analysis"),
+        postId: v.id("instagram_posts"),
+        currentCaption: v.optional(v.string()),
+        suggestedCaption: v.string(),
+        reasoning: v.string(),
+        score: v.number(), // 0-100
+        improvements: v.array(v.object({
+            type: v.string(), // "hashtags" | "cta" | "tone" | "length"
+            issue: v.string(),
+            suggestion: v.string(),
+        })),
+        createdAt: v.number(),
+    }).index("by_analysis_id", ["analysisId"])
+      .index("by_post_id", ["postId"])
+      .index("by_project_id", ["projectId"]),
+
+    // Per-project conversation
+    conversations: defineTable({
+        projectId: v.id("projects"),
+        userId: v.id("users"),
+        createdAt: v.number(),
+    }).index("by_project_id", ["projectId"])
+      .index("by_user_id", ["userId"]),
+
+    // Chat messages
+    conversation_messages: defineTable({
+        conversationId: v.id("conversations"),
+        role: v.string(), // "user" | "assistant"
+        content: v.string(),
+        createdAt: v.number(),
+    }).index("by_conversation_id", ["conversationId"]),
 
     content_calendar: defineTable({
         projectId: v.id("projects"),
