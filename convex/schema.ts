@@ -15,6 +15,7 @@ export default defineSchema({
         instagramUrl: v.string(),
         instagramHandle: v.optional(v.string()),
         profilePictureUrl: v.optional(v.string()),
+        profilePictureStorageId: v.optional(v.id("_storage")),
         bio: v.optional(v.string()),
         followersCount: v.optional(v.number()),
         followingCount: v.optional(v.number()),
@@ -29,6 +30,9 @@ export default defineSchema({
         instagramId: v.string(), // The IG post ID
         caption: v.optional(v.string()),
         mediaUrl: v.string(),
+        mediaStorageId: v.optional(v.id("_storage")),
+        thumbnailUrl: v.optional(v.string()),
+        thumbnailStorageId: v.optional(v.id("_storage")),
         mediaType: v.string(), // IMAGE, VIDEO, CAROUSEL_ALBUM
         permalink: v.string(),
         timestamp: v.string(), // ISO string from IG

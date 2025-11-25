@@ -9,6 +9,7 @@ export const replaceForProject = mutation({
                 instagramId: v.string(),
                 caption: v.optional(v.string()),
                 mediaUrl: v.string(),
+                thumbnailUrl: v.optional(v.string()),
                 mediaType: v.string(),
                 permalink: v.string(),
                 timestamp: v.string(),

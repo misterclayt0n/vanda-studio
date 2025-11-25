@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
@@ -7,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { VideoPost } from "@/components/video-post";
 import { ArrowLeft, Instagram, Loader2 } from "lucide-react";
 
 export default function ProjectDetailsPage() {
@@ -108,18 +110,12 @@ export default function ProjectDetailsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-6 md:flex-row">
                     <div className="flex flex-col items-center gap-4 md:w-1/3">
-                        {project.profilePictureUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                                src={project.profilePictureUrl}
-                                alt={project.instagramHandle || project.name}
-                                className="h-32 w-32 rounded-full object-cover"
-                            />
-                        ) : (
-                            <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center text-lg font-semibold">
-                                {project.name.charAt(0).toUpperCase()}
-                            </div>
-                        )}
+                        <ProfilePicture
+                            storageUrl={project.profilePictureStorageUrl}
+                            externalUrl={project.profilePictureUrl}
+                            alt={project.instagramHandle || project.name}
+                            fallbackLetter={project.name.charAt(0).toUpperCase()}
+                        />
                         <div className="text-center">
                             <p className="text-lg font-semibold">@{project.instagramHandle || extractHandle(project.instagramUrl)}</p>
                             {project.bio && <p className="text-sm text-muted-foreground mt-2 max-w-sm">{project.bio}</p>}
@@ -156,30 +152,44 @@ export default function ProjectDetailsPage() {
                         <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {posts.map((post) => (
-                                <Link
-                                    href={post.permalink}
-                                    target="_blank"
-                                    key={post._id}
-                                    className="group rounded-lg border overflow-hidden hover:border-primary/60 transition-colors"
-                                >
-                                    <div className="aspect-square bg-muted overflow-hidden">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={post.mediaUrl}
-                                            alt={post.caption ?? "Post do Instagram"}
-                                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                                        />
+                            {posts.map((post) => {
+                                const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+                                const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+
+                                return (
+                                    <div
+                                        key={post._id}
+                                        className="group rounded-lg border overflow-hidden hover:border-primary/60 transition-colors"
+                                    >
+                                        {isVideo ? (
+                                            <VideoPost
+                                                mediaUrl={post.mediaUrl}
+                                                thumbnailUrl={post.thumbnailUrl}
+                                                caption={post.caption}
+                                                permalink={post.permalink}
+                                            />
+                                        ) : (
+                                            <Link href={post.permalink} target="_blank">
+                                                <div className="aspect-square bg-muted overflow-hidden">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img
+                                                        src={post.mediaUrl}
+                                                        alt={post.caption ?? "Post do Instagram"}
+                                                        className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                                    />
+                                                </div>
+                                            </Link>
+                                        )}
+                                        <Link href={post.permalink} target="_blank" className="block p-4 space-y-2">
+                                            <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
+                                            <div className="text-xs text-muted-foreground flex items-center justify-between">
+                                                <span>{post.likeCount ? `❤️ ${post.likeCount}` : "❤️ 0"}</span>
+                                                <span>{new Date(post.timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                        </Link>
                                     </div>
-                                    <div className="p-4 space-y-2">
-                                        <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
-                                        <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                            <span>{post.likeCount ? `❤️ ${post.likeCount}` : "❤️ 0"}</span>
-                                            <span>{new Date(post.timestamp).toLocaleDateString()}</span>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </CardContent>
@@ -210,4 +220,47 @@ function ensureUrl(url: string) {
         return url;
     }
     return `https://${url}`;
+}
+
+function ProfilePicture({
+    storageUrl,
+    externalUrl,
+    alt,
+    fallbackLetter,
+}: {
+    storageUrl?: string | null;
+    externalUrl?: string;
+    alt: string;
+    fallbackLetter: string;
+}) {
+    const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+
+    // Build list of URLs to try in order
+    const urls = [storageUrl, externalUrl].filter((url): url is string => Boolean(url));
+    const currentUrl = urls[currentUrlIndex];
+
+    if (!currentUrl) {
+        return (
+            <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center text-lg font-semibold">
+                {fallbackLetter}
+            </div>
+        );
+    }
+
+    return (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+            src={currentUrl}
+            alt={alt}
+            className="h-32 w-32 rounded-full object-cover"
+            onError={() => {
+                // Try next URL if available, otherwise show fallback
+                if (currentUrlIndex < urls.length - 1) {
+                    setCurrentUrlIndex(currentUrlIndex + 1);
+                } else {
+                    setCurrentUrlIndex(urls.length); // triggers fallback
+                }
+            }}
+        />
+    );
 }

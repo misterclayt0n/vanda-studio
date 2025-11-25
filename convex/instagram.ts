@@ -14,6 +14,7 @@ type InstagramPostRecord = {
     instagramId: string;
     caption?: string;
     mediaUrl: string;
+    thumbnailUrl?: string;
     mediaType: string;
     permalink: string;
     timestamp: string;
@@ -80,6 +81,20 @@ export const fetchProfile = action({
                     projectId: args.projectId,
                     posts,
                 });
+            }
+
+            // Download profile picture to Convex storage for reliability
+            if (profile.profilePictureUrl) {
+                const profilePicStorageId = await ctx.runAction(
+                    api.files.downloadAndStoreFile,
+                    { url: profile.profilePictureUrl }
+                );
+                if (profilePicStorageId) {
+                    await ctx.runMutation(api.projects.updateProfilePictureStorage, {
+                        projectId: args.projectId,
+                        storageId: profilePicStorageId,
+                    });
+                }
             }
 
             return {
@@ -216,67 +231,82 @@ function buildProfileFromItems(items: RawInstagramItem[], fallbackUrl: string) {
 
 function buildPostsFromItems(items: RawInstagramItem[], fallbackUrl: string): InstagramPostRecord[] {
     const now = Date.now();
+    const posts: InstagramPostRecord[] = [];
 
-    return items
-        .map((item, index) => {
-            if (isVideoItem(item)) {
-                return null;
-            }
+    for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        const isVideo = isVideoItem(item);
 
-            const mediaUrl = coalesce<string>(
+        // For videos, prefer videoUrl; for images, prefer displayUrl
+        const mediaUrl = isVideo
+            ? coalesce<string>(item.videoUrl, item.video_url, item.displayUrl, item.imageUrl)
+            : coalesce<string>(
                 item.displayUrl,
                 item.imageUrl,
                 item.videoUrl,
                 item.thumbnailUrl,
             );
 
-            if (!mediaUrl) {
-                return null;
-            }
+        if (!mediaUrl) {
+            continue;
+        }
 
-            const instagramId =
+        const instagramId =
+            coalesce<string>(
+                item.id,
+                item.postId,
+                item.instagramId,
+                item.shortCode,
+            ) ?? `post_${now}_${index}`;
+
+        const permalink =
+            coalesce<string>(
+                item.permalink,
+                item.url,
+                item.link,
+                item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : undefined,
+            ) ?? fallbackUrl;
+
+        // For videos, get thumbnail from displayUrl or thumbnailUrl
+        const thumbnailUrl = isVideo
+            ? coalesce<string>(
+                item.displayUrl,
+                item.thumbnailUrl,
+                item.thumbnail_url,
+                item.imageUrl,
+            )
+            : undefined;
+
+        posts.push({
+            instagramId,
+            caption: coalesce<string>(item.caption, item.description, item.title),
+            mediaUrl,
+            thumbnailUrl,
+            mediaType: normalizeMediaType(
                 coalesce<string>(
-                    item.id,
-                    item.postId,
-                    item.instagramId,
-                    item.shortCode,
-                ) ?? `post_${now}_${index}`;
+                    item.mediaType,
+                    item.type,
+                    isVideo ? "VIDEO" : undefined,
+                ) ?? "IMAGE"
+            ),
+            permalink,
+            timestamp: normalizeTimestamp(
+                item.timestamp ?? item.takenAt ?? item.publishedAt ?? item.createdAt,
+            ),
+            likeCount: coalesce<number>(
+                item.likesCount,
+                item.likeCount,
+                item.edge_liked_by?.count,
+            ),
+            commentsCount: coalesce<number>(
+                item.commentsCount,
+                item.commentCount,
+                item.edge_media_to_comment?.count,
+            ),
+        });
+    }
 
-            const permalink =
-                coalesce<string>(
-                    item.permalink,
-                    item.url,
-                    item.link,
-                    item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : undefined,
-                ) ?? fallbackUrl;
-
-            return {
-                instagramId,
-                caption: coalesce<string>(item.caption, item.description, item.title),
-                mediaUrl,
-                mediaType:
-                    coalesce<string>(
-                        item.mediaType,
-                        item.type,
-                        item.isVideo ? "VIDEO" : undefined,
-                    ) ?? "IMAGE",
-                permalink,
-                timestamp: normalizeTimestamp(
-                    item.timestamp ?? item.takenAt ?? item.publishedAt ?? item.createdAt,
-                ),
-                likeCount: coalesce<number>(
-                    item.likesCount,
-                    item.likeCount,
-                    item.edge_liked_by?.count,
-                ),
-                commentsCount: coalesce<number>(
-                    item.commentsCount,
-                    item.commentCount,
-                    item.edge_media_to_comment?.count,
-                ),
-            };
-        })
-        .filter((post): post is InstagramPostRecord => Boolean(post));
+    return posts;
 }
 
 function normalizeTimestamp(value: unknown): string {
@@ -331,4 +361,19 @@ function isVideoItem(item: RawInstagramItem): boolean {
     }
 
     return Boolean(item.isVideo);
+}
+
+function normalizeMediaType(type: string): string {
+    const upper = type.toUpperCase();
+    // Normalize common variations
+    if (upper === "VIDEO" || upper === "REEL" || upper === "CLIP" || upper.includes("VIDEO")) {
+        return "VIDEO";
+    }
+    if (upper === "IMAGE" || upper === "PHOTO" || upper === "GRAPHIMAGE") {
+        return "IMAGE";
+    }
+    if (upper === "CAROUSEL" || upper === "CAROUSEL_ALBUM" || upper === "SIDECAR") {
+        return "CAROUSEL_ALBUM";
+    }
+    return upper;
 }

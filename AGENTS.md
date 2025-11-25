@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Purpose of this project
+This is called vanda studio. its a b2b ai based saas app to replace marketing overall from companies. the idea is that some company will place it's instagram url into the app and then vanda will overhaul
+it's page conceptually just to show it's capabilities and perform a complete market overhaul
+  
 ## Project Structure & Module Organization
 - `app/` hosts the Next.js App Router entry points such as `layout.tsx`, shared styles, and `page.tsx`, which renders the marketing experience.
 - `convex/` contains Convex backend functions and should mirror any client-facing actions with matching server logic.

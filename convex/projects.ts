@@ -129,7 +129,16 @@ export const get = query({
             return null;
         }
 
-        return project;
+        // Get storage URL for profile picture if available
+        let profilePictureStorageUrl: string | null = null;
+        if (project.profilePictureStorageId) {
+            profilePictureStorageUrl = await ctx.storage.getUrl(project.profilePictureStorageId);
+        }
+
+        return {
+            ...project,
+            profilePictureStorageUrl,
+        };
     },
 });
 
@@ -167,5 +176,36 @@ export const remove = mutation({
         }
 
         await ctx.db.delete(args.projectId);
+    },
+});
+
+export const updateProfilePictureStorage = mutation({
+    args: {
+        projectId: v.id("projects"),
+        storageId: v.id("_storage"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Called updateProfilePictureStorage without authentication");
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            throw new Error("Not authorized to update this project");
+        }
+
+        await ctx.db.patch(args.projectId, {
+            profilePictureStorageId: args.storageId,
+        });
     },
 });
