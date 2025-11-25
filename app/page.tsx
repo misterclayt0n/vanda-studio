@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ModeToggle } from "@/components/mode-toggle";
+// import { ModeToggle } from "@/components/mode-toggle";
 import { Sparkles, ArrowRight, Zap } from "lucide-react";
 
 import { BackgroundGrid } from "@/components/background-grid";
@@ -63,7 +63,7 @@ function SiteHeader() {
             }}
           />
         </SignedIn>
-        <ModeToggle />
+        {/* <ModeToggle /> */}
       </div>
     </header>
   );

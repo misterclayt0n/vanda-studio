@@ -1,6 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
-import { ModeToggle } from "@/components/mode-toggle";
+// import { ModeToggle } from "@/components/mode-toggle";
 import { LayoutDashboard, Settings, Sparkles } from "lucide-react";
 
 export default function DashboardLayout({
@@ -44,7 +44,7 @@ export default function DashboardLayout({
                         </nav>
                     </div>
                     <div className="flex items-center gap-2">
-                        <ModeToggle />
+                        {/* <ModeToggle /> */}
                         <UserButton
                             appearance={{
                                 elements: {
