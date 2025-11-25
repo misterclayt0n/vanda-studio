@@ -8,6 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Plus, Instagram, ArrowRight, Trash } from "lucide-react";
 import Link from "next/link";
 
@@ -50,8 +61,6 @@ export default function DashboardPage() {
 
     const handleDeleteProject = async (projectId: Id<"projects">) => {
         if (deletingProjectId) return;
-        const confirmDelete = window.confirm("Deseja realmente excluir este projeto? Essa ação não pode ser desfeita.");
-        if (!confirmDelete) return;
 
         setDeletingProjectId(projectId);
         try {
@@ -148,19 +157,39 @@ export default function DashboardPage() {
                                                 Abrir <ArrowRight className="ml-2 h-4 w-4" />
                                             </Link>
                                         </Button>
-                                        <Button
-                                            variant="destructive"
-                                            size="icon"
-                                            title="Excluir projeto"
-                                            disabled={deletingProjectId === project._id}
-                                            onClick={() => handleDeleteProject(project._id)}
-                                        >
-                                            {deletingProjectId === project._id ? (
-                                                <span className="text-xs">...</span>
-                                            ) : (
-                                                <Trash className="h-4 w-4" />
-                                            )}
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    title="Excluir projeto"
+                                                    disabled={deletingProjectId === project._id}
+                                                >
+                                                    {deletingProjectId === project._id ? (
+                                                        <span className="text-xs">...</span>
+                                                    ) : (
+                                                        <Trash className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Excluir projeto</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Deseja realmente excluir o projeto &quot;{project.name}&quot;? Essa ação não pode ser desfeita.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        onClick={() => handleDeleteProject(project._id)}
+                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                    >
+                                                        Excluir
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </div>
                             </CardContent>
