@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPost } from "@/components/video-post";
 import { ArrowLeft, Instagram, Loader2 } from "lucide-react";
+import { AnalysisSection } from "@/components/analysis";
 
 export default function ProjectDetailsPage() {
     const params = useParams<{ projectId: string }>();
@@ -136,6 +137,11 @@ export default function ProjectDetailsPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* AI Analysis Section */}
+            {posts && posts.length > 0 && (
+                <AnalysisSection projectId={projectId} posts={posts} />
+            )}
 
             <Card>
                 <CardHeader>

@@ -7,7 +7,7 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Default model - can be overridden per call
 // Using Gemini 2.5 Flash for cost efficiency
-const DEFAULT_MODEL = "google/gemini-2.5-flash-preview";
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
 interface LLMResponse {
     content: string;
