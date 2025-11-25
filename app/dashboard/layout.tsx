@@ -28,9 +28,20 @@ export default function DashboardLayout({
                             </Link>
                         </nav>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         <ModeToggle />
-                        <UserButton />
+                        <UserButton
+                            appearance={{
+                                elements: {
+                                    avatarBox: "h-8 w-8 ring-2 ring-border hover:ring-primary transition-all",
+                                    userButtonTrigger: "focus:shadow-none focus-visible:outline-none p-0",
+                                    userButtonPopoverCard: "bg-popover border border-border shadow-lg",
+                                    userButtonPopoverActionButton: "hover:bg-muted",
+                                    userButtonPopoverActionButtonText: "text-foreground",
+                                    userButtonPopoverFooter: "hidden",
+                                },
+                            }}
+                        />
                     </div>
                 </div>
             </header>

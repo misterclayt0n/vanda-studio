@@ -21,7 +21,6 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
-import { ModeToggle } from "@/components/mode-toggle";
 
 export default function RootLayout({
   children,
@@ -41,9 +40,6 @@ export default function RootLayout({
         >
           <ClerkProvider>
             <ConvexClientProvider>
-              <div className="absolute top-4 right-4 z-50">
-                <ModeToggle />
-              </div>
               {children}
             </ConvexClientProvider>
           </ClerkProvider>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { ModeToggle } from "@/components/mode-toggle";
 
 import { BackgroundGrid } from "@/components/background-grid";
 import { FloatingParticles } from "@/components/floating-particles";
@@ -26,7 +27,7 @@ export default function Home() {
 
 function SiteHeader() {
   return (
-    <header className="container mx-auto flex items-center justify-between px-4 py-6">
+    <header className="container mx-auto flex items-center justify-between px-4 py-6 relative z-10">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
           VS
@@ -38,15 +39,27 @@ function SiteHeader() {
           <p className="text-sm text-muted-foreground">Social media as a service</p>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         <SignedOut>
           <SignInButton mode="modal">
             <Button variant="outline">Entrar</Button>
           </SignInButton>
         </SignedOut>
         <SignedIn>
-          <UserButton appearance={{ elements: { avatarBox: "h-10 w-10" } }} />
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "h-9 w-9 ring-2 ring-border hover:ring-primary transition-all",
+                userButtonTrigger: "focus:shadow-none focus-visible:outline-none",
+                userButtonPopoverCard: "bg-popover border border-border shadow-lg",
+                userButtonPopoverActionButton: "hover:bg-muted",
+                userButtonPopoverActionButtonText: "text-foreground",
+                userButtonPopoverFooter: "hidden",
+              },
+            }}
+          />
         </SignedIn>
+        <ModeToggle />
       </div>
     </header>
   );
