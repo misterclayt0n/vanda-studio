@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ModeToggle } from "@/components/mode-toggle";
+import { Sparkles, ArrowRight, Zap } from "lucide-react";
 
 import { BackgroundGrid } from "@/components/background-grid";
 import { FloatingParticles } from "@/components/floating-particles";
@@ -28,29 +29,32 @@ export default function Home() {
 function SiteHeader() {
   return (
     <header className="container mx-auto flex items-center justify-between px-4 py-6 relative z-10">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
+      <div className="flex items-center gap-3 group">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-purple text-white font-bold text-sm shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300 group-hover:scale-105">
           VS
         </div>
         <div className="text-left">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <p className="text-sm font-bold tracking-tight text-foreground">
             Vanda Studio
           </p>
-          <p className="text-sm text-muted-foreground">Social media as a service</p>
+          <p className="text-xs text-muted-foreground">Social media as a service</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <SignedOut>
           <SignInButton mode="modal">
-            <Button variant="outline">Entrar</Button>
+            <Button variant="outline" size="sm">Entrar</Button>
           </SignInButton>
         </SignedOut>
         <SignedIn>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/dashboard">Dashboard</a>
+          </Button>
           <UserButton
             appearance={{
               elements: {
-                avatarBox: "h-9 w-9 ring-2 ring-border hover:ring-primary transition-all",
-                userButtonTrigger: "focus:shadow-none focus-visible:outline-none",
+                avatarBox: "h-8 w-8 ring-2 ring-border hover:ring-primary transition-all",
+                userButtonTrigger: "focus:shadow-none focus-visible:outline-none p-0",
                 userButtonPopoverCard: "bg-popover border border-border shadow-lg",
                 userButtonPopoverActionButton: "hover:bg-muted",
                 userButtonPopoverActionButtonText: "text-foreground",
@@ -69,28 +73,73 @@ function Hero() {
   const [showPrompt, setShowPrompt] = useState(false);
 
   return (
-    <div className="flex w-full max-w-3xl flex-col items-center space-y-8">
-      <div className="space-y-4">
-        <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-          Sala de Conceitos
-        </p>
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl">
-          Social media as a service. <br className="hidden md:inline" />
-          Envie um @ e veja a Vanda repintar a narrativa.
+    <div className="flex w-full max-w-4xl flex-col items-center space-y-10">
+      {/* Badge */}
+      <div className="animate-float-slow">
+        <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary backdrop-blur-sm">
+          <Sparkles className="h-3.5 w-3.5" />
+          <span className="font-medium">Sala de Conceitos</span>
+          <span className="h-1 w-1 rounded-full bg-primary/50" />
+          <span className="text-muted-foreground">Beta</span>
+        </div>
+      </div>
+
+      {/* Main heading */}
+      <div className="space-y-6">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+          <span className="text-gradient">Social media</span>
+          <br className="hidden sm:inline" />
+          <span className="text-foreground"> as a service.</span>
         </h1>
-        <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-          Cole o link do Instagram da sua loja. A Vanda devolve em minutos uma
-          narrativa clara, o clima e ideias de conteúdo prontas para usar.
+        <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
+          Envie um @ e veja a Vanda repintar a narrativa.
+          Cole o link do Instagram da sua loja e receba uma
+          <span className="text-foreground font-medium"> narrativa clara</span>,
+          <span className="text-foreground font-medium"> clima </span>
+          e ideias de conteúdo prontas para usar.
         </p>
       </div>
 
+      {/* CTA Section */}
       {!showPrompt ? (
-        <Button size="lg" onClick={() => setShowPrompt(true)}>
-          Iniciar Reformulação
-        </Button>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={() => setShowPrompt(true)}
+            className="group"
+          >
+            <Zap className="h-4 w-4" />
+            Iniciar Reformulação
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </Button>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <Button variant="outline" size="lg">
+                Fazer Login
+              </Button>
+            </SignInButton>
+          </SignedOut>
+        </div>
       ) : (
         <PromptPanel />
       )}
+
+      {/* Trust badges */}
+      <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground pt-4">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span>Análise em tempo real</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-primary" />
+          <span>+500 marcas analisadas</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-accent" />
+          <span>Resultados em minutos</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -100,22 +149,25 @@ function PromptPanel() {
   const [context, setContext] = useState("");
 
   return (
-    <Card className="w-full text-left animate-in fade-in zoom-in-95 duration-300">
-      <CardHeader>
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Entrada da Reformulação
-        </p>
-        <CardTitle className="text-2xl">O que devemos reimaginar primeiro?</CardTitle>
-        <CardDescription>
-          A Vanda analisa sua grade, cadência de posts e comentários. Adicione
-          casos extremos ou limites abaixo.
-        </CardDescription>
+    <Card className="w-full max-w-2xl text-left animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <CardHeader className="space-y-1">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-gradient-purple flex items-center justify-center">
+            <Sparkles className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">O que devemos reimaginar?</CardTitle>
+            <CardDescription>
+              A Vanda analisa sua grade, posts e engajamento.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <form className="space-y-6">
+        <form className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="url" className="text-xs uppercase tracking-widest text-muted-foreground">
-              URL do Instagram ou Rede Social
+            <Label htmlFor="url" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              URL do Instagram
             </Label>
             <Input
               id="url"
@@ -124,30 +176,33 @@ function PromptPanel() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               required
+              className="h-11"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="context" className="text-xs uppercase tracking-widest text-muted-foreground">
-              Contexto Adicional
+            <Label htmlFor="context" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Contexto Adicional <span className="text-muted-foreground/60">(opcional)</span>
             </Label>
             <Textarea
               id="context"
-              placeholder="Tom, campanhas para destacar, públicos para perseguir..."
+              placeholder="Tom desejado, campanhas para destacar, públicos-alvo..."
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              rows={4}
+              rows={3}
+              className="resize-none"
             />
           </div>
           <div className="pt-2">
             <SignedIn>
-              <Button type="submit" className="w-full">
-                Gerar Prévia da Reformulação
+              <Button type="submit" variant="gradient" className="w-full" size="lg">
+                <Zap className="h-4 w-4" />
+                Gerar Análise
               </Button>
             </SignedIn>
             <SignedOut>
               <SignInButton mode="modal">
-                <Button type="button" variant="secondary" className="w-full">
-                  Entrar para Enviar
+                <Button type="button" variant="outline" className="w-full" size="lg">
+                  Entrar para Continuar
                 </Button>
               </SignInButton>
             </SignedOut>
