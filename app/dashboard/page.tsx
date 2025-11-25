@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Doc } from "@/convex/_generated/dataModel";
+
+// Type for project with storage URL (matches backend)
+type ProjectWithStorageUrl = Doc<"projects"> & {
+    profilePictureStorageUrl: string | null;
+};
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,7 +167,7 @@ export default function DashboardPage() {
                     </div>
                 ) : (
                     // Project list
-                    projects.map((project) => (
+                    projects.map((project: ProjectWithStorageUrl) => (
                         <Card key={project._id} className="group relative overflow-hidden">
                             {/* Profile Picture & Header */}
                             <CardHeader>

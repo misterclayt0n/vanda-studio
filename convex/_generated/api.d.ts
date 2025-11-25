@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as ai_analysis from "../ai/analysis.js";
+import type * as ai_analysisMutations from "../ai/analysisMutations.js";
 import type * as ai_llm from "../ai/llm.js";
+import type * as ai_prompts from "../ai/prompts.js";
 import type * as billing_usage from "../billing/usage.js";
 import type * as files from "../files.js";
 import type * as instagram from "../instagram.js";
@@ -23,7 +26,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "ai/analysis": typeof ai_analysis;
+  "ai/analysisMutations": typeof ai_analysisMutations;
   "ai/llm": typeof ai_llm;
+  "ai/prompts": typeof ai_prompts;
   "billing/usage": typeof billing_usage;
   files: typeof files;
   instagram: typeof instagram;

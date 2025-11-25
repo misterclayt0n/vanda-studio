@@ -6,7 +6,8 @@ import { v } from "convex/values";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Default model - can be overridden per call
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4";
+// Using Gemini 2.5 Flash for cost efficiency
+const DEFAULT_MODEL = "google/gemini-2.5-flash-preview";
 
 interface LLMResponse {
     content: string;

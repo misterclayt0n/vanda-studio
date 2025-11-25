@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Doc } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPost } from "@/components/video-post";
@@ -152,7 +152,7 @@ export default function ProjectDetailsPage() {
                         <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {posts.map((post) => {
+                            {posts.map((post: Doc<"instagram_posts">) => {
                                 const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
                                 const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
 

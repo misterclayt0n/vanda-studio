@@ -1,5 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
+
+// Type for project with storage URL
+type ProjectWithStorageUrl = Doc<"projects"> & {
+    profilePictureStorageUrl: string | null;
+};
 
 export const create = mutation({
     args: {
@@ -35,7 +41,7 @@ export const create = mutation({
 
 export const list = query({
     args: {},
-    handler: async (ctx) => {
+    handler: async (ctx): Promise<ProjectWithStorageUrl[]> => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
             return [];
@@ -56,7 +62,7 @@ export const list = query({
             .collect();
 
         // Get storage URLs for profile pictures
-        const projectsWithUrls = await Promise.all(
+        const projectsWithUrls: ProjectWithStorageUrl[] = await Promise.all(
             projects.map(async (project) => {
                 let profilePictureStorageUrl: string | null = null;
                 if (project.profilePictureStorageId) {
