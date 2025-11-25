@@ -19,8 +19,9 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Instagram, ArrowRight, Trash, Sparkles, Zap } from "lucide-react";
+import { Plus, Instagram, ArrowRight, Trash, Sparkles, Zap, Users, Grid3X3, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function DashboardPage() {
     const projects = useQuery(api.projects.list);
@@ -163,23 +164,77 @@ export default function DashboardPage() {
                     // Project list
                     projects.map((project) => (
                         <Card key={project._id} className="group relative overflow-hidden">
-                            {/* Gradient overlay on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                            <CardHeader className="relative">
-                                <CardTitle className="flex items-center justify-between">
-                                    <span className="truncate font-bold">{project.name}</span>
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-500/20 group-hover:from-pink-500/30 group-hover:to-purple-500/30 transition-all">
-                                        <Instagram className="h-4 w-4 text-primary" />
+                            {/* Profile Picture & Header */}
+                            <CardHeader>
+                                <div className="flex items-center gap-3">
+                                    {/* Profile Picture */}
+                                    <div className="relative shrink-0">
+                                        <div className="h-12 w-12 rounded-xl overflow-hidden ring-2 ring-border/50 bg-gradient-to-br from-primary/20 to-pink-500/20">
+                                            {project.profilePictureStorageUrl ? (
+                                                <Image
+                                                    src={project.profilePictureStorageUrl}
+                                                    alt={project.name}
+                                                    width={48}
+                                                    height={48}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center">
+                                                    <Instagram className="h-5 w-5 text-primary/60" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* Online indicator */}
+                                        <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-background border-2 border-background flex items-center justify-center">
+                                            <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                                        </div>
                                     </div>
-                                </CardTitle>
-                                <CardDescription className="truncate text-xs">
-                                    {project.instagramUrl}
-                                </CardDescription>
+
+                                    <div className="flex-1 min-w-0">
+                                        <CardTitle className="truncate">
+                                            @{project.instagramHandle || project.name}
+                                        </CardTitle>
+                                        {project.bio ? (
+                                            <CardDescription className="line-clamp-1">
+                                                {project.bio}
+                                            </CardDescription>
+                                        ) : (
+                                            <CardDescription className="truncate">
+                                                {project.instagramUrl}
+                                            </CardDescription>
+                                        )}
+                                    </div>
+                                </div>
                             </CardHeader>
-                            <CardContent className="relative">
-                                <div className="flex items-center justify-between text-sm text-muted-foreground gap-4">
-                                    <span className="truncate text-xs">
+
+                            <CardContent className="space-y-4">
+                                {/* Stats */}
+                                {(project.followersCount !== undefined || project.postsCount !== undefined) && (
+                                    <div className="flex items-center gap-4">
+                                        {project.followersCount !== undefined && (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                <Users className="h-3 w-3" />
+                                                <span className="font-medium text-foreground">
+                                                    {project.followersCount >= 1000
+                                                        ? `${(project.followersCount / 1000).toFixed(1)}k`
+                                                        : project.followersCount}
+                                                </span>
+                                                <span>seguidores</span>
+                                            </div>
+                                        )}
+                                        {project.postsCount !== undefined && (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                <Grid3X3 className="h-3 w-3" />
+                                                <span className="font-medium text-foreground">{project.postsCount}</span>
+                                                <span>posts</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                                    <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
                                         {new Date(project.createdAt).toLocaleDateString("pt-BR", {
                                             day: "2-digit",
                                             month: "short",
@@ -190,12 +245,11 @@ export default function DashboardPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="group/btn"
                                             asChild
                                         >
                                             <Link href={`/dashboard/projects/${project._id}`}>
                                                 Abrir
-                                                <ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
+                                                <ArrowRight className="ml-1 h-3.5 w-3.5" />
                                             </Link>
                                         </Button>
                                         <AlertDialog>
@@ -235,6 +289,16 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                             </CardContent>
+
+                            {/* Loading overlay */}
+                            {project.isFetching && (
+                                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                        <span>Analisando perfil...</span>
+                                    </div>
+                                </div>
+                            )}
                         </Card>
                     ))
                 )}

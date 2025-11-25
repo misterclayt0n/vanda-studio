@@ -50,10 +50,26 @@ export const list = query({
             return [];
         }
 
-        return await ctx.db
+        const projects = await ctx.db
             .query("projects")
             .withIndex("by_user_id", (q) => q.eq("userId", user._id))
             .collect();
+
+        // Get storage URLs for profile pictures
+        const projectsWithUrls = await Promise.all(
+            projects.map(async (project) => {
+                let profilePictureStorageUrl: string | null = null;
+                if (project.profilePictureStorageId) {
+                    profilePictureStorageUrl = await ctx.storage.getUrl(project.profilePictureStorageId);
+                }
+                return {
+                    ...project,
+                    profilePictureStorageUrl,
+                };
+            })
+        );
+
+        return projectsWithUrls;
     },
 });
 
