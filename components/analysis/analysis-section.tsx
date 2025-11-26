@@ -18,9 +18,20 @@ import {
     Wand2,
 } from "lucide-react";
 
+// Post with storage URLs from listByProject query
+type PostWithStorageUrls = Doc<"instagram_posts"> & {
+    mediaStorageUrl: string | null;
+    thumbnailStorageUrl: string | null;
+    carouselImagesWithUrls?: {
+        url: string;
+        storageId?: Id<"_storage">;
+        storageUrl?: string | null;
+    }[];
+};
+
 interface AnalysisSectionProps {
     projectId: Id<"projects">;
-    posts: Doc<"instagram_posts">[];
+    posts: PostWithStorageUrls[];
     view: "strategy" | "suggestions";
 }
 

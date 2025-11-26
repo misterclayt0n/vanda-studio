@@ -88,70 +88,62 @@ export default function ProjectDetailsPage() {
     ];
 
     return (
-        <div className="space-y-8">
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" onClick={() => router.push("/dashboard")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-                </Button>
-                <div>
-                    <h1 className="text-2xl font-semibold">{project.name}</h1>
-                    <p className="text-sm text-muted-foreground">{project.instagramUrl}</p>
-                </div>
-            </div>
-
-            <Card>
-                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <CardTitle>Perfil do Instagram</CardTitle>
-                        <CardDescription>Resumo das informações coletadas</CardDescription>
-                    </div>
-                    <Button asChild variant="outline">
-                        <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
-                            <Instagram className="mr-2 h-4 w-4" /> Abrir Instagram
-                        </Link>
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")} className="h-9 w-9">
+                        <ArrowLeft className="h-4 w-4" />
                     </Button>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-6 md:flex-row">
-                    <div className="flex flex-col items-center gap-4 md:w-1/3">
+                    <div className="flex items-center gap-3">
                         <ProfilePicture
                             storageUrl={project.profilePictureStorageUrl}
                             externalUrl={project.profilePictureUrl}
                             alt={project.instagramHandle || project.name}
                             fallbackLetter={project.name.charAt(0).toUpperCase()}
+                            size="sm"
                         />
-                        <div className="text-center">
-                            <p className="text-lg font-semibold">@{project.instagramHandle || extractHandle(project.instagramUrl)}</p>
-                            {project.bio && <p className="text-sm text-muted-foreground mt-2 max-w-sm">{project.bio}</p>}
-                            {project.website && (
-                                <Link href={ensureUrl(project.website)} target="_blank" className="text-sm text-primary underline mt-2 block">
-                                    {project.website}
-                                </Link>
-                            )}
+                        <div>
+                            <h1 className="text-lg font-semibold">@{project.instagramHandle || extractHandle(project.instagramUrl)}</h1>
+                            <p className="text-sm text-muted-foreground">{project.name}</p>
                         </div>
                     </div>
-                    <div className="grid gap-4 md:w-2/3 sm:grid-cols-3">
-                        {stats.map((stat) => (
-                            <div key={stat.label} className="rounded-lg border p-4 text-center">
-                                <p className="text-2xl font-bold">{stat.value}</p>
-                                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                            </div>
-                        ))}
+                </div>
+                <Button asChild variant="outline" size="sm">
+                    <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
+                        <Instagram className="h-4 w-4" />
+                        <span className="hidden sm:inline ml-2">Ver Instagram</span>
+                    </Link>
+                </Button>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-4">
+                {stats.map((stat) => (
+                    <div key={stat.label} className="rounded-xl border bg-card p-4 text-center">
+                        <p className="text-2xl font-bold tabular-nums">{stat.value}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
                     </div>
-                </CardContent>
-            </Card>
+                ))}
+            </div>
+
+            {/* Bio if present */}
+            {project.bio && (
+                <p className="text-sm text-muted-foreground border-l-2 border-primary/30 pl-4">{project.bio}</p>
+            )}
 
             {/* Tabbed Sections */}
             <Tabs defaultValue="strategy" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="strategy" className="gap-2">
+                <TabsList className="w-full h-12 p-1 bg-muted/50 rounded-xl">
+                    <TabsTrigger value="strategy" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
                         <FileText className="h-4 w-4" />
-                        <span className="hidden sm:inline">Estratégia</span>
+                        <span className="hidden sm:inline">Estrategia</span>
                     </TabsTrigger>
-                    <TabsTrigger value="suggestions" className="gap-2">
+                    <TabsTrigger value="suggestions" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
                         <Wand2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Sugestões</span>
+                        <span className="hidden sm:inline">Sugestoes</span>
                     </TabsTrigger>
-                    <TabsTrigger value="posts" className="gap-2">
+                    <TabsTrigger value="posts" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
                         <Grid3X3 className="h-4 w-4" />
                         <span className="hidden sm:inline">Posts</span>
                     </TabsTrigger>
@@ -161,11 +153,7 @@ export default function ProjectDetailsPage() {
                     {posts && posts.length > 0 ? (
                         <AnalysisSection projectId={projectId} posts={posts} view="strategy" />
                     ) : (
-                        <Card>
-                            <CardContent className="flex items-center justify-center py-12">
-                                <p className="text-muted-foreground">Carregue posts para gerar análise de estratégia.</p>
-                            </CardContent>
-                        </Card>
+                        <EmptyTabContent message="Carregue posts para gerar analise de estrategia." />
                     )}
                 </TabsContent>
 
@@ -173,82 +161,76 @@ export default function ProjectDetailsPage() {
                     {posts && posts.length > 0 ? (
                         <AnalysisSection projectId={projectId} posts={posts} view="suggestions" />
                     ) : (
-                        <Card>
-                            <CardContent className="flex items-center justify-center py-12">
-                                <p className="text-muted-foreground">Carregue posts para ver sugestões.</p>
-                            </CardContent>
-                        </Card>
+                        <EmptyTabContent message="Carregue posts para ver sugestoes." />
                     )}
                 </TabsContent>
 
                 <TabsContent value="posts" className="mt-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Posts Recentes</CardTitle>
-                            <CardDescription>Últimas publicações capturadas</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {posts === undefined ? (
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    <p>Carregando posts...</p>
-                                </div>
-                            ) : posts.length === 0 ? (
-                                <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
-                            ) : (
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                    {posts.map((post) => {
-                                        const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
-                                        const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
-                                        const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
-                                        const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
+                    {posts === undefined ? (
+                        <div className="flex items-center justify-center py-16">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : posts.length === 0 ? (
+                        <EmptyTabContent message="Nenhum post coletado ainda." />
+                    ) : (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {posts.map((post) => {
+                                const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+                                const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+                                const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
+                                const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
 
-                                        // Get the best available image source
-                                        const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
-                                        const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
+                                const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
+                                const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
 
-                                        return (
-                                            <div
-                                                key={post._id}
-                                                className="group rounded-lg border overflow-hidden hover:border-primary/60 transition-colors"
-                                            >
-                                                {isVideo ? (
-                                                    <VideoPost
-                                                        mediaUrl={post.mediaUrl}
-                                                        thumbnailUrl={thumbnailSrc}
-                                                        caption={post.caption}
-                                                        permalink={post.permalink}
-                                                    />
-                                                ) : isCarousel && hasCarouselImages ? (
-                                                    <CarouselPost
-                                                        images={post.carouselImagesWithUrls!}
-                                                        alt={post.caption ?? "Post do Instagram"}
-                                                    />
-                                                ) : (
-                                                    <Link href={post.permalink} target="_blank" className="block">
-                                                        <PostImage
-                                                            src={mediaSrc}
-                                                            fallbackSrc={thumbnailSrc}
-                                                            alt={post.caption ?? "Post do Instagram"}
-                                                        />
-                                                    </Link>
-                                                )}
-                                                <Link href={post.permalink} target="_blank" className="block p-4 space-y-2">
-                                                    <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
-                                                    <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                                        <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount}` : ""}</span>
-                                                        <span>{new Date(post.timestamp).toLocaleDateString()}</span>
-                                                    </div>
-                                                </Link>
+                                return (
+                                    <div
+                                        key={post._id}
+                                        className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+                                    >
+                                        {isVideo ? (
+                                            <VideoPost
+                                                mediaUrl={post.mediaUrl}
+                                                thumbnailUrl={thumbnailSrc}
+                                                caption={post.caption}
+                                                permalink={post.permalink}
+                                            />
+                                        ) : isCarousel && hasCarouselImages ? (
+                                            <CarouselPost
+                                                images={post.carouselImagesWithUrls!}
+                                                alt={post.caption ?? "Post do Instagram"}
+                                            />
+                                        ) : (
+                                            <Link href={post.permalink} target="_blank" className="block">
+                                                <PostImage
+                                                    src={mediaSrc}
+                                                    fallbackSrc={thumbnailSrc}
+                                                    alt={post.caption ?? "Post do Instagram"}
+                                                />
+                                            </Link>
+                                        )}
+                                        <Link href={post.permalink} target="_blank" className="block p-3 space-y-2">
+                                            <p className="text-sm line-clamp-2">{post.caption || "Sem legenda"}</p>
+                                            <div className="text-xs text-muted-foreground flex items-center justify-between">
+                                                <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount} curtidas` : ""}</span>
+                                                <span>{new Date(post.timestamp).toLocaleDateString("pt-BR")}</span>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                        </Link>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+function EmptyTabContent({ message }: { message: string }) {
+    return (
+        <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
+            <p className="text-muted-foreground">{message}</p>
         </div>
     );
 }
@@ -282,21 +264,25 @@ function ProfilePicture({
     externalUrl,
     alt,
     fallbackLetter,
+    size = "md",
 }: {
     storageUrl?: string | null;
     externalUrl?: string;
     alt: string;
     fallbackLetter: string;
+    size?: "sm" | "md";
 }) {
     const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+
+    const sizeClasses = size === "sm" ? "h-10 w-10 text-sm" : "h-32 w-32 text-lg";
 
     // Build list of URLs to try in order
     const urls = [storageUrl, externalUrl].filter((url): url is string => Boolean(url));
     const currentUrl = urls[currentUrlIndex];
 
-    if (!currentUrl) {
+    if (!currentUrl || currentUrlIndex >= urls.length) {
         return (
-            <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center text-lg font-semibold">
+            <div className={`${sizeClasses} rounded-full bg-muted flex items-center justify-center font-semibold`}>
                 {fallbackLetter}
             </div>
         );
@@ -307,13 +293,12 @@ function ProfilePicture({
         <img
             src={currentUrl}
             alt={alt}
-            className="h-32 w-32 rounded-full object-cover"
+            className={`${sizeClasses} rounded-full object-cover`}
             onError={() => {
-                // Try next URL if available, otherwise show fallback
                 if (currentUrlIndex < urls.length - 1) {
                     setCurrentUrlIndex(currentUrlIndex + 1);
                 } else {
-                    setCurrentUrlIndex(urls.length); // triggers fallback
+                    setCurrentUrlIndex(urls.length);
                 }
             }}
         />
