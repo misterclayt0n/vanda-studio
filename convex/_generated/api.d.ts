@@ -11,6 +11,7 @@
 import type * as ai_analysis from "../ai/analysis.js";
 import type * as ai_analysisMutations from "../ai/analysisMutations.js";
 import type * as ai_llm from "../ai/llm.js";
+import type * as ai_postAnalysis from "../ai/postAnalysis.js";
 import type * as ai_prompts from "../ai/prompts.js";
 import type * as billing_usage from "../billing/usage.js";
 import type * as files from "../files.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   "ai/analysis": typeof ai_analysis;
   "ai/analysisMutations": typeof ai_analysisMutations;
   "ai/llm": typeof ai_llm;
+  "ai/postAnalysis": typeof ai_postAnalysis;
   "ai/prompts": typeof ai_prompts;
   "billing/usage": typeof billing_usage;
   files: typeof files;

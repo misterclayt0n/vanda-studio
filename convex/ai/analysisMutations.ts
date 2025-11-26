@@ -287,3 +287,153 @@ export const getPostAnalysis = query({
         return analyses[0] ?? null;
     },
 });
+
+// List all post analyses for a project
+export const listPostAnalyses = query({
+    args: {
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        // Verify user owns the project
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            return [];
+        }
+
+        return await ctx.db
+            .query("post_analysis")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+    },
+});
+
+// Create or update post analysis (for Analisar button)
+export const upsertPostAnalysis = mutation({
+    args: {
+        projectId: v.id("projects"),
+        postId: v.id("instagram_posts"),
+        currentCaption: v.optional(v.string()),
+        score: v.number(),
+        analysisDetails: v.object({
+            strengths: v.array(v.string()),
+            weaknesses: v.array(v.string()),
+            engagementPrediction: v.string(),
+            hashtagAnalysis: v.string(),
+            toneAnalysis: v.string(),
+        }),
+        reasoning: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // Check if analysis exists for this post
+        const existing = await ctx.db
+            .query("post_analysis")
+            .withIndex("by_post_id", (q) => q.eq("postId", args.postId))
+            .first();
+
+        if (existing) {
+            // Update existing
+            await ctx.db.patch(existing._id, {
+                currentCaption: args.currentCaption,
+                hasAnalysis: true,
+                score: args.score,
+                analysisDetails: args.analysisDetails,
+                reasoning: args.reasoning,
+            });
+            return existing._id;
+        } else {
+            // Create new
+            return await ctx.db.insert("post_analysis", {
+                projectId: args.projectId,
+                postId: args.postId,
+                currentCaption: args.currentCaption,
+                hasAnalysis: true,
+                score: args.score,
+                analysisDetails: args.analysisDetails,
+                reasoning: args.reasoning,
+                createdAt: Date.now(),
+            });
+        }
+    },
+});
+
+// Update post with reimagination (for Reimaginar button)
+export const updatePostReimagination = mutation({
+    args: {
+        postAnalysisId: v.id("post_analysis"),
+        suggestedCaption: v.string(),
+        reasoning: v.string(),
+        improvements: v.array(v.object({
+            type: v.string(),
+            issue: v.string(),
+            suggestion: v.string(),
+        })),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.postAnalysisId, {
+            hasReimagination: true,
+            suggestedCaption: args.suggestedCaption,
+            reasoning: args.reasoning,
+            improvements: args.improvements,
+        });
+    },
+});
+
+// Create post analysis with reimagination in one go
+export const createPostWithReimagination = mutation({
+    args: {
+        projectId: v.id("projects"),
+        postId: v.id("instagram_posts"),
+        currentCaption: v.optional(v.string()),
+        suggestedCaption: v.string(),
+        reasoning: v.string(),
+        improvements: v.array(v.object({
+            type: v.string(),
+            issue: v.string(),
+            suggestion: v.string(),
+        })),
+    },
+    handler: async (ctx, args) => {
+        // Check if analysis exists for this post
+        const existing = await ctx.db
+            .query("post_analysis")
+            .withIndex("by_post_id", (q) => q.eq("postId", args.postId))
+            .first();
+
+        if (existing) {
+            // Update existing
+            await ctx.db.patch(existing._id, {
+                hasReimagination: true,
+                suggestedCaption: args.suggestedCaption,
+                reasoning: args.reasoning,
+                improvements: args.improvements,
+            });
+            return existing._id;
+        } else {
+            // Create new with reimagination only
+            return await ctx.db.insert("post_analysis", {
+                projectId: args.projectId,
+                postId: args.postId,
+                currentCaption: args.currentCaption,
+                hasReimagination: true,
+                suggestedCaption: args.suggestedCaption,
+                reasoning: args.reasoning,
+                improvements: args.improvements,
+                createdAt: Date.now(),
+            });
+        }
+    },
+});

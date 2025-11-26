@@ -124,6 +124,40 @@ export const updateMediaStorage = mutation({
     },
 });
 
+// Get a single post by ID
+export const get = query({
+    args: {
+        postId: v.id("instagram_posts"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const post = await ctx.db.get(args.postId);
+        if (!post) {
+            return null;
+        }
+
+        const project = await ctx.db.get(post.projectId);
+        if (!project) {
+            return null;
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            return null;
+        }
+
+        return post;
+    },
+});
+
 export const listByProject = query({
     args: {
         projectId: v.id("projects"),

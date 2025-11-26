@@ -1,6 +1,6 @@
 "use client";
 
-import { Sidebar, SidebarProvider, MobileMenuButton } from "@/components/sidebar";
+import { Sidebar, SidebarProvider, MobileMenuButton, PostTabsProvider } from "@/components/sidebar";
 
 export default function DashboardLayout({
     children,
@@ -9,6 +9,7 @@ export default function DashboardLayout({
 }) {
     return (
         <SidebarProvider>
+            <PostTabsProvider>
             <div className="flex min-h-screen bg-background text-foreground relative">
                 {/* Background effects */}
                 <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -34,6 +35,7 @@ export default function DashboardLayout({
                     </main>
                 </div>
             </div>
+            </PostTabsProvider>
         </SidebarProvider>
     );
 }

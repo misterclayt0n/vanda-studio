@@ -8,10 +8,7 @@ import { callLLM, parseJSONResponse } from "./llm";
 import {
     BRAND_ANALYSIS_SYSTEM_PROMPT,
     BRAND_ANALYSIS_USER_PROMPT,
-    POST_ANALYSIS_SYSTEM_PROMPT,
-    POST_ANALYSIS_USER_PROMPT,
     BrandAnalysisResponse,
-    PostAnalysisResponse,
 } from "./prompts";
 
 // Main action to request a full analysis
@@ -94,61 +91,16 @@ export const requestAnalysis = action({
                 strategySummary: brandAnalysis.strategySummary,
             });
 
-            // 9. Analyze individual posts (limit to first 12 for cost)
-            const postsToAnalyze = posts.slice(0, 12);
+            // Post analysis is now done on-demand per post, not in batch
+            // See postAnalysis.ts for analyzePost and reimaginePost actions
 
-            for (const post of postsToAnalyze) {
-                try {
-                    const postPrompt = POST_ANALYSIS_USER_PROMPT({
-                        brandContext: {
-                            handle: project.instagramHandle || project.name,
-                            brandVoice: brandAnalysis.brandVoice.recommended,
-                            targetAudience: brandAnalysis.targetAudience.recommended,
-                            contentPillars: brandAnalysis.contentPillars.map((p) => p.name),
-                        },
-                        post: {
-                            caption: post.caption,
-                            mediaType: post.mediaType,
-                            likeCount: post.likeCount,
-                            commentsCount: post.commentsCount,
-                            timestamp: post.timestamp,
-                        },
-                    });
-
-                    const postResponse = await callLLM(
-                        [
-                            { role: "system", content: POST_ANALYSIS_SYSTEM_PROMPT },
-                            { role: "user", content: postPrompt },
-                        ],
-                        { temperature: 0.7, maxTokens: 2048 }
-                    );
-
-                    const postAnalysis = parseJSONResponse<PostAnalysisResponse>(postResponse.content);
-
-                    // Store post analysis
-                    await ctx.runMutation(api.ai.analysisMutations.createPostAnalysis, {
-                        projectId: args.projectId,
-                        analysisId,
-                        postId: post._id,
-                        currentCaption: post.caption,
-                        suggestedCaption: postAnalysis.suggestedCaption,
-                        reasoning: postAnalysis.reasoning,
-                        score: postAnalysis.score,
-                        improvements: postAnalysis.improvements,
-                    });
-                } catch (postError) {
-                    // Log but don't fail the whole analysis if one post fails
-                    console.error(`Failed to analyze post ${post._id}:`, postError);
-                }
-            }
-
-            // 10. Update status to "completed"
+            // 9. Update status to "completed"
             await ctx.runMutation(api.ai.analysisMutations.updateAnalysisStatus, {
                 analysisId,
                 status: "completed",
             });
 
-            // 11. Consume one prompt from quota
+            // 10. Consume one prompt from quota
             await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
 
             return { analysisId, success: true };

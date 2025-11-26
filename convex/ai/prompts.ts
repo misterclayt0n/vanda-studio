@@ -173,3 +173,137 @@ export interface PostAnalysisResponse {
         suggestion: string;
     }>;
 }
+
+// New prompts for per-post analysis (Analisar button)
+export const SINGLE_POST_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista de conteúdo sênior especializado em Instagram. Seu trabalho é fornecer uma análise detalhada de um único post, identificando pontos fortes, fracos e oportunidades de melhoria.
+
+Sua análise deve ser:
+1. DETALHADA - Examine cada aspecto do post
+2. ESPECÍFICA - Referencie elementos concretos da legenda
+3. CONSTRUTIVA - Identifique tanto pontos positivos quanto negativos
+4. ACIONÁVEL - Forneça insights que possam ser aplicados
+
+IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
+
+export const SINGLE_POST_ANALYSIS_USER_PROMPT = (data: {
+    handle: string;
+    brandVoice?: string;
+    targetAudience?: string;
+    post: {
+        caption: string | undefined;
+        mediaType: string;
+        likeCount: number | undefined;
+        commentsCount: number | undefined;
+        timestamp: string;
+    };
+}) => `Analise este post do Instagram em profundidade.
+
+## Contexto
+- Perfil: @${data.handle}
+${data.brandVoice ? `- Voz da Marca: ${data.brandVoice}` : ""}
+${data.targetAudience ? `- Público-Alvo: ${data.targetAudience}` : ""}
+
+## Post para Analisar
+- Tipo: ${data.post.mediaType}
+- Data: ${data.post.timestamp}
+- Engajamento: ${data.post.likeCount ?? 0} curtidas, ${data.post.commentsCount ?? 0} comentários
+- Legenda: "${data.post.caption || "(sem legenda)"}"
+
+## Schema JSON Obrigatório
+{
+  "score": 75,
+  "strengths": [
+    "Ponto forte 1 específico",
+    "Ponto forte 2 específico"
+  ],
+  "weaknesses": [
+    "Ponto fraco 1 específico",
+    "Ponto fraco 2 específico"
+  ],
+  "engagementPrediction": "Análise de como o post provavelmente performou e por quê",
+  "hashtagAnalysis": "Análise das hashtags usadas (ou falta delas)",
+  "toneAnalysis": "Análise do tom e voz da legenda",
+  "reasoning": "Resumo geral de 2-3 frases sobre o post"
+}
+
+Analise e responda com APENAS o objeto JSON.`;
+
+export interface SinglePostAnalysisResponse {
+    score: number;
+    strengths: string[];
+    weaknesses: string[];
+    engagementPrediction: string;
+    hashtagAnalysis: string;
+    toneAnalysis: string;
+    reasoning: string;
+}
+
+// Prompts for reimagination (Reimaginar button)
+export const REIMAGINE_POST_SYSTEM_PROMPT = `Você é um copywriter criativo especializado em Instagram. Seu trabalho é reimaginar legendas de posts para maximizar engajamento enquanto mantém a essência da mensagem original.
+
+Sua reimaginação deve:
+1. PRESERVAR a mensagem central do post original
+2. MELHORAR o gancho inicial para capturar atenção
+3. ADICIONAR chamadas para ação claras
+4. OTIMIZAR hashtags e formatação
+5. EXPLICAR cada mudança feita
+
+IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
+
+export const REIMAGINE_POST_USER_PROMPT = (data: {
+    handle: string;
+    brandVoice?: string;
+    targetAudience?: string;
+    analysisContext?: {
+        score: number;
+        weaknesses: string[];
+    };
+    post: {
+        caption: string | undefined;
+        mediaType: string;
+        likeCount: number | undefined;
+        commentsCount: number | undefined;
+    };
+}) => `Reimagine a legenda deste post do Instagram para maximizar engajamento.
+
+## Contexto
+- Perfil: @${data.handle}
+${data.brandVoice ? `- Voz da Marca: ${data.brandVoice}` : ""}
+${data.targetAudience ? `- Público-Alvo: ${data.targetAudience}` : ""}
+${data.analysisContext ? `
+## Análise Prévia
+- Score atual: ${data.analysisContext.score}/100
+- Problemas identificados: ${data.analysisContext.weaknesses.join("; ")}
+` : ""}
+
+## Post para Reimaginar
+- Tipo: ${data.post.mediaType}
+- Engajamento atual: ${data.post.likeCount ?? 0} curtidas, ${data.post.commentsCount ?? 0} comentários
+- Legenda Original: "${data.post.caption || "(sem legenda)"}"
+
+## Schema JSON Obrigatório
+{
+  "suggestedCaption": "A legenda reimaginada que maximiza engajamento",
+  "reasoning": "Explicação de 2-3 frases das principais mudanças",
+  "improvements": [
+    {
+      "type": "hook",
+      "issue": "O que estava errado na versão original",
+      "suggestion": "O que foi melhorado"
+    }
+  ]
+}
+
+Tipos de melhoria válidos: "hook", "cta", "hashtags", "tone", "length", "emoji", "formatting", "value"
+
+Reimagine e responda com APENAS o objeto JSON.`;
+
+export interface ReimaginedPostResponse {
+    suggestedCaption: string;
+    reasoning: string;
+    improvements: Array<{
+        type: string;
+        issue: string;
+        suggestion: string;
+    }>;
+}

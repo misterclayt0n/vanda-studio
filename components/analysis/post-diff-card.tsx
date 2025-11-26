@@ -27,22 +27,25 @@ export function PostDiffCard({ post, analysis }: PostDiffCardProps) {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(analysis.suggestedCaption);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (analysis.suggestedCaption) {
+            await navigator.clipboard.writeText(analysis.suggestedCaption);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
+    const score = analysis.score ?? 0;
     const scoreColor =
-        analysis.score >= 80
+        score >= 80
             ? "text-green-500"
-            : analysis.score >= 60
+            : score >= 60
               ? "text-yellow-500"
               : "text-red-500";
 
     const scoreBg =
-        analysis.score >= 80
+        score >= 80
             ? "bg-green-500/10"
-            : analysis.score >= 60
+            : score >= 60
               ? "bg-yellow-500/10"
               : "bg-red-500/10";
 
@@ -75,9 +78,11 @@ export function PostDiffCard({ post, analysis }: PostDiffCardProps) {
                                       ? "Carrossel"
                                       : "Imagem"}
                             </CardTitle>
-                            <div className={`px-2 py-1 rounded-md text-sm font-bold ${scoreBg} ${scoreColor}`}>
-                                {analysis.score}/100
-                            </div>
+                            {analysis.score !== undefined && (
+                                <div className={`px-2 py-1 rounded-md text-sm font-bold ${scoreBg} ${scoreColor}`}>
+                                    {analysis.score}/100
+                                </div>
+                            )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                             {new Date(post.timestamp).toLocaleDateString("pt-BR", {
@@ -108,35 +113,37 @@ export function PostDiffCard({ post, analysis }: PostDiffCardProps) {
                     </div>
 
                     {/* Suggested caption (green) */}
-                    <div className="bg-green-500/5 p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-green-500 text-xs font-semibold">
-                                <Plus className="h-3 w-3" />
-                                <span>Legenda Sugerida</span>
+                    {analysis.suggestedCaption && (
+                        <div className="bg-green-500/5 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 text-green-500 text-xs font-semibold">
+                                    <Plus className="h-3 w-3" />
+                                    <span>Legenda Sugerida</span>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCopy}
+                                    className="h-6 px-2 text-xs"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <Check className="h-3 w-3" />
+                                            Copiado
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="h-3 w-3" />
+                                            Copiar
+                                        </>
+                                    )}
+                                </Button>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleCopy}
-                                className="h-6 px-2 text-xs"
-                            >
-                                {copied ? (
-                                    <>
-                                        <Check className="h-3 w-3" />
-                                        Copiado
-                                    </>
-                                ) : (
-                                    <>
-                                        <Copy className="h-3 w-3" />
-                                        Copiar
-                                    </>
-                                )}
-                            </Button>
+                            <p className="whitespace-pre-wrap text-xs leading-relaxed">
+                                {analysis.suggestedCaption}
+                            </p>
                         </div>
-                        <p className="whitespace-pre-wrap text-xs leading-relaxed">
-                            {analysis.suggestedCaption}
-                        </p>
-                    </div>
+                    )}
                 </div>
 
                 {/* AI Reasoning */}
@@ -148,7 +155,7 @@ export function PostDiffCard({ post, analysis }: PostDiffCardProps) {
                 </div>
 
                 {/* Improvements toggle */}
-                {analysis.improvements.length > 0 && (
+                {analysis.improvements && analysis.improvements.length > 0 && (
                     <div>
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}

@@ -92,17 +92,31 @@ export default defineSchema({
     // Per-post AI feedback (like PR comments)
     post_analysis: defineTable({
         projectId: v.id("projects"),
-        analysisId: v.id("brand_analysis"),
+        analysisId: v.optional(v.id("brand_analysis")), // Optional - can analyze without brand analysis
         postId: v.id("instagram_posts"),
         currentCaption: v.optional(v.string()),
-        suggestedCaption: v.string(),
-        reasoning: v.string(),
-        score: v.number(), // 0-100
-        improvements: v.array(v.object({
+
+        // Analysis fields (from "Analisar" action)
+        hasAnalysis: v.optional(v.boolean()),
+        score: v.optional(v.number()), // 0-100
+        analysisDetails: v.optional(v.object({
+            strengths: v.array(v.string()),
+            weaknesses: v.array(v.string()),
+            engagementPrediction: v.string(),
+            hashtagAnalysis: v.string(),
+            toneAnalysis: v.string(),
+        })),
+        reasoning: v.optional(v.string()),
+
+        // Reimagination fields (from "Reimaginar" action)
+        hasReimagination: v.optional(v.boolean()),
+        suggestedCaption: v.optional(v.string()),
+        improvements: v.optional(v.array(v.object({
             type: v.string(), // "hashtags" | "cta" | "tone" | "length"
             issue: v.string(),
             suggestion: v.string(),
-        })),
+        }))),
+
         createdAt: v.number(),
     }).index("by_analysis_id", ["analysisId"])
       .index("by_post_id", ["postId"])

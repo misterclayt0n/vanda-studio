@@ -1,15 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
+import { LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Menu, X, ImageIcon } from "lucide-react";
 import { useSidebar } from "./sidebar-context";
+import { usePostTabs } from "./post-tabs-context";
 import { SidebarItem } from "./sidebar-item";
+import { PostTabItem } from "./post-tab-item";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Id } from "@/convex/_generated/dataModel";
 
 export function Sidebar() {
     const { isCollapsed, isMobileOpen, toggle, closeMobile } = useSidebar();
+    const { openTabs, setActivePost } = usePostTabs();
+    const params = useParams<{ projectId?: string }>();
+
+    // Get current project ID from URL
+    const currentProjectId = params?.projectId as Id<"projects"> | undefined;
+
+    // Filter tabs for current project
+    const projectTabs = currentProjectId
+        ? openTabs.filter((tab) => tab.projectId === currentProjectId)
+        : [];
 
     return (
         <>
@@ -72,6 +86,26 @@ export function Sidebar() {
                         icon={Settings}
                         label="Configuracoes"
                     />
+
+                    {/* Open Post Tabs */}
+                    {projectTabs.length > 0 && (
+                        <div className="pt-4 mt-4 border-t border-sidebar-border">
+                            {!isCollapsed && (
+                                <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                                    Posts Abertos
+                                </p>
+                            )}
+                            <div className="space-y-1">
+                                {projectTabs.map((tab) => (
+                                    <PostTabItem
+                                        key={tab.postId}
+                                        tab={tab}
+                                        onSelect={() => setActivePost(tab.postId)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </nav>
 
                 {/* Footer */}

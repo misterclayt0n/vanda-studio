@@ -1,22 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
-import { ArrowLeft, Loader2, ImageOff, FileText, Wand2, Grid3X3, Video } from "lucide-react";
+import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, Sparkles, BarChart3 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AnalysisSection } from "@/components/analysis";
+import { AnalysisSection, PostDetailView } from "@/components/analysis";
+import { usePostTabs } from "@/components/sidebar";
 
 export default function ProjectDetailsPage() {
     const params = useParams<{ projectId: string }>();
     const router = useRouter();
     const projectId = (params?.projectId || "") as Id<"projects">;
+
+    const { openPost, openTabs, activePostId, setActivePost } = usePostTabs();
+
+    // Derive selected post ID from context - no need for local state
+    const selectedPostId = useMemo(() => {
+        if (activePostId) {
+            // Check if this post is for the current project
+            const tab = openTabs.find((t) => t.postId === activePostId && t.projectId === projectId);
+            if (tab) {
+                return activePostId;
+            }
+        }
+        return null;
+    }, [activePostId, openTabs, projectId]);
 
     const project = useQuery(
         api.projects.get,
@@ -27,6 +41,27 @@ export default function ProjectDetailsPage() {
         api.instagramPosts.listByProject,
         projectId ? { projectId } : "skip",
     );
+
+    // Find the selected post for detail view
+    const selectedPost = selectedPostId && posts
+        ? posts.find((p) => p._id === selectedPostId)
+        : null;
+
+    // Handle opening a post
+    const handleOpenPost = (post: PostWithStorageUrls) => {
+        // Open the post in sidebar and set it as active
+        openPost({
+            postId: post._id,
+            projectId,
+            thumbnailUrl: post.thumbnailStorageUrl || post.mediaStorageUrl || post.thumbnailUrl || post.mediaUrl,
+            caption: post.caption || null,
+        });
+    };
+
+    // Handle closing post detail
+    const handleClosePostDetail = () => {
+        setActivePost(null);
+    };
 
     if (!projectId) {
         return (
@@ -80,21 +115,31 @@ export default function ProjectDetailsPage() {
         );
     }
 
+    // If a post is selected, show the detail view
+    if (selectedPost) {
+        return (
+            <div className="space-y-6">
+                <ProjectHeader project={project} />
+                <PostDetailView
+                    post={selectedPost}
+                    projectId={projectId}
+                    onBack={handleClosePostDetail}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             {/* Project Header with compact-on-scroll */}
             <ProjectHeader project={project} />
 
-            {/* Tabbed Sections */}
+            {/* Tabbed Sections - Merged into Strategy and Posts */}
             <Tabs defaultValue="strategy" className="w-full">
                 <TabsList className="w-full">
                     <TabsTrigger value="strategy">
                         <FileText className="h-4 w-4" />
                         <span className="hidden sm:inline">Estrategia</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="suggestions">
-                        <Wand2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Sugestoes</span>
                     </TabsTrigger>
                     <TabsTrigger value="posts">
                         <Grid3X3 className="h-4 w-4" />
@@ -110,14 +155,6 @@ export default function ProjectDetailsPage() {
                     )}
                 </TabsContent>
 
-                <TabsContent value="suggestions" className="mt-6">
-                    {posts && posts.length > 0 ? (
-                        <AnalysisSection projectId={projectId} posts={posts} view="suggestions" />
-                    ) : (
-                        <EmptyTabContent message="Carregue posts para ver sugestoes." />
-                    )}
-                </TabsContent>
-
                 <TabsContent value="posts" className="mt-6">
                     {posts === undefined ? (
                         <div className="flex items-center justify-center py-16">
@@ -126,7 +163,7 @@ export default function ProjectDetailsPage() {
                     ) : posts.length === 0 ? (
                         <EmptyTabContent message="Nenhum post coletado ainda." />
                     ) : (
-                        <PostsGrid posts={posts} />
+                        <PostsGrid posts={posts} onPostClick={handleOpenPost} />
                     )}
                 </TabsContent>
             </Tabs>
@@ -170,19 +207,12 @@ function PostImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: strin
     );
 }
 
-type PostWithStorageUrls = {
-    _id: string;
-    mediaType?: string;
+type PostWithStorageUrls = Doc<"instagram_posts"> & {
     mediaStorageUrl: string | null;
     thumbnailStorageUrl: string | null;
-    mediaUrl: string;
-    thumbnailUrl?: string;
-    caption?: string;
-    permalink: string;
-    likeCount?: number;
-    timestamp: string;
     carouselImagesWithUrls?: {
         url: string;
+        storageId?: Id<"_storage">;
         storageUrl?: string | null;
     }[];
 };
@@ -192,9 +222,16 @@ function isVideoPost(post: PostWithStorageUrls): boolean {
     return mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
 }
 
-function PostsGrid({ posts }: { posts: PostWithStorageUrls[] }) {
+function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPostClick: (post: PostWithStorageUrls) => void }) {
     const imagePosts = posts.filter((post) => !isVideoPost(post));
     const videoCount = posts.length - imagePosts.length;
+
+    // Get post analyses to show indicator
+    const postAnalyses = useQuery(api.ai.analysisMutations.listPostAnalyses, {
+        projectId: posts[0]?.projectId,
+    });
+
+    const analysisMap = new Map(postAnalyses?.map((a) => [a.postId.toString(), a]) ?? []);
 
     return (
         <div className="space-y-4">
@@ -225,32 +262,78 @@ function PostsGrid({ posts }: { posts: PostWithStorageUrls[] }) {
                         const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
                         const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
 
+                        const analysis = analysisMap.get(post._id.toString());
+                        const hasAnalysis = analysis?.hasAnalysis;
+                        const hasReimagination = analysis?.hasReimagination;
+                        const score = analysis?.score;
+
+                        const scoreColor =
+                            score !== undefined
+                                ? score >= 80
+                                    ? "bg-green-500"
+                                    : score >= 60
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                                : "";
+
                         return (
                             <div
                                 key={post._id}
-                                className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+                                onClick={() => onPostClick(post)}
+                                className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5 cursor-pointer"
                             >
-                                {isCarousel && hasCarouselImages ? (
-                                    <CarouselPost
-                                        images={post.carouselImagesWithUrls!}
-                                        alt={post.caption ?? "Post do Instagram"}
-                                    />
-                                ) : (
-                                    <Link href={post.permalink} target="_blank" className="block">
+                                <div className="relative">
+                                    {isCarousel && hasCarouselImages ? (
+                                        <CarouselPost
+                                            images={post.carouselImagesWithUrls!}
+                                            alt={post.caption ?? "Post do Instagram"}
+                                        />
+                                    ) : (
                                         <PostImage
                                             src={mediaSrc}
                                             fallbackSrc={thumbnailSrc}
                                             alt={post.caption ?? "Post do Instagram"}
                                         />
-                                    </Link>
-                                )}
-                                <Link href={post.permalink} target="_blank" className="block p-3 space-y-2">
+                                    )}
+
+                                    {/* Score badge */}
+                                    {score !== undefined && (
+                                        <div
+                                            className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${scoreColor}`}
+                                        >
+                                            {score}
+                                        </div>
+                                    )}
+
+                                    {/* Analysis indicators */}
+                                    <div className="absolute bottom-2 left-2 flex gap-1.5">
+                                        {hasAnalysis && (
+                                            <div className="h-6 w-6 rounded-full bg-primary/90 flex items-center justify-center shadow-lg" title="Analisado">
+                                                <BarChart3 className="h-3 w-3 text-white" />
+                                            </div>
+                                        )}
+                                        {hasReimagination && (
+                                            <div className="h-6 w-6 rounded-full bg-green-500/90 flex items-center justify-center shadow-lg" title="Reimaginado">
+                                                <Sparkles className="h-3 w-3 text-white" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Hover overlay */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                        <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                            Ver detalhes
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="p-3 space-y-2">
                                     <p className="text-sm line-clamp-2">{post.caption || "Sem legenda"}</p>
                                     <div className="text-xs text-muted-foreground flex items-center justify-between">
                                         <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount} curtidas` : ""}</span>
                                         <span>{new Date(post.timestamp).toLocaleDateString("pt-BR")}</span>
                                     </div>
-                                </Link>
+                                </div>
                             </div>
                         );
                     })}

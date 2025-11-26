@@ -107,10 +107,11 @@ function PostThumbnail({
     analysis: Doc<"post_analysis">;
     onClick: () => void;
 }) {
+    const score = analysis.score ?? 0;
     const scoreColor =
-        analysis.score >= 80
+        score >= 80
             ? "bg-green-500"
-            : analysis.score >= 60
+            : score >= 60
               ? "bg-yellow-500"
               : "bg-red-500";
 
@@ -133,14 +134,18 @@ function PostThumbnail({
             </div>
 
             {/* Score badge */}
-            <div
-                className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${scoreColor} shadow-sm`}
-            >
-                {analysis.score}
-            </div>
+            {analysis.score !== undefined && (
+                <div
+                    className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${scoreColor} shadow-sm`}
+                >
+                    {analysis.score}
+                </div>
+            )}
 
             {/* Suggestion indicator */}
-            <div className="absolute bottom-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+            {analysis.hasReimagination && (
+                <div className="absolute bottom-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+            )}
         </button>
     );
 }
@@ -163,15 +168,18 @@ function PostAnalysisDetail({
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(analysis.suggestedCaption);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (analysis.suggestedCaption) {
+            await navigator.clipboard.writeText(analysis.suggestedCaption);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
+    const score = analysis.score ?? 0;
     const scoreColor =
-        analysis.score >= 80
+        score >= 80
             ? "text-green-500 bg-green-500/10"
-            : analysis.score >= 60
+            : score >= 60
               ? "text-yellow-500 bg-yellow-500/10"
               : "text-red-500 bg-red-500/10";
 
@@ -184,9 +192,11 @@ function PostAnalysisDetail({
                         <DialogTitle className="text-lg">
                             Sugestao de Melhoria
                         </DialogTitle>
-                        <span className={`px-2 py-1 rounded-md text-sm font-bold ${scoreColor}`}>
-                            {analysis.score}/100
-                        </span>
+                        {analysis.score !== undefined && (
+                            <span className={`px-2 py-1 rounded-md text-sm font-bold ${scoreColor}`}>
+                                {analysis.score}/100
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">
@@ -262,40 +272,42 @@ function PostAnalysisDetail({
                     </div>
 
                     {/* Suggested Caption */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-semibold flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-green-500" />
-                                Legenda Sugerida
-                            </h4>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCopy}
-                                className="h-8"
-                            >
-                                {copied ? (
-                                    <>
-                                        <Check className="h-3.5 w-3.5" />
-                                        Copiado!
-                                    </>
-                                ) : (
-                                    <>
-                                        <Copy className="h-3.5 w-3.5" />
-                                        Copiar
-                                    </>
-                                )}
-                            </Button>
+                    {analysis.suggestedCaption && (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                                    Legenda Sugerida
+                                </h4>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCopy}
+                                    className="h-8"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <Check className="h-3.5 w-3.5" />
+                                            Copiado!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="h-3.5 w-3.5" />
+                                            Copiar
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                            <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
+                                <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                    {analysis.suggestedCaption}
+                                </p>
+                            </div>
                         </div>
-                        <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                {analysis.suggestedCaption}
-                            </p>
-                        </div>
-                    </div>
+                    )}
 
                     {/* Improvements */}
-                    {analysis.improvements.length > 0 && (
+                    {analysis.improvements && analysis.improvements.length > 0 && (
                         <div className="space-y-3">
                             <h4 className="text-sm font-semibold">
                                 Pontos de Melhoria
