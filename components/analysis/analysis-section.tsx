@@ -146,18 +146,18 @@ export function AnalysisSection({ projectId, posts, view }: AnalysisSectionProps
         return (
             <div className="space-y-6">
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
+                    <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                 <FileText className="h-5 w-5 text-primary" />
                             </div>
                             <div>
-                                <CardTitle>Estratégia de Marca</CardTitle>
-                                <CardDescription>Análise completa e recomendações</CardDescription>
+                                <CardTitle>Estrategia de Marca</CardTitle>
+                                <CardDescription>Analise completa e recomendacoes</CardDescription>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4 self-end sm:self-auto">
+                            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3" />
                                 <span>
                                     {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {
@@ -192,19 +192,19 @@ export function AnalysisSection({ projectId, posts, view }: AnalysisSectionProps
     // view === "suggestions"
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
                         <Wand2 className="h-5 w-5 text-green-500" />
                     </div>
                     <div>
-                        <CardTitle>Sugestões de Posts</CardTitle>
+                        <CardTitle>Sugestoes de Posts</CardTitle>
                         <CardDescription>
-                            Comparação antes e depois para {postAnalyses?.length || 0} posts
+                            Clique em um post para ver a analise ({postAnalyses?.length || 0} posts)
                         </CardDescription>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground self-end sm:self-auto">
                     <Clock className="h-3 w-3" />
                     <span>
                         {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {

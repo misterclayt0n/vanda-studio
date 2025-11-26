@@ -1,10 +1,14 @@
 "use client";
 
 import { Doc } from "@/convex/_generated/dataModel";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
     MessageSquare,
-    Target,
     Palette,
     Users,
     TrendingUp,
@@ -23,50 +27,50 @@ export function BrandAnalysisCard({ analysis }: BrandAnalysisCardProps) {
     }
 
     return (
-        <div className="space-y-6">
+        <Accordion
+            type="multiple"
+            defaultValue={["score", "voice"]}
+            className="space-y-3"
+        >
             {/* Overall Score & Summary */}
-            <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-xl bg-gradient-purple flex items-center justify-center shadow-lg shadow-primary/20">
-                                <TrendingUp className="h-6 w-6 text-white" />
-                            </div>
-                            <div>
-                                <CardTitle>Pontuação Geral</CardTitle>
-                                <CardDescription>Avaliação da presença digital</CardDescription>
-                            </div>
+            <AccordionItem value="score">
+                <AccordionTrigger>
+                    <div className="flex items-center gap-3 flex-1">
+                        <div className="h-10 w-10 rounded-lg bg-gradient-pink flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                            <TrendingUp className="h-5 w-5 text-white" />
                         </div>
-                        <div className="text-right">
-                            <div className="text-4xl font-bold text-primary">
-                                {analysis.overallScore ?? 0}
-                                <span className="text-lg text-muted-foreground">/100</span>
-                            </div>
+                        <div className="flex-1 text-left">
+                            <div className="font-semibold">Pontuacao Geral</div>
+                            <div className="text-xs text-muted-foreground">Avaliacao da presenca digital</div>
+                        </div>
+                        <div className="text-2xl font-bold text-primary mr-2">
+                            {analysis.overallScore ?? 0}
+                            <span className="text-sm text-muted-foreground">/100</span>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent>
+                </AccordionTrigger>
+                <AccordionContent>
                     <p className="text-muted-foreground leading-relaxed">
                         {analysis.strategySummary}
                     </p>
-                </CardContent>
-            </Card>
+                </AccordionContent>
+            </AccordionItem>
 
             {/* Brand Voice */}
             {analysis.brandVoice && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <AccordionItem value="voice">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                                 <MessageSquare className="h-5 w-5 text-blue-500" />
                             </div>
-                            <div>
-                                <CardTitle>Voz da Marca</CardTitle>
-                                <CardDescription>Tom e linguagem da comunicação</CardDescription>
+                            <div className="text-left">
+                                <div className="font-semibold">Voz da Marca</div>
+                                <div className="text-xs text-muted-foreground">Tom e linguagem da comunicacao</div>
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4">
                         <DiffBlock
                             label="Atual"
                             content={analysis.brandVoice.current}
@@ -96,34 +100,36 @@ export function BrandAnalysisCard({ analysis }: BrandAnalysisCardProps) {
                                 </div>
                             </div>
                         )}
-                    </CardContent>
-                </Card>
+                    </AccordionContent>
+                </AccordionItem>
             )}
 
             {/* Content Pillars */}
             {analysis.contentPillars && analysis.contentPillars.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <AccordionItem value="pillars">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
                                 <Lightbulb className="h-5 w-5 text-green-500" />
                             </div>
-                            <div>
-                                <CardTitle>Pilares de Conteúdo</CardTitle>
-                                <CardDescription>Temas principais para sua estratégia</CardDescription>
+                            <div className="text-left">
+                                <div className="font-semibold">Pilares de Conteudo</div>
+                                <div className="text-xs text-muted-foreground">
+                                    {analysis.contentPillars.length} temas principais
+                                </div>
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-4 md:grid-cols-2">
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <div className="grid gap-3 sm:grid-cols-2">
                             {analysis.contentPillars.map((pillar, idx) => (
                                 <div
                                     key={idx}
-                                    className="rounded-lg border border-border/50 p-4 space-y-2 hover:border-primary/30 transition-colors"
+                                    className="rounded-lg border border-border/50 p-3 space-y-2 hover:border-primary/30 transition-colors"
                                 >
                                     <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                        <h4 className="font-semibold">{pillar.name}</h4>
+                                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                                        <h4 className="font-semibold text-sm">{pillar.name}</h4>
                                     </div>
                                     <p className="text-sm text-muted-foreground">{pillar.description}</p>
                                     <p className="text-xs text-muted-foreground/70 italic">
@@ -132,25 +138,25 @@ export function BrandAnalysisCard({ analysis }: BrandAnalysisCardProps) {
                                 </div>
                             ))}
                         </div>
-                    </CardContent>
-                </Card>
+                    </AccordionContent>
+                </AccordionItem>
             )}
 
             {/* Visual Direction */}
             {analysis.visualDirection && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                <AccordionItem value="visual">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className="h-10 w-10 rounded-lg bg-pink-500/10 flex items-center justify-center shrink-0">
                                 <Palette className="h-5 w-5 text-pink-500" />
                             </div>
-                            <div>
-                                <CardTitle>Direção Visual</CardTitle>
-                                <CardDescription>Estilo e estética do conteúdo</CardDescription>
+                            <div className="text-left">
+                                <div className="font-semibold">Direcao Visual</div>
+                                <div className="text-xs text-muted-foreground">Estilo e estetica do conteudo</div>
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4">
                         <DiffBlock
                             label="Estilo Atual"
                             content={analysis.visualDirection.currentStyle}
@@ -162,40 +168,40 @@ export function BrandAnalysisCard({ analysis }: BrandAnalysisCardProps) {
                             variant="recommended"
                         />
                         <ReasoningBlock reasoning={analysis.visualDirection.reasoning} />
-                    </CardContent>
-                </Card>
+                    </AccordionContent>
+                </AccordionItem>
             )}
 
             {/* Target Audience */}
             {analysis.targetAudience && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <AccordionItem value="audience">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
                                 <Users className="h-5 w-5 text-purple-500" />
                             </div>
-                            <div>
-                                <CardTitle>Público-Alvo</CardTitle>
-                                <CardDescription>Quem você deve alcançar</CardDescription>
+                            <div className="text-left">
+                                <div className="font-semibold">Publico-Alvo</div>
+                                <div className="text-xs text-muted-foreground">Quem voce deve alcancar</div>
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4">
                         <DiffBlock
-                            label="Público Atual"
+                            label="Publico Atual"
                             content={analysis.targetAudience.current}
                             variant="current"
                         />
                         <DiffBlock
-                            label="Público Recomendado"
+                            label="Publico Recomendado"
                             content={analysis.targetAudience.recommended}
                             variant="recommended"
                         />
                         <ReasoningBlock reasoning={analysis.targetAudience.reasoning} />
-                    </CardContent>
-                </Card>
+                    </AccordionContent>
+                </AccordionItem>
             )}
-        </div>
+        </Accordion>
     );
 }
 
@@ -212,7 +218,7 @@ function DiffBlock({
 
     return (
         <div
-            className={`rounded-lg p-4 border ${
+            className={`rounded-lg p-3 border ${
                 isCurrent
                     ? "bg-red-500/5 border-red-500/20"
                     : "bg-green-500/5 border-green-500/20"
@@ -235,7 +241,7 @@ function DiffBlock({
 
 function ReasoningBlock({ reasoning }: { reasoning: string }) {
     return (
-        <div className="flex items-start gap-2 pt-2">
+        <div className="flex items-start gap-2 pt-1">
             <ArrowRight className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <p className="text-sm text-muted-foreground italic">{reasoning}</p>
         </div>

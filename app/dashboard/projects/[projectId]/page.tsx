@@ -7,9 +7,9 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarouselPost } from "@/components/carousel-post";
-import { ArrowLeft, Instagram, Loader2, ImageOff, FileText, Wand2, Grid3X3, Video } from "lucide-react";
+import { ProjectHeader } from "@/components/project";
+import { ArrowLeft, Loader2, ImageOff, FileText, Wand2, Grid3X3, Video } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnalysisSection } from "@/components/analysis";
 
@@ -80,56 +80,10 @@ export default function ProjectDetailsPage() {
         );
     }
 
-    const stats = [
-        { label: "Seguidores", value: formatNumber(project.followersCount) },
-        { label: "Seguindo", value: formatNumber(project.followingCount) },
-        { label: "Posts", value: formatNumber(project.postsCount) },
-    ];
-
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")} className="h-9 w-9">
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="flex items-center gap-3">
-                        <ProfilePicture
-                            storageUrl={project.profilePictureStorageUrl}
-                            externalUrl={project.profilePictureUrl}
-                            alt={project.instagramHandle || project.name}
-                            fallbackLetter={project.name.charAt(0).toUpperCase()}
-                            size="sm"
-                        />
-                        <div>
-                            <h1 className="text-lg font-semibold">@{project.instagramHandle || extractHandle(project.instagramUrl)}</h1>
-                            <p className="text-sm text-muted-foreground">{project.name}</p>
-                        </div>
-                    </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                    <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
-                        <Instagram className="h-4 w-4" />
-                        <span className="hidden sm:inline ml-2">Ver Instagram</span>
-                    </Link>
-                </Button>
-            </div>
-
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-4">
-                {stats.map((stat) => (
-                    <div key={stat.label} className="rounded-xl border bg-card p-4 text-center">
-                        <p className="text-2xl font-bold tabular-nums">{stat.value}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-                    </div>
-                ))}
-            </div>
-
-            {/* Bio if present */}
-            {project.bio && (
-                <p className="text-sm text-muted-foreground border-l-2 border-primary/30 pl-4">{project.bio}</p>
-            )}
+            {/* Project Header with compact-on-scroll */}
+            <ProjectHeader project={project} />
 
             {/* Tabbed Sections */}
             <Tabs defaultValue="strategy" className="w-full">
@@ -185,76 +139,6 @@ function EmptyTabContent({ message }: { message: string }) {
         <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
             <p className="text-muted-foreground">{message}</p>
         </div>
-    );
-}
-
-function formatNumber(value?: number | null) {
-    if (typeof value !== "number") return "-";
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-    return value.toLocaleString("pt-BR");
-}
-
-function extractHandle(url: string) {
-    try {
-        const parsed = new URL(url);
-        const [handle] = parsed.pathname.split("/").filter(Boolean);
-        return handle || "conta";
-    } catch {
-        return url;
-    }
-}
-
-function ensureUrl(url: string) {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url;
-    }
-    return `https://${url}`;
-}
-
-function ProfilePicture({
-    storageUrl,
-    externalUrl,
-    alt,
-    fallbackLetter,
-    size = "md",
-}: {
-    storageUrl?: string | null;
-    externalUrl?: string;
-    alt: string;
-    fallbackLetter: string;
-    size?: "sm" | "md";
-}) {
-    const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
-
-    const sizeClasses = size === "sm" ? "h-10 w-10 text-sm" : "h-32 w-32 text-lg";
-
-    // Build list of URLs to try in order
-    const urls = [storageUrl, externalUrl].filter((url): url is string => Boolean(url));
-    const currentUrl = urls[currentUrlIndex];
-
-    if (!currentUrl || currentUrlIndex >= urls.length) {
-        return (
-            <div className={`${sizeClasses} rounded-full bg-muted flex items-center justify-center font-semibold`}>
-                {fallbackLetter}
-            </div>
-        );
-    }
-
-    return (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-            src={currentUrl}
-            alt={alt}
-            className={`${sizeClasses} rounded-full object-cover`}
-            onError={() => {
-                if (currentUrlIndex < urls.length - 1) {
-                    setCurrentUrlIndex(currentUrlIndex + 1);
-                } else {
-                    setCurrentUrlIndex(urls.length);
-                }
-            }}
-        />
     );
 }
 
