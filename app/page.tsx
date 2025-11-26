@@ -92,11 +92,11 @@ function Hero() {
           <span className="text-foreground"> as a service.</span>
         </h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
-          Envie um @ e veja a Vanda repintar a narrativa.
-          Cole o link do Instagram da sua loja e receba uma
-          <span className="text-foreground font-medium"> narrativa clara</span>,
-          <span className="text-foreground font-medium"> clima </span>
-          e ideias de conteúdo prontas para usar.
+          Cole o link do Instagram da sua marca e a Vanda faz uma
+          <span className="text-foreground font-medium"> análise completa</span>:
+          identifica o que funciona, o que falta e entrega
+          <span className="text-foreground font-medium"> ideias de posts prontas </span>
+          para você usar.
         </p>
       </div>
 
