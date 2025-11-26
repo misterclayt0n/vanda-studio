@@ -44,36 +44,54 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
 
     return (
         <div
-            className={cn(
-                "sticky top-0 z-20 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-background/80 backdrop-blur-xl border-b border-border/50 transition-all duration-300",
-                isCompact ? "py-3" : "py-6"
-            )}
+            className="sticky top-0 z-20 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-background/80 backdrop-blur-xl border-b border-border/50"
         >
-            {/* Compact Header */}
-            <div
-                className={cn(
-                    "flex items-center justify-between transition-all duration-300",
-                    isCompact ? "opacity-100" : "opacity-0 absolute pointer-events-none"
-                )}
-            >
+            {/* Always visible top bar */}
+            <div className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         onClick={() => router.push("/dashboard")}
-                        className="h-8 w-8 shrink-0"
+                        className="shrink-0"
                     >
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <ProfilePicture
-                        storageUrl={project.profilePictureStorageUrl}
-                        externalUrl={project.profilePictureUrl}
-                        alt={handle}
-                        fallbackLetter={project.name.charAt(0).toUpperCase()}
-                        size="xs"
-                    />
-                    <span className="font-semibold text-sm">@{handle}</span>
-                    <div className="hidden sm:flex items-center gap-4 ml-4 text-xs text-muted-foreground">
+
+                    {/* Profile picture with size transition */}
+                    <div className="relative">
+                        <ProfilePicture
+                            storageUrl={project.profilePictureStorageUrl}
+                            externalUrl={project.profilePictureUrl}
+                            alt={handle}
+                            fallbackLetter={project.name.charAt(0).toUpperCase()}
+                            isCompact={isCompact}
+                        />
+                    </div>
+
+                    <div className={cn(
+                        "transition-all duration-300 ease-out overflow-hidden",
+                        isCompact ? "max-w-[200px]" : "max-w-[300px]"
+                    )}>
+                        <h1 className={cn(
+                            "font-semibold transition-all duration-300 ease-out whitespace-nowrap",
+                            isCompact ? "text-sm" : "text-lg"
+                        )}>
+                            @{handle}
+                        </h1>
+                        <p className={cn(
+                            "text-sm text-muted-foreground whitespace-nowrap transition-all duration-300 ease-out",
+                            isCompact ? "opacity-0 h-0" : "opacity-100 h-5"
+                        )}>
+                            {project.name}
+                        </p>
+                    </div>
+
+                    {/* Inline stats for compact mode */}
+                    <div className={cn(
+                        "hidden sm:flex items-center gap-4 ml-2 text-xs text-muted-foreground transition-all duration-300 ease-out",
+                        isCompact ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none absolute"
+                    )}>
                         {stats.map((stat) => (
                             <span key={stat.label}>
                                 <span className="font-semibold text-foreground">{stat.value}</span>{" "}
@@ -82,72 +100,50 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                         ))}
                     </div>
                 </div>
+
                 <Button asChild variant="outline" size="sm">
                     <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
                         <Instagram className="h-4 w-4" />
+                        <span className={cn(
+                            "transition-all duration-300 ease-out overflow-hidden",
+                            isCompact ? "w-0 opacity-0" : "w-auto opacity-100 ml-2"
+                        )}>
+                            <span className="hidden sm:inline whitespace-nowrap">Ver Instagram</span>
+                        </span>
                     </Link>
                 </Button>
             </div>
 
-            {/* Full Header */}
+            {/* Expandable content section */}
             <div
                 className={cn(
-                    "transition-all duration-300",
-                    isCompact ? "opacity-0 absolute pointer-events-none" : "opacity-100"
+                    "grid transition-all duration-300 ease-out",
+                    isCompact
+                        ? "grid-rows-[0fr] opacity-0"
+                        : "grid-rows-[1fr] opacity-100"
                 )}
             >
-                {/* Top row: back button + profile info + instagram link */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => router.push("/dashboard")}
-                            className="h-9 w-9 shrink-0"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-3">
-                            <ProfilePicture
-                                storageUrl={project.profilePictureStorageUrl}
-                                externalUrl={project.profilePictureUrl}
-                                alt={handle}
-                                fallbackLetter={project.name.charAt(0).toUpperCase()}
-                                size="md"
-                            />
-                            <div>
-                                <h1 className="text-lg font-semibold">@{handle}</h1>
-                                <p className="text-sm text-muted-foreground">{project.name}</p>
+                <div className="overflow-hidden">
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-3 pb-4">
+                        {stats.map((stat) => (
+                            <div
+                                key={stat.label}
+                                className="rounded-xl border bg-card/50 backdrop-blur-sm p-3 text-center"
+                            >
+                                <p className="text-xl font-bold tabular-nums">{stat.value}</p>
+                                <p className="text-xs text-muted-foreground">{stat.label}</p>
                             </div>
-                        </div>
+                        ))}
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                        <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
-                            <Instagram className="h-4 w-4" />
-                            <span className="hidden sm:inline ml-2">Ver Instagram</span>
-                        </Link>
-                    </Button>
-                </div>
 
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                    {stats.map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="rounded-xl border bg-card/50 backdrop-blur-sm p-3 text-center"
-                        >
-                            <p className="text-xl font-bold tabular-nums">{stat.value}</p>
-                            <p className="text-xs text-muted-foreground">{stat.label}</p>
-                        </div>
-                    ))}
+                    {/* Bio if present */}
+                    {project.bio && (
+                        <p className="text-sm text-muted-foreground border-l-2 border-primary/30 pl-4 pb-4">
+                            {project.bio}
+                        </p>
+                    )}
                 </div>
-
-                {/* Bio if present */}
-                {project.bio && (
-                    <p className="text-sm text-muted-foreground border-l-2 border-primary/30 pl-4">
-                        {project.bio}
-                    </p>
-                )}
             </div>
         </div>
     );
@@ -158,31 +154,30 @@ function ProfilePicture({
     externalUrl,
     alt,
     fallbackLetter,
-    size = "md",
+    isCompact,
 }: {
     storageUrl?: string | null;
     externalUrl?: string;
     alt: string;
     fallbackLetter: string;
-    size?: "xs" | "sm" | "md";
+    isCompact: boolean;
 }) {
     const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
 
-    const sizeClasses = {
-        xs: "h-7 w-7 text-xs",
-        sm: "h-10 w-10 text-sm",
-        md: "h-14 w-14 text-base",
-    };
-
     const urls = [storageUrl, externalUrl].filter((url): url is string => Boolean(url));
     const currentUrl = urls[currentUrlIndex];
+
+    const sizeClasses = cn(
+        "rounded-full object-cover shrink-0 transition-all duration-300 ease-out",
+        isCompact ? "h-8 w-8" : "h-12 w-12"
+    );
 
     if (!currentUrl || currentUrlIndex >= urls.length) {
         return (
             <div
                 className={cn(
-                    sizeClasses[size],
-                    "rounded-full bg-muted flex items-center justify-center font-semibold shrink-0"
+                    sizeClasses,
+                    "bg-muted flex items-center justify-center font-semibold text-sm"
                 )}
             >
                 {fallbackLetter}
@@ -195,7 +190,7 @@ function ProfilePicture({
         <img
             src={currentUrl}
             alt={alt}
-            className={cn(sizeClasses[size], "rounded-full object-cover shrink-0")}
+            className={sizeClasses}
             onError={() => {
                 if (currentUrlIndex < urls.length - 1) {
                     setCurrentUrlIndex(currentUrlIndex + 1);

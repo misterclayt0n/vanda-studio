@@ -87,16 +87,16 @@ export default function ProjectDetailsPage() {
 
             {/* Tabbed Sections */}
             <Tabs defaultValue="strategy" className="w-full">
-                <TabsList className="w-full h-12 p-1 bg-muted/50 rounded-xl">
-                    <TabsTrigger value="strategy" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+                <TabsList className="w-full">
+                    <TabsTrigger value="strategy">
                         <FileText className="h-4 w-4" />
                         <span className="hidden sm:inline">Estrategia</span>
                     </TabsTrigger>
-                    <TabsTrigger value="suggestions" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+                    <TabsTrigger value="suggestions">
                         <Wand2 className="h-4 w-4" />
                         <span className="hidden sm:inline">Sugestoes</span>
                     </TabsTrigger>
-                    <TabsTrigger value="posts" className="flex-1 h-full rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+                    <TabsTrigger value="posts">
                         <Grid3X3 className="h-4 w-4" />
                         <span className="hidden sm:inline">Posts</span>
                     </TabsTrigger>
