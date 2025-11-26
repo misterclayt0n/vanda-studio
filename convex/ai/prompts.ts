@@ -311,26 +311,70 @@ export interface ImageGenerationContext {
     visualStyle: string;
     caption: string;
     additionalContext?: string;
+    imageStyle?: ImageStyleType;
 }
 
-export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => `Crie uma imagem para um post do Instagram.
+// Image style types
+export type ImageStyleType = "realistic" | "illustrative" | "minimalist" | "artistic";
+
+export const IMAGE_STYLE_PROMPTS: Record<ImageStyleType, string> = {
+    realistic: `ESTILO: Fotografia profissional hiper-realista
+- Foto tirada com câmera DSLR profissional, lente 50mm f/1.8
+- Iluminação natural suave, golden hour
+- Profundidade de campo realista com bokeh natural
+- Texturas e materiais autênticos, sem aparência artificial
+- Cores naturais e saturação equilibrada
+- SEM elementos de IA, SEM aparência digital ou renderizada
+- Deve parecer uma foto real tirada por um fotógrafo profissional`,
+
+    illustrative: `ESTILO: Ilustração digital moderna
+- Arte digital colorida e vibrante
+- Estilo de ilustração contemporânea para redes sociais
+- Cores vivas e contrastantes
+- Formas bem definidas e clean
+- Pode incluir elementos gráficos e patterns
+- Visual moderno e atraente para Instagram`,
+
+    minimalist: `ESTILO: Minimalista e clean
+- Design limpo com muito espaço em branco
+- Paleta de cores reduzida (2-3 cores)
+- Composição simples e elegante
+- Foco em um único elemento principal
+- Linhas simples e formas geométricas básicas
+- Estética sofisticada e premium`,
+
+    artistic: `ESTILO: Artístico e criativo
+- Estilo artístico único e expressivo
+- Pode incluir elementos abstratos
+- Cores ousadas e combinações criativas
+- Composição dinâmica e interessante
+- Texturas e efeitos artísticos
+- Visual impactante e memorável`,
+};
+
+export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
+    const stylePrompt = context.imageStyle
+        ? IMAGE_STYLE_PROMPTS[context.imageStyle]
+        : IMAGE_STYLE_PROMPTS.realistic;
+
+    return `Crie uma imagem para um post do Instagram.
 
 MARCA: ${context.brandName}
-ESTILO VISUAL: ${context.visualStyle}
+
+${stylePrompt}
 
 LEGENDA DO POST:
 "${context.caption}"
 
 ${context.additionalContext ? `CONTEXTO ADICIONAL: ${context.additionalContext}` : ""}
 
-DIRETRIZES:
-- Crie uma imagem visualmente atraente e profissional para Instagram
-- A imagem deve complementar a legenda e mensagem do post
-- Mantenha o estilo visual da marca
-- Use cores vibrantes e composição que chame atenção no feed
-- Evite texto na imagem (a legenda já tem o texto)
+DIRETRIZES OBRIGATÓRIAS:
 - Formato quadrado (1:1) otimizado para Instagram
-- Estilo moderno e contemporâneo
+- A imagem deve complementar a legenda e mensagem do post
+- NÃO inclua texto na imagem
+- Composição que chame atenção no feed
+- Alta qualidade e resolução
 
 Gere a imagem.`;
+};
 

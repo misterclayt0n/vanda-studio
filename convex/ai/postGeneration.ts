@@ -10,6 +10,7 @@ import {
     POST_GENERATION_USER_PROMPT,
     PostGenerationResponse,
     IMAGE_GENERATION_PROMPT,
+    ImageStyleType,
 } from "./prompts";
 
 // Generate a new post based on brand context and analyzed posts
@@ -17,6 +18,12 @@ export const generatePost = action({
     args: {
         projectId: v.id("projects"),
         additionalContext: v.optional(v.string()),
+        imageStyle: v.optional(v.union(
+            v.literal("realistic"),
+            v.literal("illustrative"),
+            v.literal("minimalist"),
+            v.literal("artistic")
+        )),
     },
     handler: async (ctx, args): Promise<{ success: boolean; generatedPostId: Id<"generated_posts"> }> => {
         // 1. Check authentication
@@ -118,6 +125,7 @@ export const generatePost = action({
             visualStyle: brandAnalysis.visualDirection?.recommendedStyle ?? "Moderno e profissional",
             caption: generated.caption,
             additionalContext: args.additionalContext,
+            imageStyle: args.imageStyle as ImageStyleType | undefined,
         });
 
         let imageStorageId: Id<"_storage"> | undefined;

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download } from "lucide-react";
+import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download, Camera, Palette, Minimize2, Brush } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
     Dialog,
@@ -53,6 +53,7 @@ export default function ProjectDetailsPage() {
     // Generation state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [additionalContext, setAdditionalContext] = useState("");
+    const [imageStyle, setImageStyle] = useState<"realistic" | "illustrative" | "minimalist" | "artistic">("realistic");
     const [isGenerating, setIsGenerating] = useState(false);
     const [generateError, setGenerateError] = useState<string | null>(null);
 
@@ -154,16 +155,18 @@ export default function ProjectDetailsPage() {
             await generatePost({
                 projectId,
                 additionalContext: additionalContext.trim() || undefined,
+                imageStyle,
             });
             setShowCreateDialog(false);
             setAdditionalContext("");
+            setImageStyle("realistic");
         } catch (err) {
             console.error("Failed to generate post:", err);
             setGenerateError(err instanceof Error ? err.message : "Erro ao gerar post");
         } finally {
             setIsGenerating(false);
         }
-    }, [generatePost, projectId, additionalContext]);
+    }, [generatePost, projectId, additionalContext, imageStyle]);
 
     // Handle opening a post
     const handleOpenPost = (post: PostWithStorageUrls) => {
@@ -349,6 +352,42 @@ export default function ProjectDetailsPage() {
                             </ul>
                         </div>
 
+                        {/* Image style selector */}
+                        <div className="space-y-2">
+                            <Label>Estilo da imagem</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { value: "realistic" as const, label: "Realista", icon: Camera, desc: "Foto profissional" },
+                                    { value: "illustrative" as const, label: "Ilustrativo", icon: Palette, desc: "Arte digital" },
+                                    { value: "minimalist" as const, label: "Minimalista", icon: Minimize2, desc: "Clean e simples" },
+                                    { value: "artistic" as const, label: "Artistico", icon: Brush, desc: "Criativo e ousado" },
+                                ].map((style) => (
+                                    <button
+                                        key={style.value}
+                                        type="button"
+                                        onClick={() => setImageStyle(style.value)}
+                                        className={cn(
+                                            "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
+                                            imageStyle === style.value
+                                                ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                                : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "flex h-9 w-9 items-center justify-center rounded-lg",
+                                            imageStyle === style.value ? "bg-primary text-primary-foreground" : "bg-muted"
+                                        )}>
+                                            <style.icon className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium">{style.label}</p>
+                                            <p className="text-xs text-muted-foreground">{style.desc}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Additional context input */}
                         <div className="space-y-2">
                             <Label htmlFor="context">Contexto adicional (opcional)</Label>
@@ -357,7 +396,7 @@ export default function ProjectDetailsPage() {
                                 placeholder="Tom desejado, tema especifico, promocao, data comemorativa..."
                                 value={additionalContext}
                                 onChange={(e) => setAdditionalContext(e.target.value)}
-                                rows={4}
+                                rows={3}
                             />
                         </div>
 
