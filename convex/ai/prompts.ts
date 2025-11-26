@@ -312,6 +312,7 @@ export interface ImageGenerationContext {
     caption: string;
     additionalContext?: string;
     imageStyle?: ImageStyleType;
+    hasReferenceImages?: boolean;
 }
 
 // Image style types
@@ -357,10 +358,21 @@ export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
         ? IMAGE_STYLE_PROMPTS[context.imageStyle]
         : IMAGE_STYLE_PROMPTS.realistic;
 
+    const referenceImagePrompt = context.hasReferenceImages
+        ? `
+IMAGENS DE REFERÊNCIA:
+As imagens anexadas são posts anteriores desta marca. Use-as como referência visual para:
+- Manter consistência visual com o estilo da marca
+- Preservar a identidade de produtos (como embalagens, logos, cores)
+- Replicar o estilo fotográfico e composição usados pela marca
+- Se houver um produto específico nas imagens (como um pote, embalagem, etc), inclua-o na nova imagem com aparência IDÊNTICA
+`
+        : "";
+
     return `Crie uma imagem para um post do Instagram.
 
 MARCA: ${context.brandName}
-
+${referenceImagePrompt}
 ${stylePrompt}
 
 LEGENDA DO POST:
@@ -374,6 +386,7 @@ DIRETRIZES OBRIGATÓRIAS:
 - NÃO inclua texto na imagem
 - Composição que chame atenção no feed
 - Alta qualidade e resolução
+${context.hasReferenceImages ? "- MANTENHA consistência visual com as imagens de referência\n- PRESERVE a aparência exata de produtos/embalagens mostrados" : ""}
 
 Gere a imagem.`;
 };

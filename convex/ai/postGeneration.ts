@@ -71,18 +71,33 @@ export const generatePost = action({
             throw new Error(`Need at least 3 analyzed posts for context. Currently have ${analyzedPosts.length}.`);
         }
 
-        // 7. Get source post IDs and their captions
+        // 7. Get source post IDs, captions, and image URLs
         const sourcePosts = await Promise.all(
             analyzedPosts.slice(0, 5).map(async (analysis) => {
                 const post = await ctx.runQuery(api.instagramPosts.get, { postId: analysis.postId });
+
+                // Get image URL from storage if available
+                let imageUrl: string | null = null;
+                if (post?.mediaStorageId) {
+                    imageUrl = await ctx.storage.getUrl(post.mediaStorageId);
+                } else if (post?.mediaUrl) {
+                    imageUrl = post.mediaUrl;
+                }
+
                 return {
                     postId: analysis.postId,
                     caption: post?.caption || analysis.currentCaption || "",
                     strengths: analysis.analysisDetails?.strengths ?? [],
                     toneAnalysis: analysis.analysisDetails?.toneAnalysis ?? "",
+                    imageUrl,
                 };
             })
         );
+
+        // Collect reference images from analyzed posts (filter out nulls)
+        const referenceImages = sourcePosts
+            .filter((p) => p.imageUrl !== null)
+            .map((p) => ({ url: p.imageUrl as string }));
 
         // 8. Build context for generation
         const context = {
@@ -126,11 +141,14 @@ export const generatePost = action({
             caption: generated.caption,
             additionalContext: args.additionalContext,
             imageStyle: args.imageStyle as ImageStyleType | undefined,
+            hasReferenceImages: referenceImages.length > 0,
         });
 
         let imageStorageId: Id<"_storage"> | undefined;
         try {
-            const imageResult = await generateImage(imagePrompt);
+            const imageResult = await generateImage(imagePrompt, {
+                referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+            });
 
             // Convert base64 to blob and store in Convex
             const binaryData = Uint8Array.from(atob(imageResult.imageBase64), c => c.charCodeAt(0));

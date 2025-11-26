@@ -181,11 +181,18 @@ interface ImageGenerationResponse {
     mimeType: string;
 }
 
+// Reference image for context
+interface ReferenceImage {
+    url: string;  // Can be a URL or data:image/...;base64,... format
+    description?: string;
+}
+
 // Generate image using Gemini 3 Pro Image model
 export async function generateImage(
     prompt: string,
     options?: {
         model?: string;
+        referenceImages?: ReferenceImage[];
     }
 ): Promise<ImageGenerationResponse> {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -195,8 +202,26 @@ export async function generateImage(
 
     const model = options?.model ?? MODELS.GEMINI_3_PRO_IMAGE;
 
-    // Gemini 3 Pro Image requires explicit image generation instruction
+    // Build multimodal content array
+    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+    // Add reference images first (up to 5 for identity preservation)
+    if (options?.referenceImages && options.referenceImages.length > 0) {
+        const imagesToUse = options.referenceImages.slice(0, 5);
+        for (const img of imagesToUse) {
+            contentParts.push({
+                type: "image_url",
+                image_url: { url: img.url },
+            });
+        }
+    }
+
+    // Add the text prompt
     const imagePrompt = `Generate an image: ${prompt}`;
+    contentParts.push({
+        type: "text",
+        text: imagePrompt,
+    });
 
     const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
@@ -211,7 +236,7 @@ export async function generateImage(
             messages: [
                 {
                     role: "user",
-                    content: imagePrompt,
+                    content: contentParts,
                 },
             ],
         }),
