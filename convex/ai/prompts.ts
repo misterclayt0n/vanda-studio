@@ -305,3 +305,32 @@ export interface PostGenerationResponse {
     reasoning: string;
 }
 
+// Image generation prompt - creates images based on brand context and caption
+export interface ImageGenerationContext {
+    brandName: string;
+    visualStyle: string;
+    caption: string;
+    additionalContext?: string;
+}
+
+export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => `Crie uma imagem para um post do Instagram.
+
+MARCA: ${context.brandName}
+ESTILO VISUAL: ${context.visualStyle}
+
+LEGENDA DO POST:
+"${context.caption}"
+
+${context.additionalContext ? `CONTEXTO ADICIONAL: ${context.additionalContext}` : ""}
+
+DIRETRIZES:
+- Crie uma imagem visualmente atraente e profissional para Instagram
+- A imagem deve complementar a legenda e mensagem do post
+- Mantenha o estilo visual da marca
+- Use cores vibrantes e composição que chame atenção no feed
+- Evite texto na imagem (a legenda já tem o texto)
+- Formato quadrado (1:1) otimizado para Instagram
+- Estilo moderno e contemporâneo
+
+Gere a imagem.`;
+

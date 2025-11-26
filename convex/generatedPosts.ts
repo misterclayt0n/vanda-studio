@@ -62,11 +62,25 @@ export const listByProject = query({
             return [];
         }
 
-        return await ctx.db
+        const posts = await ctx.db
             .query("generated_posts")
             .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
             .order("desc")
             .collect();
+
+        // Resolve image URLs
+        return Promise.all(
+            posts.map(async (post) => {
+                let imageUrl: string | null = null;
+                if (post.imageStorageId) {
+                    imageUrl = await ctx.storage.getUrl(post.imageStorageId);
+                }
+                return {
+                    ...post,
+                    imageUrl,
+                };
+            })
+        );
     },
 });
 
@@ -100,6 +114,9 @@ export const create = mutation({
         sourcePostIds: v.array(v.id("instagram_posts")),
         reasoning: v.optional(v.string()),
         model: v.optional(v.string()),
+        imageStorageId: v.optional(v.id("_storage")),
+        imagePrompt: v.optional(v.string()),
+        imageModel: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -131,6 +148,9 @@ export const create = mutation({
             sourcePostIds: args.sourcePostIds,
             reasoning: args.reasoning,
             model: args.model,
+            imageStorageId: args.imageStorageId,
+            imagePrompt: args.imagePrompt,
+            imageModel: args.imageModel,
             status: "generated",
             createdAt: now,
             updatedAt: now,

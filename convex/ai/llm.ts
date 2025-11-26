@@ -11,6 +11,8 @@ export const MODELS = {
     GEMINI_2_5_FLASH: "google/gemini-2.5-flash",
     // Caption generation - high quality creative writing
     GPT_4_1: "openai/gpt-4.1",
+    // Image generation
+    GEMINI_3_PRO_IMAGE: "google/gemini-3-pro-image-preview",
 } as const;
 
 // Default model for analysis tasks
@@ -171,6 +173,212 @@ function tryRepairJSON(jsonStr: string): string {
     }
 
     return repaired;
+}
+
+// Image generation response
+interface ImageGenerationResponse {
+    imageBase64: string;
+    mimeType: string;
+}
+
+// Generate image using Gemini 3 Pro Image model
+export async function generateImage(
+    prompt: string,
+    options?: {
+        model?: string;
+    }
+): Promise<ImageGenerationResponse> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        throw new Error("OPENROUTER_API_KEY environment variable is not set");
+    }
+
+    const model = options?.model ?? MODELS.GEMINI_3_PRO_IMAGE;
+
+    // Gemini 3 Pro Image requires explicit image generation instruction
+    const imagePrompt = `Generate an image: ${prompt}`;
+
+    const response = await fetch(OPENROUTER_API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": process.env.SITE_URL ?? "https://vanda.studio",
+            "X-Title": "Vanda Studio",
+        },
+        body: JSON.stringify({
+            model,
+            messages: [
+                {
+                    role: "user",
+                    content: imagePrompt,
+                },
+            ],
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.choices || data.choices.length === 0) {
+        throw new Error("No response from OpenRouter API");
+    }
+
+    const choice = data.choices[0];
+    const message = choice.message;
+    const content = message?.content;
+
+    // Check for images in message.images (OpenRouter/Gemini format)
+    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
+        const img = message.images[0];
+
+        // Check different possible formats
+        if (typeof img === "string") {
+            // Could be base64 or data URL
+            if (img.startsWith("data:image")) {
+                const match = img.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    return {
+                        mimeType: match[1],
+                        imageBase64: match[2],
+                    };
+                }
+            }
+            // Assume raw base64
+            return {
+                mimeType: "image/png",
+                imageBase64: img,
+            };
+        }
+
+        // Object format with url or data
+        if (typeof img === "object" && img !== null) {
+            // Format: { type: "image_url", image_url: { url: "data:image/png;base64,..." } }
+            if (img.image_url) {
+                const imageUrl = typeof img.image_url === "string" ? img.image_url : img.image_url.url;
+                if (imageUrl) {
+                    if (imageUrl.startsWith("data:image")) {
+                        const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+                        if (match) {
+                            return {
+                                mimeType: match[1],
+                                imageBase64: match[2],
+                            };
+                        }
+                    }
+                    // Raw base64
+                    return {
+                        mimeType: "image/png",
+                        imageBase64: imageUrl,
+                    };
+                }
+            }
+            // Format: { url: "data:image/png;base64,..." }
+            if (img.url && typeof img.url === "string") {
+                if (img.url.startsWith("data:image")) {
+                    const match = img.url.match(/^data:([^;]+);base64,(.+)$/);
+                    if (match) {
+                        return {
+                            mimeType: match[1],
+                            imageBase64: match[2],
+                        };
+                    }
+                }
+                // Raw base64 in url field
+                return {
+                    mimeType: "image/png",
+                    imageBase64: img.url,
+                };
+            }
+            // Format: { data: "base64...", mime_type: "image/png" }
+            if (img.data && typeof img.data === "string") {
+                return {
+                    mimeType: img.mime_type || img.mimeType || "image/png",
+                    imageBase64: img.data,
+                };
+            }
+            // Format: { b64_json: "base64..." }
+            if (img.b64_json && typeof img.b64_json === "string") {
+                return {
+                    mimeType: "image/png",
+                    imageBase64: img.b64_json,
+                };
+            }
+        }
+    }
+
+    // Handle array content (multimodal response)
+    if (Array.isArray(content)) {
+        for (const part of content) {
+            // OpenRouter format: image_url with data URL
+            if (part.type === "image_url" && part.image_url?.url) {
+                const dataUrl = part.image_url.url;
+                const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    return {
+                        mimeType: match[1],
+                        imageBase64: match[2],
+                    };
+                }
+            }
+            // Gemini native format: inline_data
+            if (part.inline_data) {
+                return {
+                    mimeType: part.inline_data.mime_type || "image/png",
+                    imageBase64: part.inline_data.data,
+                };
+            }
+            // Text part with base64 image
+            if (part.type === "text" && typeof part.text === "string" && part.text.startsWith("data:image")) {
+                const match = part.text.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    return {
+                        mimeType: match[1],
+                        imageBase64: match[2],
+                    };
+                }
+            }
+        }
+    }
+
+    // Check if content is a string with data URL
+    if (typeof content === "string" && content.startsWith("data:image")) {
+        const match = content.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+            return {
+                mimeType: match[1],
+                imageBase64: match[2],
+            };
+        }
+    }
+
+    // Check for image in other parts of the response
+    // Some models return images in a separate 'images' array
+    if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        const img = data.images[0];
+        if (typeof img === "string") {
+            if (img.startsWith("data:image")) {
+                const match = img.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    return {
+                        mimeType: match[1],
+                        imageBase64: match[2],
+                    };
+                }
+            }
+            // Assume raw base64
+            return {
+                mimeType: "image/png",
+                imageBase64: img,
+            };
+        }
+    }
+
+    throw new Error("Falha ao gerar imagem. O modelo nao retornou uma imagem valida.");
 }
 
 // Convex action wrapper for testing LLM connection

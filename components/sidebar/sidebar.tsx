@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Menu, X, ImageIcon } from "lucide-react";
+import { useQuery } from "convex/react";
+import { LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Menu, X, Coins } from "lucide-react";
 import { useSidebar } from "./sidebar-context";
 import { usePostTabs } from "./post-tabs-context";
 import { SidebarItem } from "./sidebar-item";
@@ -11,6 +12,7 @@ import { PostTabItem } from "./post-tab-item";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
 
 export function Sidebar() {
     const { isCollapsed, isMobileOpen, toggle, closeMobile } = useSidebar();
@@ -19,6 +21,9 @@ export function Sidebar() {
 
     // Get current project ID from URL
     const currentProjectId = params?.projectId as Id<"projects"> | undefined;
+
+    // Get user quota
+    const quota = useQuery(api.billing.usage.checkQuota, {});
 
     // Filter tabs for current project
     const projectTabs = currentProjectId
@@ -107,6 +112,37 @@ export function Sidebar() {
                         </div>
                     )}
                 </nav>
+
+                {/* Credits Display */}
+                {quota && (
+                    <div className={cn(
+                        "border-t border-sidebar-border p-3",
+                        isCollapsed && "flex justify-center"
+                    )}>
+                        {isCollapsed ? (
+                            <div
+                                className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                                title={`${quota.remaining} creditos restantes`}
+                            >
+                                <Coins className="h-4 w-4" />
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                        <Coins className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-sidebar-foreground">Creditos</p>
+                                        <p className="text-[10px] text-sidebar-foreground/60">
+                                            {quota.remaining} restantes
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Footer */}
                 <div className={cn(

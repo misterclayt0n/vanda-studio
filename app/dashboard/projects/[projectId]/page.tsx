@@ -76,6 +76,9 @@ export default function ProjectDetailsPage() {
         projectId ? { projectId } : "skip"
     );
 
+    // User quota for generation (2 credits needed per post)
+    const quota = useQuery(api.billing.usage.checkQuota, {});
+
     // Generated posts
     const generatedPosts = useQuery(
         api.generatedPosts.listByProject,
@@ -243,6 +246,7 @@ export default function ProjectDetailsPage() {
                 contextStatus={contextStatus}
                 isReady={contextStatus?.isReady ?? false}
                 onCreateClick={() => setShowCreateDialog(true)}
+                quota={quota}
             />
 
             {/* Tabbed Sections */}
@@ -653,30 +657,42 @@ interface ContextProgressCardProps {
     } | undefined;
     isReady: boolean;
     onCreateClick: () => void;
+    quota: {
+        hasQuota: boolean;
+        remaining: number;
+        limit: number;
+        used: number;
+    } | null | undefined;
 }
 
-function ContextProgressCard({ contextStatus, isReady, onCreateClick }: ContextProgressCardProps) {
+function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: ContextProgressCardProps) {
     const hasStrategy = contextStatus?.hasStrategy ?? false;
     const analyzedCount = contextStatus?.analyzedCount ?? 0;
     const requiredPosts = contextStatus?.requiredPosts ?? 3;
     const progressPercent = Math.min((analyzedCount / requiredPosts) * 100, 100);
 
+    const creditsRequired = 2;
+    const hasEnoughCredits = (quota?.remaining ?? 0) >= creditsRequired;
+    const canCreate = isReady && hasEnoughCredits;
+
     return (
         <div className="rounded-xl border bg-card p-4 space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-sm">Contexto para Geracao</h3>
-                <Button
-                    onClick={onCreateClick}
-                    disabled={!isReady}
-                    className={cn(
-                        "gap-2",
-                        isReady && "animate-pulse bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90"
-                    )}
-                    size="sm"
-                >
-                    <Sparkles className="h-4 w-4" />
-                    Criar Post
-                </Button>
+                <div title={!canCreate && !hasEnoughCredits ? "Creditos insuficientes" : undefined}>
+                    <Button
+                        onClick={onCreateClick}
+                        disabled={!canCreate}
+                        className={cn(
+                            "gap-2",
+                            canCreate && "animate-pulse bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90"
+                        )}
+                        size="sm"
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        Criar Post
+                    </Button>
+                </div>
             </div>
 
             <div className="space-y-3">
@@ -708,7 +724,7 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick }: ContextP
                 </div>
             </div>
 
-            {!isReady && (
+            {!canCreate && hasEnoughCredits && (
                 <p className="text-xs text-muted-foreground">
                     {!hasStrategy
                         ? "Execute a analise de marca na aba Estrategia."
@@ -719,8 +735,13 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick }: ContextP
     );
 }
 
+// Type for generated posts with image URL
+type GeneratedPostWithImage = Doc<"generated_posts"> & {
+    imageUrl: string | null;
+};
+
 // Generated Posts Grid
-function GeneratedPostsGrid({ posts }: { posts: Doc<"generated_posts">[] }) {
+function GeneratedPostsGrid({ posts }: { posts: GeneratedPostWithImage[] }) {
     return (
         <div className="grid gap-4 md:grid-cols-2">
             {posts.map((post) => (
@@ -731,11 +752,12 @@ function GeneratedPostsGrid({ posts }: { posts: Doc<"generated_posts">[] }) {
 }
 
 // Generated Post Card
-function GeneratedPostCard({ post }: { post: Doc<"generated_posts"> }) {
+function GeneratedPostCard({ post }: { post: GeneratedPostWithImage }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedCaption, setEditedCaption] = useState(post.caption);
     const [copied, setCopied] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [imageError, setImageError] = useState(false);
 
     const updateCaption = useMutation(api.generatedPosts.updateCaption);
     const deletePost = useMutation(api.generatedPosts.remove);
@@ -770,6 +792,28 @@ function GeneratedPostCard({ post }: { post: Doc<"generated_posts"> }) {
 
     return (
         <div className="rounded-xl border bg-card overflow-hidden">
+            {/* Generated Image */}
+            {post.imageUrl && !imageError ? (
+                <div className="relative aspect-square bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={post.imageUrl}
+                        alt="Imagem gerada por IA"
+                        className="w-full h-full object-cover"
+                        onError={() => setImageError(true)}
+                    />
+                    <Badge className="absolute top-2 right-2 bg-purple-600/90 hover:bg-purple-600">
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        IA
+                    </Badge>
+                </div>
+            ) : post.imageStorageId && imageError ? (
+                <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <ImageOff className="h-8 w-8" />
+                    <span className="text-xs">Erro ao carregar imagem</span>
+                </div>
+            ) : null}
+
             <div className="p-4 space-y-4">
                 {/* Caption display/edit */}
                 {isEditing ? (
@@ -832,6 +876,7 @@ function GeneratedPostCard({ post }: { post: Doc<"generated_posts"> }) {
                     })}
                     {post.status === "edited" && " • Editado"}
                     {post.status === "regenerated" && " • Regenerado"}
+                    {post.imageModel && ` • ${post.imageModel.split("/").pop()}`}
                 </p>
             </div>
         </div>

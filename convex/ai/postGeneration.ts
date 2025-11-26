@@ -4,11 +4,12 @@ import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
-import { callLLM, parseJSONResponse, MODELS } from "./llm";
+import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
 import {
     POST_GENERATION_SYSTEM_PROMPT,
     POST_GENERATION_USER_PROMPT,
     PostGenerationResponse,
+    IMAGE_GENERATION_PROMPT,
 } from "./prompts";
 
 // Generate a new post based on brand context and analyzed posts
@@ -27,10 +28,10 @@ export const generatePost = action({
         // 2. Ensure subscription exists
         await ctx.runMutation(api.billing.usage.ensureSubscription, {});
 
-        // 3. Check quota
+        // 3. Check quota (need 2 prompts: 1 for caption, 1 for image)
         const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
-        if (!quota || !quota.hasQuota) {
-            throw new Error("No prompts remaining. Please upgrade your plan.");
+        if (!quota || quota.remaining < 2) {
+            throw new Error(`Saldo insuficiente. Voce precisa de 2 creditos para gerar um post (legenda + imagem). Creditos restantes: ${quota?.remaining ?? 0}`);
         }
 
         // 4. Get project data
@@ -111,7 +112,28 @@ export const generatePost = action({
 
         const generated = parseJSONResponse<PostGenerationResponse>(response.content);
 
-        // 10. Store generated post
+        // 10. Generate image for the post
+        const imagePrompt = IMAGE_GENERATION_PROMPT({
+            brandName: project.name,
+            visualStyle: brandAnalysis.visualDirection?.recommendedStyle ?? "Moderno e profissional",
+            caption: generated.caption,
+            additionalContext: args.additionalContext,
+        });
+
+        let imageStorageId: Id<"_storage"> | undefined;
+        try {
+            const imageResult = await generateImage(imagePrompt);
+
+            // Convert base64 to blob and store in Convex
+            const binaryData = Uint8Array.from(atob(imageResult.imageBase64), c => c.charCodeAt(0));
+            const blob = new Blob([binaryData], { type: imageResult.mimeType });
+            imageStorageId = await ctx.storage.store(blob);
+        } catch (imageError) {
+            // Log but don't fail the whole generation if image fails
+            console.error("Image generation failed:", imageError);
+        }
+
+        // 11. Store generated post
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
@@ -120,10 +142,13 @@ export const generatePost = action({
             sourcePostIds: sourcePosts.map((p) => p.postId),
             reasoning: generated.reasoning,
             model: MODELS.GPT_4_1,
+            imageStorageId,
+            imagePrompt: imageStorageId ? imagePrompt : undefined,
+            imageModel: imageStorageId ? MODELS.GEMINI_3_PRO_IMAGE : undefined,
         });
 
-        // 11. Consume prompt
-        await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+        // 12. Consume prompt (2 prompts: 1 for caption, 1 for image)
+        await ctx.runMutation(api.billing.usage.consumePrompt, { count: imageStorageId ? 2 : 1 });
 
         return { success: true, generatedPostId };
     },

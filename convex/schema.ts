@@ -132,8 +132,12 @@ export default defineSchema({
         sourcePostIds: v.array(v.id("instagram_posts")), // Posts used as context
         // AI reasoning
         reasoning: v.optional(v.string()),
+        // Generated image
+        imageStorageId: v.optional(v.id("_storage")),
+        imagePrompt: v.optional(v.string()), // The prompt used to generate the image
         // Generation metadata
         model: v.optional(v.string()),
+        imageModel: v.optional(v.string()),
         // Status
         status: v.string(), // "generated" | "edited" | "regenerated"
         createdAt: v.number(),
