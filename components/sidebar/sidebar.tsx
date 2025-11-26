@@ -25,10 +25,10 @@ export function Sidebar() {
             <aside
                 className={cn(
                     "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out",
-                    // Desktop
-                    "md:relative md:translate-x-0",
+                    // Desktop - sticky with fixed height
+                    "md:sticky md:top-0 md:h-screen md:translate-x-0",
                     isCollapsed ? "md:w-16" : "md:w-60",
-                    // Mobile
+                    // Mobile - fixed overlay
                     "w-72 -translate-x-full",
                     isMobileOpen && "translate-x-0"
                 )}
@@ -61,7 +61,7 @@ export function Sidebar() {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 space-y-1 p-3">
+                <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
                     <SidebarItem
                         href="/dashboard"
                         icon={LayoutDashboard}
