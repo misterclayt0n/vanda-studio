@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
     Dialog,
@@ -19,6 +19,17 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -742,17 +753,111 @@ type GeneratedPostWithImage = Doc<"generated_posts"> & {
 
 // Generated Posts Grid
 function GeneratedPostsGrid({ posts }: { posts: GeneratedPostWithImage[] }) {
+    const [selectedPost, setSelectedPost] = useState<GeneratedPostWithImage | null>(null);
+
     return (
-        <div className="grid gap-4 md:grid-cols-2">
-            {posts.map((post) => (
-                <GeneratedPostCard key={post._id} post={post} />
-            ))}
+        <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {posts.map((post) => (
+                    <GeneratedPostCard
+                        key={post._id}
+                        post={post}
+                        onClick={() => setSelectedPost(post)}
+                    />
+                ))}
+            </div>
+
+            {/* Detail Dialog */}
+            <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    {selectedPost && (
+                        <GeneratedPostDetail
+                            post={selectedPost}
+                            onClose={() => setSelectedPost(null)}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+// Generated Post Card (Grid item)
+function GeneratedPostCard({ post, onClick }: { post: GeneratedPostWithImage; onClick: () => void }) {
+    const [imageError, setImageError] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        await navigator.clipboard.writeText(post.caption);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div
+            className="group rounded-xl border bg-card overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:shadow-primary/5 hover:border-primary/40"
+            onClick={onClick}
+        >
+            {/* Image */}
+            <div className="relative aspect-square bg-muted">
+                {post.imageUrl && !imageError ? (
+                    <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={post.imageUrl}
+                            alt="Imagem gerada por IA"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            onError={() => setImageError(true)}
+                        />
+                        <Badge className="absolute top-2 right-2 bg-purple-600/90 hover:bg-purple-600">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            IA
+                        </Badge>
+                    </>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                        <Wand2 className="h-8 w-8 opacity-30" />
+                        <span className="text-xs">Sem imagem</span>
+                    </div>
+                )}
+
+                {/* Quick copy button */}
+                <button
+                    onClick={handleCopy}
+                    className="absolute bottom-2 right-2 p-2 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                    title="Copiar legenda"
+                >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
+
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                    <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        Ver detalhes
+                    </span>
+                </div>
+            </div>
+
+            {/* Caption preview */}
+            <div className="p-3 space-y-2">
+                <p className="text-sm line-clamp-2">{post.caption}</p>
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                    <span>
+                        {new Date(post.createdAt).toLocaleDateString("pt-BR", {
+                            day: "2-digit",
+                            month: "short",
+                        })}
+                    </span>
+                    {post.status === "edited" && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Editado</Badge>}
+                </div>
+            </div>
         </div>
     );
 }
 
-// Generated Post Card
-function GeneratedPostCard({ post }: { post: GeneratedPostWithImage }) {
+// Generated Post Detail (Dialog content)
+function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; onClose: () => void }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedCaption, setEditedCaption] = useState(post.caption);
     const [copied, setCopied] = useState(false);
@@ -785,37 +890,72 @@ function GeneratedPostCard({ post }: { post: GeneratedPostWithImage }) {
     };
 
     const handleDelete = async () => {
-        if (window.confirm("Tem certeza que deseja excluir este post gerado?")) {
-            await deletePost({ id: post._id });
+        await deletePost({ id: post._id });
+        onClose();
+    };
+
+    const handleDownload = async () => {
+        if (!post.imageUrl) return;
+        try {
+            const response = await fetch(post.imageUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `post-gerado-${post._id}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Failed to download:", err);
         }
     };
 
     return (
-        <div className="rounded-xl border bg-card overflow-hidden">
-            {/* Generated Image */}
-            {post.imageUrl && !imageError ? (
-                <div className="relative aspect-square bg-muted">
+        <div className="space-y-4">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    Post Gerado
+                </DialogTitle>
+                <DialogDescription>
+                    Gerado em {new Date(post.createdAt).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}
+                    {post.status === "edited" && " • Editado"}
+                </DialogDescription>
+            </DialogHeader>
+
+            {/* Image */}
+            {post.imageUrl && !imageError && (
+                <div className="relative rounded-lg overflow-hidden bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={post.imageUrl}
                         alt="Imagem gerada por IA"
-                        className="w-full h-full object-cover"
+                        className="w-full max-h-[400px] object-contain"
                         onError={() => setImageError(true)}
                     />
-                    <Badge className="absolute top-2 right-2 bg-purple-600/90 hover:bg-purple-600">
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        IA
-                    </Badge>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleDownload}
+                    >
+                        <Download className="h-4 w-4 mr-1" />
+                        Baixar
+                    </Button>
                 </div>
-            ) : post.imageStorageId && imageError ? (
-                <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <ImageOff className="h-8 w-8" />
-                    <span className="text-xs">Erro ao carregar imagem</span>
-                </div>
-            ) : null}
+            )}
 
-            <div className="p-4 space-y-4">
-                {/* Caption display/edit */}
+            {/* Caption */}
+            <div className="space-y-2">
+                <Label>Legenda</Label>
                 {isEditing ? (
                     <Textarea
                         value={editedCaption}
@@ -824,60 +964,70 @@ function GeneratedPostCard({ post }: { post: GeneratedPostWithImage }) {
                         className="resize-none"
                     />
                 ) : (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.caption}</p>
+                    <div className="p-3 rounded-lg bg-muted/50 border">
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.caption}</p>
+                    </div>
                 )}
+            </div>
 
-                {/* AI reasoning */}
-                {post.reasoning && (
-                    <details className="text-xs text-muted-foreground">
-                        <summary className="cursor-pointer hover:text-foreground transition-colors">
-                            Por que essa legenda?
-                        </summary>
-                        <p className="mt-2 pl-4 border-l-2 border-muted">{post.reasoning}</p>
-                    </details>
+            {/* AI reasoning */}
+            {post.reasoning && (
+                <details className="text-sm text-muted-foreground">
+                    <summary className="cursor-pointer hover:text-foreground transition-colors font-medium">
+                        Por que essa legenda?
+                    </summary>
+                    <p className="mt-2 pl-4 border-l-2 border-muted">{post.reasoning}</p>
+                </details>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-4 border-t">
+                {isEditing ? (
+                    <>
+                        <Button onClick={handleSave} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Salvar
+                        </Button>
+                        <Button variant="outline" onClick={() => {
+                            setIsEditing(false);
+                            setEditedCaption(post.caption);
+                        }}>
+                            Cancelar
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <Button variant="outline" onClick={() => setIsEditing(true)}>
+                            Editar
+                        </Button>
+                        <Button variant="outline" onClick={handleCopy}>
+                            {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                            Copiar
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" className="text-destructive hover:text-destructive ml-auto">
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir post gerado?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acao nao pode ser desfeita. O post gerado sera permanentemente excluido.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        Excluir
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </>
                 )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                    {isEditing ? (
-                        <>
-                            <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => {
-                                setIsEditing(false);
-                                setEditedCaption(post.caption);
-                            }}>
-                                Cancelar
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-                                Editar
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={handleCopy}>
-                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={handleDelete} className="text-destructive hover:text-destructive ml-auto">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </>
-                    )}
-                </div>
-
-                {/* Metadata */}
-                <p className="text-xs text-muted-foreground">
-                    Gerado em {new Date(post.createdAt).toLocaleDateString("pt-BR", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                    })}
-                    {post.status === "edited" && " • Editado"}
-                    {post.status === "regenerated" && " • Regenerado"}
-                    {post.imageModel && ` • ${post.imageModel.split("/").pop()}`}
-                </p>
             </div>
         </div>
     );
