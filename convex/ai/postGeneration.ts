@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
-import { callLLM, parseJSONResponse } from "./llm";
+import { callLLM, parseJSONResponse, MODELS } from "./llm";
 import {
     POST_GENERATION_SYSTEM_PROMPT,
     POST_GENERATION_USER_PROMPT,
@@ -95,14 +95,18 @@ export const generatePost = action({
             additionalContext: args.additionalContext,
         };
 
-        // 9. Call LLM
+        // 9. Call LLM - Using GPT-4.1 for high-quality caption generation
         const prompt = POST_GENERATION_USER_PROMPT(context);
         const response = await callLLM(
             [
                 { role: "system", content: POST_GENERATION_SYSTEM_PROMPT },
                 { role: "user", content: prompt },
             ],
-            { temperature: 0.8, maxTokens: 1024 }
+            {
+                model: MODELS.GPT_4_1,
+                temperature: 0.8,
+                maxTokens: 1024
+            }
         );
 
         const generated = parseJSONResponse<PostGenerationResponse>(response.content);
@@ -115,7 +119,7 @@ export const generatePost = action({
             brandAnalysisId: brandAnalysis._id,
             sourcePostIds: sourcePosts.map((p) => p.postId),
             reasoning: generated.reasoning,
-            model: "gemini-2.5-flash",
+            model: MODELS.GPT_4_1,
         });
 
         // 11. Consume prompt

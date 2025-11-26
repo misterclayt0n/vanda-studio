@@ -5,9 +5,16 @@ import { v } from "convex/values";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// Default model - can be overridden per call
-// Using Gemini 2.5 Flash for cost efficiency
-const DEFAULT_MODEL = "google/gemini-2.5-flash";
+// Available models via OpenRouter
+export const MODELS = {
+    // Analysis - fast and cost-effective
+    GEMINI_2_5_FLASH: "google/gemini-2.5-flash",
+    // Caption generation - high quality creative writing
+    GPT_4_1: "openai/gpt-4.1",
+} as const;
+
+// Default model for analysis tasks
+const DEFAULT_MODEL = MODELS.GEMINI_2_5_FLASH;
 
 interface LLMResponse {
     content: string;
