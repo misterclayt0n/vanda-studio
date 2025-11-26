@@ -238,72 +238,70 @@ export interface SinglePostAnalysisResponse {
     reasoning: string;
 }
 
-// Prompts for reimagination (Reimaginar button)
-export const REIMAGINE_POST_SYSTEM_PROMPT = `Você é um copywriter criativo especializado em Instagram. Seu trabalho é reimaginar legendas de posts para maximizar engajamento enquanto mantém a essência da mensagem original.
+// Post generation prompt - creates new posts based on learned context
+export const POST_GENERATION_SYSTEM_PROMPT = `Você é um criador de conteúdo especializado em Instagram. Seu trabalho é gerar legendas envolventes e autênticas para posts do Instagram baseado no contexto da marca e em posts de sucesso analisados.
 
-Sua reimaginação deve:
-1. PRESERVAR a mensagem central do post original
-2. MELHORAR o gancho inicial para capturar atenção
-3. ADICIONAR chamadas para ação claras
-4. OTIMIZAR hashtags e formatação
-5. EXPLICAR cada mudança feita
+Sua legenda deve:
+1. MANTER a voz e tom da marca
+2. SEGUIR os padrões dos posts de sucesso
+3. SER envolvente e gerar engajamento
+4. INCLUIR emojis de forma natural quando apropriado
+5. INCLUIR hashtags relevantes no final
+6. TER entre 150-300 caracteres (sem contar hashtags)
 
 IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
 
-export const REIMAGINE_POST_USER_PROMPT = (data: {
-    handle: string;
-    brandVoice?: string;
-    targetAudience?: string;
-    analysisContext?: {
-        score: number;
-        weaknesses: string[];
+export interface PostGenerationContext {
+    brandVoice: {
+        recommended: string;
+        tone: string[];
     };
-    post: {
-        caption: string | undefined;
-        mediaType: string;
-        likeCount: number | undefined;
-        commentsCount: number | undefined;
-    };
-}) => `Reimagine a legenda deste post do Instagram para maximizar engajamento.
+    targetAudience: string;
+    contentPillars: Array<{
+        name: string;
+        description: string;
+    }>;
+    analyzedPosts: Array<{
+        caption: string;
+        strengths: string[];
+        toneAnalysis: string;
+    }>;
+    additionalContext?: string;
+}
 
-## Contexto
-- Perfil: @${data.handle}
-${data.brandVoice ? `- Voz da Marca: ${data.brandVoice}` : ""}
-${data.targetAudience ? `- Público-Alvo: ${data.targetAudience}` : ""}
-${data.analysisContext ? `
-## Análise Prévia
-- Score atual: ${data.analysisContext.score}/100
-- Problemas identificados: ${data.analysisContext.weaknesses.join("; ")}
-` : ""}
+export const POST_GENERATION_USER_PROMPT = (context: PostGenerationContext) => `Baseado no contexto da marca e nos posts de sucesso analisados, crie uma nova legenda para Instagram.
 
-## Post para Reimaginar
-- Tipo: ${data.post.mediaType}
-- Engajamento atual: ${data.post.likeCount ?? 0} curtidas, ${data.post.commentsCount ?? 0} comentários
-- Legenda Original: "${data.post.caption || "(sem legenda)"}"
+## Marca
+- Voz: ${context.brandVoice.recommended}
+- Tom: ${context.brandVoice.tone.join(", ")}
+- Público: ${context.targetAudience}
+
+## Pilares de Conteúdo
+${context.contentPillars.map((p) => `- ${p.name}: ${p.description}`).join("\n")}
+
+## Posts Analisados (referência de estilo)
+${context.analyzedPosts
+    .map(
+        (p) => `
+Legenda: "${p.caption}"
+Pontos fortes: ${p.strengths.join(", ")}
+Tom: ${p.toneAnalysis}
+`
+    )
+    .join("\n---\n")}
+
+${context.additionalContext ? `## Contexto Adicional do Usuário\n${context.additionalContext}` : ""}
 
 ## Schema JSON Obrigatório
 {
-  "suggestedCaption": "A legenda reimaginada que maximiza engajamento",
-  "reasoning": "Explicação de 2-3 frases das principais mudanças",
-  "improvements": [
-    {
-      "type": "hook",
-      "issue": "O que estava errado na versão original",
-      "suggestion": "O que foi melhorado"
-    }
-  ]
+  "caption": "legenda completa com emojis e hashtags",
+  "reasoning": "explicação de 2-3 frases das escolhas criativas"
 }
 
-Tipos de melhoria válidos: "hook", "cta", "hashtags", "tone", "length", "emoji", "formatting", "value"
+Gere uma legenda criativa e envolvente. Responda com APENAS o objeto JSON.`;
 
-Reimagine e responda com APENAS o objeto JSON.`;
-
-export interface ReimaginedPostResponse {
-    suggestedCaption: string;
+export interface PostGenerationResponse {
+    caption: string;
     reasoning: string;
-    improvements: Array<{
-        type: string;
-        issue: string;
-        suggestion: string;
-    }>;
 }
+

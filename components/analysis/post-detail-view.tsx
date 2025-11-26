@@ -5,21 +5,17 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CaptionDiff } from "./caption-diff";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     ArrowLeft,
     Loader2,
     Sparkles,
-    Wand2,
     BarChart3,
     CheckCircle2,
     AlertCircle,
     TrendingUp,
     Hash,
     MessageSquare,
-    Copy,
-    Check,
     ImageIcon,
     X,
 } from "lucide-react";
@@ -45,14 +41,11 @@ interface PostDetailViewProps {
 
 export function PostDetailView({ post, projectId, onBack }: PostDetailViewProps) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isReimagining, setIsReimagining] = useState(false);
-    const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const { closePost } = usePostTabs();
 
     const analyzePost = useAction(api.ai.postAnalysis.analyzePost);
-    const reimaginePost = useAction(api.ai.postAnalysis.reimaginePost);
 
     // Get existing analysis for this post
     const analysis = useQuery(api.ai.analysisMutations.getPostAnalysis, {
@@ -68,26 +61,6 @@ export function PostDetailView({ post, projectId, onBack }: PostDetailViewProps)
             setError(err instanceof Error ? err.message : "Erro ao analisar post");
         } finally {
             setIsAnalyzing(false);
-        }
-    };
-
-    const handleReimagine = async () => {
-        setIsReimagining(true);
-        setError(null);
-        try {
-            await reimaginePost({ projectId, postId: post._id });
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Erro ao reimaginar post");
-        } finally {
-            setIsReimagining(false);
-        }
-    };
-
-    const handleCopy = async () => {
-        if (analysis?.suggestedCaption) {
-            await navigator.clipboard.writeText(analysis.suggestedCaption);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
         }
     };
 
@@ -164,48 +137,28 @@ export function PostDetailView({ post, projectId, onBack }: PostDetailViewProps)
                         </CardContent>
                     </Card>
 
-                    {/* Action buttons */}
-                    <div className="flex gap-3">
-                        <Button
-                            onClick={handleAnalyze}
-                            disabled={isAnalyzing || isReimagining}
-                            className="flex-1 gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                        >
-                            {isAnalyzing ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Analisando...
-                                </>
-                            ) : (
-                                <>
-                                    <BarChart3 className="h-4 w-4" />
-                                    Analisar
-                                </>
-                            )}
-                        </Button>
-                        <Button
-                            onClick={handleReimagine}
-                            disabled={isAnalyzing || isReimagining}
-                            variant="outline"
-                            className="flex-1 gap-2 border-green-500/30 text-green-500 hover:bg-green-500/10 hover:text-green-500"
-                        >
-                            {isReimagining ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Reimaginando...
-                                </>
-                            ) : (
-                                <>
-                                    <Wand2 className="h-4 w-4" />
-                                    Reimaginar
-                                </>
-                            )}
-                        </Button>
-                    </div>
+                    {/* Action button */}
+                    <Button
+                        onClick={handleAnalyze}
+                        disabled={isAnalyzing}
+                        className="w-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Analisando...
+                            </>
+                        ) : (
+                            <>
+                                <BarChart3 className="h-4 w-4" />
+                                {analysis?.hasAnalysis ? "Reanalisar" : "Analisar para Contexto"}
+                            </>
+                        )}
+                    </Button>
 
                     {/* Credit notice */}
                     <p className="text-xs text-muted-foreground text-center">
-                        Cada acao consome 1 prompt do seu plano
+                        Analise consome 1 prompt do seu plano
                     </p>
                 </div>
 
@@ -217,7 +170,7 @@ export function PostDetailView({ post, projectId, onBack }: PostDetailViewProps)
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </CardContent>
                         </Card>
-                    ) : analysis === null ? (
+                    ) : analysis === null || !analysis.hasAnalysis ? (
                         <Card className="border-dashed border-2">
                             <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
                                 <div className="h-16 w-16 rounded-2xl bg-gradient-pink flex items-center justify-center opacity-50">
@@ -228,203 +181,119 @@ export function PostDetailView({ post, projectId, onBack }: PostDetailViewProps)
                                         Nenhuma analise ainda
                                     </p>
                                     <p className="text-sm text-muted-foreground max-w-sm">
-                                        Clique em &quot;Analisar&quot; para obter uma avaliacao detalhada ou &quot;Reimaginar&quot; para sugestoes de legenda.
+                                        Clique em &quot;Analisar para Contexto&quot; para entender o que funciona neste post e usar como referencia para gerar novos posts.
                                     </p>
                                 </div>
                             </CardContent>
                         </Card>
                     ) : (
-                        <>
-                            {/* Analysis Score */}
-                            {analysis.hasAnalysis && analysis.score !== undefined && (
-                                <Card>
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center justify-between">
-                                            <CardTitle className="text-base flex items-center gap-2">
-                                                <BarChart3 className="h-4 w-4" />
-                                                Pontuacao do Post
-                                            </CardTitle>
-                                            <div
-                                                className={cn(
-                                                    "px-4 py-2 rounded-xl text-2xl font-bold border",
-                                                    scoreColor
-                                                )}
-                                            >
-                                                {analysis.score}/100
-                                            </div>
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <BarChart3 className="h-4 w-4" />
+                                        Analise do Post
+                                    </CardTitle>
+                                    {analysis.score !== undefined && (
+                                        <div
+                                            className={cn(
+                                                "px-4 py-2 rounded-xl text-2xl font-bold border",
+                                                scoreColor
+                                            )}
+                                        >
+                                            {analysis.score}/100
                                         </div>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {analysis.analysisDetails && (
-                                            <>
-                                                {/* Strengths */}
-                                                {analysis.analysisDetails.strengths.length > 0 && (
-                                                    <div className="space-y-2">
-                                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                                            Pontos Fortes
-                                                        </p>
-                                                        <div className="space-y-1.5">
-                                                            {analysis.analysisDetails.strengths.map((str, idx) => (
-                                                                <div key={idx} className="flex items-start gap-2 text-sm">
-                                                                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                                                                    <span>{str}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Weaknesses */}
-                                                {analysis.analysisDetails.weaknesses.length > 0 && (
-                                                    <div className="space-y-2">
-                                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                                            Pontos de Melhoria
-                                                        </p>
-                                                        <div className="space-y-1.5">
-                                                            {analysis.analysisDetails.weaknesses.map((weak, idx) => (
-                                                                <div key={idx} className="flex items-start gap-2 text-sm">
-                                                                    <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
-                                                                    <span>{weak}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Other insights */}
-                                                <div className="grid gap-3 sm:grid-cols-3">
-                                                    <InsightCard
-                                                        icon={TrendingUp}
-                                                        label="Engajamento"
-                                                        value={analysis.analysisDetails.engagementPrediction}
-                                                    />
-                                                    <InsightCard
-                                                        icon={Hash}
-                                                        label="Hashtags"
-                                                        value={analysis.analysisDetails.hashtagAnalysis}
-                                                    />
-                                                    <InsightCard
-                                                        icon={MessageSquare}
-                                                        label="Tom"
-                                                        value={analysis.analysisDetails.toneAnalysis}
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {/* AI Reasoning */}
-                                        {analysis.reasoning && (
-                                            <div className="rounded-xl border bg-muted/30 p-4">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                        <Sparkles className="h-4 w-4 text-primary" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
-                                                            Analise da IA
-                                                        </p>
-                                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                                            {analysis.reasoning}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Reimagination - Caption Diff */}
-                            {analysis.hasReimagination && analysis.suggestedCaption && (
-                                <Card>
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <CardTitle className="text-base flex items-center gap-2">
-                                                    <Wand2 className="h-4 w-4 text-green-500" />
-                                                    Legenda Reimaginada
-                                                </CardTitle>
-                                                <CardDescription>
-                                                    Comparacao antes/depois com melhorias destacadas
-                                                </CardDescription>
-                                            </div>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={handleCopy}
-                                                className="gap-2"
-                                            >
-                                                {copied ? (
-                                                    <>
-                                                        <Check className="h-4 w-4 text-green-500" />
-                                                        Copiado!
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Copy className="h-4 w-4" />
-                                                        Copiar
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {/* Diff view */}
-                                        <CaptionDiff
-                                            original={analysis.currentCaption || ""}
-                                            suggested={analysis.suggestedCaption}
-                                        />
-
-                                        {/* Improvements list */}
-                                        {analysis.improvements && analysis.improvements.length > 0 && (
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {analysis.analysisDetails && (
+                                    <>
+                                        {/* Strengths */}
+                                        {analysis.analysisDetails.strengths.length > 0 && (
                                             <div className="space-y-2">
                                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                                    Melhorias Aplicadas
+                                                    Pontos Fortes
                                                 </p>
-                                                <div className="space-y-2">
-                                                    {analysis.improvements.map((imp, idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className="rounded-lg bg-green-500/5 border border-green-500/20 p-3 space-y-1"
-                                                        >
-                                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-green-600">
-                                                                {imp.type}
-                                                            </span>
-                                                            <p className="text-sm">
-                                                                <span className="text-muted-foreground line-through">
-                                                                    {imp.issue}
-                                                                </span>
-                                                                <span className="mx-2">→</span>
-                                                                <span className="font-medium">{imp.suggestion}</span>
-                                                            </p>
+                                                <div className="space-y-1.5">
+                                                    {analysis.analysisDetails.strengths.map((str, idx) => (
+                                                        <div key={idx} className="flex items-start gap-2 text-sm">
+                                                            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                                                            <span>{str}</span>
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Reimagination reasoning */}
-                                        {analysis.reasoning && !analysis.hasAnalysis && (
-                                            <div className="rounded-xl border bg-muted/30 p-4">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
-                                                        <Sparkles className="h-4 w-4 text-green-500" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
-                                                            Por que essas mudancas?
-                                                        </p>
-                                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                                            {analysis.reasoning}
-                                                        </p>
-                                                    </div>
+                                        {/* Insights for context */}
+                                        {analysis.analysisDetails.weaknesses.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                                    Observacoes
+                                                </p>
+                                                <div className="space-y-1.5">
+                                                    {analysis.analysisDetails.weaknesses.map((obs, idx) => (
+                                                        <div key={idx} className="flex items-start gap-2 text-sm">
+                                                            <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                                                            <span>{obs}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
-                                    </CardContent>
-                                </Card>
-                            )}
-                        </>
+
+                                        {/* Other insights */}
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                            <InsightCard
+                                                icon={TrendingUp}
+                                                label="Engajamento"
+                                                value={analysis.analysisDetails.engagementPrediction}
+                                            />
+                                            <InsightCard
+                                                icon={Hash}
+                                                label="Hashtags"
+                                                value={analysis.analysisDetails.hashtagAnalysis}
+                                            />
+                                            <InsightCard
+                                                icon={MessageSquare}
+                                                label="Tom"
+                                                value={analysis.analysisDetails.toneAnalysis}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* AI Reasoning */}
+                                {analysis.reasoning && (
+                                    <div className="rounded-xl border bg-muted/30 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <Sparkles className="h-4 w-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
+                                                    Resumo da Analise
+                                                </p>
+                                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                                    {analysis.reasoning}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Context confirmation */}
+                                <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                                        <p className="text-sm text-green-700 dark:text-green-300">
+                                            Este post esta contribuindo para o contexto de geracao
+                                        </p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
                     )}
                 </div>
             </div>

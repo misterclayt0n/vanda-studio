@@ -1,17 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
-import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, Sparkles, BarChart3 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { AnalysisSection, PostDetailView } from "@/components/analysis";
 import { usePostTabs } from "@/components/sidebar";
+import { cn } from "@/lib/utils";
 
 export default function ProjectDetailsPage() {
     const params = useParams<{ projectId: string }>();
@@ -19,6 +33,20 @@ export default function ProjectDetailsPage() {
     const projectId = (params?.projectId || "") as Id<"projects">;
 
     const { openPost, openTabs, activePostId, setActivePost } = usePostTabs();
+
+    // Selection state for batch analysis
+    const [selectedPostIds, setSelectedPostIds] = useState<Set<Id<"instagram_posts">>>(new Set());
+    const [isAnalyzingBatch, setIsAnalyzingBatch] = useState(false);
+    const [batchError, setBatchError] = useState<string | null>(null);
+
+    // Generation state
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [additionalContext, setAdditionalContext] = useState("");
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generateError, setGenerateError] = useState<string | null>(null);
+
+    const analyzePost = useAction(api.ai.postAnalysis.analyzePost);
+    const generatePost = useAction(api.ai.postGeneration.generatePost);
 
     // Derive selected post ID from context - no need for local state
     const selectedPostId = useMemo(() => {
@@ -42,10 +70,86 @@ export default function ProjectDetailsPage() {
         projectId ? { projectId } : "skip",
     );
 
+    // Context readiness for generation
+    const contextStatus = useQuery(
+        api.generatedPosts.checkContextReady,
+        projectId ? { projectId } : "skip"
+    );
+
+    // Generated posts
+    const generatedPosts = useQuery(
+        api.generatedPosts.listByProject,
+        projectId ? { projectId } : "skip"
+    );
+
     // Find the selected post for detail view
     const selectedPost = selectedPostId && posts
         ? posts.find((p) => p._id === selectedPostId)
         : null;
+
+    // Toggle post selection
+    const togglePostSelection = useCallback((postId: Id<"instagram_posts">) => {
+        setSelectedPostIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(postId)) {
+                next.delete(postId);
+            } else {
+                next.add(postId);
+            }
+            return next;
+        });
+    }, []);
+
+    // Handle batch analysis of selected posts
+    const handleAnalyzeSelected = useCallback(async () => {
+        if (selectedPostIds.size === 0) return;
+
+        setIsAnalyzingBatch(true);
+        setBatchError(null);
+
+        const postIdsArray = Array.from(selectedPostIds);
+        let successCount = 0;
+
+        for (const postId of postIdsArray) {
+            try {
+                await analyzePost({ projectId, postId });
+                successCount++;
+            } catch (err) {
+                console.error(`Failed to analyze post ${postId}:`, err);
+                setBatchError(
+                    err instanceof Error
+                        ? err.message
+                        : `Erro ao analisar ${postIdsArray.length - successCount} posts`
+                );
+                break;
+            }
+        }
+
+        setIsAnalyzingBatch(false);
+        // Clear selection after successful analysis
+        if (successCount === postIdsArray.length) {
+            setSelectedPostIds(new Set());
+        }
+    }, [selectedPostIds, analyzePost, projectId]);
+
+    // Handle post generation
+    const handleGenerate = useCallback(async () => {
+        setIsGenerating(true);
+        setGenerateError(null);
+        try {
+            await generatePost({
+                projectId,
+                additionalContext: additionalContext.trim() || undefined,
+            });
+            setShowCreateDialog(false);
+            setAdditionalContext("");
+        } catch (err) {
+            console.error("Failed to generate post:", err);
+            setGenerateError(err instanceof Error ? err.message : "Erro ao gerar post");
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [generatePost, projectId, additionalContext]);
 
     // Handle opening a post
     const handleOpenPost = (post: PostWithStorageUrls) => {
@@ -134,7 +238,14 @@ export default function ProjectDetailsPage() {
             {/* Project Header with compact-on-scroll */}
             <ProjectHeader project={project} />
 
-            {/* Tabbed Sections - Merged into Strategy and Posts */}
+            {/* Context Progress & Create Button */}
+            <ContextProgressCard
+                contextStatus={contextStatus}
+                isReady={contextStatus?.isReady ?? false}
+                onCreateClick={() => setShowCreateDialog(true)}
+            />
+
+            {/* Tabbed Sections */}
             <Tabs defaultValue="strategy" className="w-full">
                 <TabsList className="w-full">
                     <TabsTrigger value="strategy">
@@ -145,11 +256,20 @@ export default function ProjectDetailsPage() {
                         <Grid3X3 className="h-4 w-4" />
                         <span className="hidden sm:inline">Posts</span>
                     </TabsTrigger>
+                    <TabsTrigger value="generated" className="relative">
+                        <Wand2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Posts Gerados</span>
+                        {generatedPosts && generatedPosts.length > 0 && (
+                            <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                                {generatedPosts.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="strategy" className="mt-6">
                     {posts && posts.length > 0 ? (
-                        <AnalysisSection projectId={projectId} posts={posts} view="strategy" />
+                        <AnalysisSection projectId={projectId} />
                     ) : (
                         <EmptyTabContent message="Carregue posts para gerar analise de estrategia." />
                     )}
@@ -163,10 +283,97 @@ export default function ProjectDetailsPage() {
                     ) : posts.length === 0 ? (
                         <EmptyTabContent message="Nenhum post coletado ainda." />
                     ) : (
-                        <PostsGrid posts={posts} onPostClick={handleOpenPost} />
+                        <PostsGrid
+                            posts={posts}
+                            onPostClick={handleOpenPost}
+                            selectedPostIds={selectedPostIds}
+                            onToggleSelect={togglePostSelection}
+                            onAnalyzeSelected={handleAnalyzeSelected}
+                            isAnalyzing={isAnalyzingBatch}
+                            error={batchError}
+                        />
+                    )}
+                </TabsContent>
+
+                <TabsContent value="generated" className="mt-6">
+                    {generatedPosts === undefined ? (
+                        <div className="flex items-center justify-center py-16">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : generatedPosts.length === 0 ? (
+                        <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
+                            <Wand2 className="h-10 w-10 mx-auto mb-4 text-muted-foreground opacity-30" />
+                            <p className="text-muted-foreground">Nenhum post gerado ainda.</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Analise 3+ posts e clique em &quot;Criar Post&quot; para gerar conteudo.
+                            </p>
+                        </div>
+                    ) : (
+                        <GeneratedPostsGrid posts={generatedPosts} />
                     )}
                 </TabsContent>
             </Tabs>
+
+            {/* Create Post Dialog */}
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Criar Novo Post</DialogTitle>
+                        <DialogDescription>
+                            A IA vai gerar um post baseado na sua marca e posts analisados.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        {/* Context summary */}
+                        <div className="rounded-lg bg-muted p-3 text-sm">
+                            <p className="font-medium mb-1">Contexto disponivel:</p>
+                            <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                <li>Analise de marca {contextStatus?.hasStrategy ? "✓" : "pendente"}</li>
+                                <li>{contextStatus?.analyzedCount ?? 0} posts analisados</li>
+                            </ul>
+                        </div>
+
+                        {/* Additional context input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="context">Contexto adicional (opcional)</Label>
+                            <Textarea
+                                id="context"
+                                placeholder="Tom desejado, tema especifico, promocao, data comemorativa..."
+                                value={additionalContext}
+                                onChange={(e) => setAdditionalContext(e.target.value)}
+                                rows={4}
+                            />
+                        </div>
+
+                        {/* Error display */}
+                        {generateError && (
+                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                                {generateError}
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleGenerate} disabled={isGenerating || !contextStatus?.isReady}>
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Gerando...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    Gerar Post
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -222,7 +429,25 @@ function isVideoPost(post: PostWithStorageUrls): boolean {
     return mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
 }
 
-function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPostClick: (post: PostWithStorageUrls) => void }) {
+interface PostsGridProps {
+    posts: PostWithStorageUrls[];
+    onPostClick: (post: PostWithStorageUrls) => void;
+    selectedPostIds: Set<Id<"instagram_posts">>;
+    onToggleSelect: (postId: Id<"instagram_posts">) => void;
+    onAnalyzeSelected: () => void;
+    isAnalyzing: boolean;
+    error: string | null;
+}
+
+function PostsGrid({
+    posts,
+    onPostClick,
+    selectedPostIds,
+    onToggleSelect,
+    onAnalyzeSelected,
+    isAnalyzing,
+    error,
+}: PostsGridProps) {
     const imagePosts = posts.filter((post) => !isVideoPost(post));
     const videoCount = posts.length - imagePosts.length;
 
@@ -233,8 +458,60 @@ function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPos
 
     const analysisMap = new Map(postAnalyses?.map((a) => [a.postId.toString(), a]) ?? []);
 
+    // Count selected and analyzed posts
+    const selectedCount = selectedPostIds.size;
+    const analyzedCount = postAnalyses?.filter((a) => a.hasAnalysis).length ?? 0;
+
+    // Filter selected posts that are not yet analyzed
+    const selectedNotAnalyzed = Array.from(selectedPostIds).filter((id) => {
+        const analysis = analysisMap.get(id.toString());
+        return !analysis?.hasAnalysis;
+    });
+
     return (
         <div className="space-y-4">
+            {/* Selection header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border bg-muted/30">
+                <div className="flex items-center gap-4">
+                    <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{selectedCount}</span> selecionados
+                        <span className="mx-2">•</span>
+                        <span className="font-medium text-foreground">{analyzedCount}</span> analisados
+                    </p>
+                    {analyzedCount >= 3 && (
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/30">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Contexto pronto
+                        </Badge>
+                    )}
+                </div>
+                <Button
+                    onClick={onAnalyzeSelected}
+                    disabled={selectedNotAnalyzed.length === 0 || isAnalyzing}
+                    size="sm"
+                    className="gap-2"
+                >
+                    {isAnalyzing ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Analisando...
+                        </>
+                    ) : (
+                        <>
+                            <BarChart3 className="h-4 w-4" />
+                            Analisar Selecionados ({selectedNotAnalyzed.length})
+                        </>
+                    )}
+                </Button>
+            </div>
+
+            {/* Error display */}
+            {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                    {error}
+                </div>
+            )}
+
             {/* Video notice */}
             {videoCount > 0 && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
@@ -264,8 +541,8 @@ function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPos
 
                         const analysis = analysisMap.get(post._id.toString());
                         const hasAnalysis = analysis?.hasAnalysis;
-                        const hasReimagination = analysis?.hasReimagination;
                         const score = analysis?.score;
+                        const isSelected = selectedPostIds.has(post._id);
 
                         const scoreColor =
                             score !== undefined
@@ -279,55 +556,78 @@ function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPos
                         return (
                             <div
                                 key={post._id}
-                                onClick={() => onPostClick(post)}
-                                className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5 cursor-pointer"
+                                className={cn(
+                                    "group rounded-xl border bg-card overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/5",
+                                    isSelected && "border-primary ring-2 ring-primary/20",
+                                    hasAnalysis && !isSelected && "border-green-500/30",
+                                    !isSelected && !hasAnalysis && "hover:border-primary/40"
+                                )}
                             >
                                 <div className="relative">
-                                    {isCarousel && hasCarouselImages ? (
-                                        <CarouselPost
-                                            images={post.carouselImagesWithUrls!}
-                                            alt={post.caption ?? "Post do Instagram"}
+                                    {/* Selection checkbox */}
+                                    <div
+                                        className="absolute top-2 left-2 z-10"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleSelect(post._id);
+                                        }}
+                                    >
+                                        <Checkbox
+                                            checked={isSelected}
+                                            className={cn(
+                                                "h-5 w-5 border-2 bg-white/80 backdrop-blur-sm shadow-sm",
+                                                isSelected && "bg-primary border-primary"
+                                            )}
                                         />
-                                    ) : (
-                                        <PostImage
-                                            src={mediaSrc}
-                                            fallbackSrc={thumbnailSrc}
-                                            alt={post.caption ?? "Post do Instagram"}
-                                        />
-                                    )}
-
-                                    {/* Score badge */}
-                                    {score !== undefined && (
-                                        <div
-                                            className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${scoreColor}`}
-                                        >
-                                            {score}
-                                        </div>
-                                    )}
-
-                                    {/* Analysis indicators */}
-                                    <div className="absolute bottom-2 left-2 flex gap-1.5">
-                                        {hasAnalysis && (
-                                            <div className="h-6 w-6 rounded-full bg-primary/90 flex items-center justify-center shadow-lg" title="Analisado">
-                                                <BarChart3 className="h-3 w-3 text-white" />
-                                            </div>
-                                        )}
-                                        {hasReimagination && (
-                                            <div className="h-6 w-6 rounded-full bg-green-500/90 flex items-center justify-center shadow-lg" title="Reimaginado">
-                                                <Sparkles className="h-3 w-3 text-white" />
-                                            </div>
-                                        )}
                                     </div>
 
-                                    {/* Hover overlay */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                                        <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                            Ver detalhes
-                                        </span>
+                                    <div
+                                        onClick={() => onPostClick(post)}
+                                        className="cursor-pointer"
+                                    >
+                                        {isCarousel && hasCarouselImages ? (
+                                            <CarouselPost
+                                                images={post.carouselImagesWithUrls!}
+                                                alt={post.caption ?? "Post do Instagram"}
+                                            />
+                                        ) : (
+                                            <PostImage
+                                                src={mediaSrc}
+                                                fallbackSrc={thumbnailSrc}
+                                                alt={post.caption ?? "Post do Instagram"}
+                                            />
+                                        )}
+
+                                        {/* Score badge */}
+                                        {score !== undefined && (
+                                            <div
+                                                className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${scoreColor}`}
+                                            >
+                                                {score}
+                                            </div>
+                                        )}
+
+                                        {/* Analysis indicator */}
+                                        {hasAnalysis && (
+                                            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/90 shadow-lg">
+                                                <CheckCircle2 className="h-3 w-3 text-white" />
+                                                <span className="text-[10px] font-medium text-white">Analisado</span>
+                                            </div>
+                                        )}
+
+                                        {/* Hover overlay */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center pointer-events-none">
+                                            <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Ver detalhes
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="p-3 space-y-2">
+                                <div
+                                    className="p-3 space-y-2 cursor-pointer"
+                                    onClick={() => onPostClick(post)}
+                                >
                                     <p className="text-sm line-clamp-2">{post.caption || "Sem legenda"}</p>
                                     <div className="text-xs text-muted-foreground flex items-center justify-between">
                                         <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount} curtidas` : ""}</span>
@@ -339,6 +639,201 @@ function PostsGrid({ posts, onPostClick }: { posts: PostWithStorageUrls[]; onPos
                     })}
                 </div>
             )}
+        </div>
+    );
+}
+
+// Context Progress Card
+interface ContextProgressCardProps {
+    contextStatus: {
+        hasStrategy: boolean;
+        analyzedCount: number;
+        isReady: boolean;
+        requiredPosts: number;
+    } | undefined;
+    isReady: boolean;
+    onCreateClick: () => void;
+}
+
+function ContextProgressCard({ contextStatus, isReady, onCreateClick }: ContextProgressCardProps) {
+    const hasStrategy = contextStatus?.hasStrategy ?? false;
+    const analyzedCount = contextStatus?.analyzedCount ?? 0;
+    const requiredPosts = contextStatus?.requiredPosts ?? 3;
+    const progressPercent = Math.min((analyzedCount / requiredPosts) * 100, 100);
+
+    return (
+        <div className="rounded-xl border bg-card p-4 space-y-4">
+            <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Contexto para Geracao</h3>
+                <Button
+                    onClick={onCreateClick}
+                    disabled={!isReady}
+                    className={cn(
+                        "gap-2",
+                        isReady && "animate-pulse bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90"
+                    )}
+                    size="sm"
+                >
+                    <Sparkles className="h-4 w-4" />
+                    Criar Post
+                </Button>
+            </div>
+
+            <div className="space-y-3">
+                {/* Strategy check */}
+                <div className="flex items-center gap-2 text-sm">
+                    {hasStrategy ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                        <Circle className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className={hasStrategy ? "text-foreground" : "text-muted-foreground"}>
+                        Analise de marca
+                    </span>
+                </div>
+
+                {/* Posts progress */}
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                        {analyzedCount >= requiredPosts ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                            <Circle className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className={analyzedCount >= requiredPosts ? "text-foreground" : "text-muted-foreground"}>
+                            Posts analisados ({analyzedCount}/{requiredPosts})
+                        </span>
+                    </div>
+                    <Progress value={progressPercent} className="h-2" />
+                </div>
+            </div>
+
+            {!isReady && (
+                <p className="text-xs text-muted-foreground">
+                    {!hasStrategy
+                        ? "Execute a analise de marca na aba Estrategia."
+                        : `Selecione e analise mais ${requiredPosts - analyzedCount} post${requiredPosts - analyzedCount === 1 ? "" : "s"} na aba Posts.`}
+                </p>
+            )}
+        </div>
+    );
+}
+
+// Generated Posts Grid
+function GeneratedPostsGrid({ posts }: { posts: Doc<"generated_posts">[] }) {
+    return (
+        <div className="grid gap-4 md:grid-cols-2">
+            {posts.map((post) => (
+                <GeneratedPostCard key={post._id} post={post} />
+            ))}
+        </div>
+    );
+}
+
+// Generated Post Card
+function GeneratedPostCard({ post }: { post: Doc<"generated_posts"> }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedCaption, setEditedCaption] = useState(post.caption);
+    const [copied, setCopied] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const updateCaption = useMutation(api.generatedPosts.updateCaption);
+    const deletePost = useMutation(api.generatedPosts.remove);
+
+    const handleCopy = async () => {
+        await navigator.clipboard.writeText(post.caption);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleSave = async () => {
+        if (editedCaption === post.caption) {
+            setIsEditing(false);
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await updateCaption({ id: post._id, caption: editedCaption });
+            setIsEditing(false);
+        } catch (err) {
+            console.error("Failed to save:", err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (window.confirm("Tem certeza que deseja excluir este post gerado?")) {
+            await deletePost({ id: post._id });
+        }
+    };
+
+    return (
+        <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="p-4 space-y-4">
+                {/* Caption display/edit */}
+                {isEditing ? (
+                    <Textarea
+                        value={editedCaption}
+                        onChange={(e) => setEditedCaption(e.target.value)}
+                        rows={6}
+                        className="resize-none"
+                    />
+                ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.caption}</p>
+                )}
+
+                {/* AI reasoning */}
+                {post.reasoning && (
+                    <details className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer hover:text-foreground transition-colors">
+                            Por que essa legenda?
+                        </summary>
+                        <p className="mt-2 pl-4 border-l-2 border-muted">{post.reasoning}</p>
+                    </details>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                    {isEditing ? (
+                        <>
+                            <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => {
+                                setIsEditing(false);
+                                setEditedCaption(post.caption);
+                            }}>
+                                Cancelar
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                                Editar
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleCopy}>
+                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={handleDelete} className="text-destructive hover:text-destructive ml-auto">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </>
+                    )}
+                </div>
+
+                {/* Metadata */}
+                <p className="text-xs text-muted-foreground">
+                    Gerado em {new Date(post.createdAt).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}
+                    {post.status === "edited" && " • Editado"}
+                    {post.status === "regenerated" && " • Regenerado"}
+                </p>
+            </div>
         </div>
     );
 }

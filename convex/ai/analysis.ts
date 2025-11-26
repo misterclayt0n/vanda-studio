@@ -92,7 +92,7 @@ export const requestAnalysis = action({
             });
 
             // Post analysis is now done on-demand per post, not in batch
-            // See postAnalysis.ts for analyzePost and reimaginePost actions
+            // See postAnalysis.ts for analyzePost action
 
             // 9. Update status to "completed"
             await ctx.runMutation(api.ai.analysisMutations.updateAnalysisStatus, {

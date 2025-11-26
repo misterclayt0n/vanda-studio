@@ -89,14 +89,14 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_project_id", ["projectId"]),
 
-    // Per-post AI feedback (like PR comments)
+    // Per-post AI feedback - used to build context for generation
     post_analysis: defineTable({
         projectId: v.id("projects"),
         analysisId: v.optional(v.id("brand_analysis")), // Optional - can analyze without brand analysis
         postId: v.id("instagram_posts"),
         currentCaption: v.optional(v.string()),
 
-        // Analysis fields (from "Analisar" action)
+        // Analysis fields (from "Analisar" action) - used for context building
         hasAnalysis: v.optional(v.boolean()),
         score: v.optional(v.number()), // 0-100
         analysisDetails: v.optional(v.object({
@@ -108,19 +108,38 @@ export default defineSchema({
         })),
         reasoning: v.optional(v.string()),
 
-        // Reimagination fields (from "Reimaginar" action)
-        hasReimagination: v.optional(v.boolean()),
+        // Legacy fields (kept for backwards compatibility with existing data)
         suggestedCaption: v.optional(v.string()),
         improvements: v.optional(v.array(v.object({
-            type: v.string(), // "hashtags" | "cta" | "tone" | "length"
+            type: v.string(),
             issue: v.string(),
             suggestion: v.string(),
         }))),
+        hasReimagination: v.optional(v.boolean()),
 
         createdAt: v.number(),
     }).index("by_analysis_id", ["analysisId"])
       .index("by_post_id", ["postId"])
       .index("by_project_id", ["projectId"]),
+
+    // AI-generated posts
+    generated_posts: defineTable({
+        projectId: v.id("projects"),
+        caption: v.string(),
+        additionalContext: v.optional(v.string()), // User's additional input
+        // Context references
+        brandAnalysisId: v.id("brand_analysis"),
+        sourcePostIds: v.array(v.id("instagram_posts")), // Posts used as context
+        // AI reasoning
+        reasoning: v.optional(v.string()),
+        // Generation metadata
+        model: v.optional(v.string()),
+        // Status
+        status: v.string(), // "generated" | "edited" | "regenerated"
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_project_id", ["projectId"])
+      .index("by_created_at", ["createdAt"]),
 
     // Per-project conversation
     conversations: defineTable({

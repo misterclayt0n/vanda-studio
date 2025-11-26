@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id, Doc } from "@/convex/_generated/dataModel";
+import { Id } from "@/convex/_generated/dataModel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnalysisTrigger } from "./analysis-trigger";
 import { BrandAnalysisCard } from "./brand-analysis-card";
-import { PostDiffViewer } from "./post-diff-viewer";
 import { AnalysisHistory } from "./analysis-history";
 import {
     Loader2,
@@ -15,40 +14,18 @@ import {
     Clock,
     Sparkles,
     FileText,
-    Wand2,
 } from "lucide-react";
-
-// Post with storage URLs from listByProject query
-type PostWithStorageUrls = Doc<"instagram_posts"> & {
-    mediaStorageUrl: string | null;
-    thumbnailStorageUrl: string | null;
-    carouselImagesWithUrls?: {
-        url: string;
-        storageId?: Id<"_storage">;
-        storageUrl?: string | null;
-    }[];
-};
 
 interface AnalysisSectionProps {
     projectId: Id<"projects">;
-    posts: PostWithStorageUrls[];
-    view: "strategy" | "suggestions";
 }
 
-export function AnalysisSection({ projectId, posts, view }: AnalysisSectionProps) {
+export function AnalysisSection({ projectId }: AnalysisSectionProps) {
     const [selectedAnalysisId, setSelectedAnalysisId] = useState<Id<"brand_analysis"> | null>(null);
 
     const latestAnalysis = useQuery(
         api.ai.analysisMutations.getLatestAnalysis,
         { projectId }
-    );
-
-    // Use selected analysis or fallback to latest
-    const currentAnalysisId = selectedAnalysisId || latestAnalysis?._id;
-
-    const postAnalyses = useQuery(
-        api.ai.analysisMutations.getPostAnalyses,
-        currentAnalysisId ? { analysisId: currentAnalysisId } : "skip"
     );
 
     // Get the current analysis to display (either selected or latest)
@@ -141,90 +118,49 @@ export function AnalysisSection({ projectId, posts, view }: AnalysisSectionProps
         return null;
     }
 
-    // Analysis completed - render based on view prop
-    if (view === "strategy") {
-        return (
-            <div className="space-y-6">
-                <Card>
-                    <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                <FileText className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                                <CardTitle>Estrategia de Marca</CardTitle>
-                                <CardDescription>Analise completa e recomendacoes</CardDescription>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4 self-end sm:self-auto">
-                            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                <span>
-                                    {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {
-                                        day: "2-digit",
-                                        month: "short",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    })}
-                                </span>
-                            </div>
-                            <AnalysisTrigger
-                                projectId={projectId}
-                                onAnalysisComplete={() => setSelectedAnalysisId(null)}
-                            />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <BrandAnalysisCard analysis={currentAnalysis} />
-                    </CardContent>
-                </Card>
-
-                {/* Analysis History */}
-                <AnalysisHistory
-                    projectId={projectId}
-                    onSelectAnalysis={(id) => setSelectedAnalysisId(id)}
-                    currentAnalysisId={currentAnalysis._id}
-                />
-            </div>
-        );
-    }
-
-    // view === "suggestions"
+    // Analysis completed - show brand strategy
     return (
-        <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
-                        <Wand2 className="h-5 w-5 text-green-500" />
+        <div className="space-y-6">
+            <Card>
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                            <CardTitle>Estrategia de Marca</CardTitle>
+                            <CardDescription>Analise completa e recomendacoes</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <CardTitle>Sugestoes de Posts</CardTitle>
-                        <CardDescription>
-                            Clique em um post para ver a analise ({postAnalyses?.length || 0} posts)
-                        </CardDescription>
+                    <div className="flex items-center gap-4 self-end sm:self-auto">
+                        <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                                {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })}
+                            </span>
+                        </div>
+                        <AnalysisTrigger
+                            projectId={projectId}
+                            onAnalysisComplete={() => setSelectedAnalysisId(null)}
+                        />
                     </div>
-                </div>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground self-end sm:self-auto">
-                    <Clock className="h-3 w-3" />
-                    <span>
-                        {new Date(currentAnalysis.createdAt).toLocaleDateString("pt-BR", {
-                            day: "2-digit",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        })}
-                    </span>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {postAnalyses === undefined ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                ) : (
-                    <PostDiffViewer posts={posts} analyses={postAnalyses} />
-                )}
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent>
+                    <BrandAnalysisCard analysis={currentAnalysis} />
+                </CardContent>
+            </Card>
+
+            {/* Analysis History */}
+            <AnalysisHistory
+                projectId={projectId}
+                onSelectAnalysis={(id) => setSelectedAnalysisId(id)}
+                currentAnalysisId={currentAnalysis._id}
+            />
+        </div>
     );
 }

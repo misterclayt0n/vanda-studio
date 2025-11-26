@@ -94,37 +94,6 @@ export const updateBrandAnalysis = mutation({
     },
 });
 
-// Create post analysis
-export const createPostAnalysis = mutation({
-    args: {
-        projectId: v.id("projects"),
-        analysisId: v.id("brand_analysis"),
-        postId: v.id("instagram_posts"),
-        currentCaption: v.optional(v.string()),
-        suggestedCaption: v.string(),
-        reasoning: v.string(),
-        score: v.number(),
-        improvements: v.array(v.object({
-            type: v.string(),
-            issue: v.string(),
-            suggestion: v.string(),
-        })),
-    },
-    handler: async (ctx, args) => {
-        await ctx.db.insert("post_analysis", {
-            projectId: args.projectId,
-            analysisId: args.analysisId,
-            postId: args.postId,
-            currentCaption: args.currentCaption,
-            suggestedCaption: args.suggestedCaption,
-            reasoning: args.reasoning,
-            score: args.score,
-            improvements: args.improvements,
-            createdAt: Date.now(),
-        });
-    },
-});
-
 // Get the latest analysis for a project
 export const getLatestAnalysis = query({
     args: {
@@ -370,70 +339,3 @@ export const upsertPostAnalysis = mutation({
     },
 });
 
-// Update post with reimagination (for Reimaginar button)
-export const updatePostReimagination = mutation({
-    args: {
-        postAnalysisId: v.id("post_analysis"),
-        suggestedCaption: v.string(),
-        reasoning: v.string(),
-        improvements: v.array(v.object({
-            type: v.string(),
-            issue: v.string(),
-            suggestion: v.string(),
-        })),
-    },
-    handler: async (ctx, args) => {
-        await ctx.db.patch(args.postAnalysisId, {
-            hasReimagination: true,
-            suggestedCaption: args.suggestedCaption,
-            reasoning: args.reasoning,
-            improvements: args.improvements,
-        });
-    },
-});
-
-// Create post analysis with reimagination in one go
-export const createPostWithReimagination = mutation({
-    args: {
-        projectId: v.id("projects"),
-        postId: v.id("instagram_posts"),
-        currentCaption: v.optional(v.string()),
-        suggestedCaption: v.string(),
-        reasoning: v.string(),
-        improvements: v.array(v.object({
-            type: v.string(),
-            issue: v.string(),
-            suggestion: v.string(),
-        })),
-    },
-    handler: async (ctx, args) => {
-        // Check if analysis exists for this post
-        const existing = await ctx.db
-            .query("post_analysis")
-            .withIndex("by_post_id", (q) => q.eq("postId", args.postId))
-            .first();
-
-        if (existing) {
-            // Update existing
-            await ctx.db.patch(existing._id, {
-                hasReimagination: true,
-                suggestedCaption: args.suggestedCaption,
-                reasoning: args.reasoning,
-                improvements: args.improvements,
-            });
-            return existing._id;
-        } else {
-            // Create new with reimagination only
-            return await ctx.db.insert("post_analysis", {
-                projectId: args.projectId,
-                postId: args.postId,
-                currentCaption: args.currentCaption,
-                hasReimagination: true,
-                suggestedCaption: args.suggestedCaption,
-                reasoning: args.reasoning,
-                improvements: args.improvements,
-                createdAt: Date.now(),
-            });
-        }
-    },
-});
