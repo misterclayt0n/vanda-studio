@@ -15,6 +15,7 @@ import type * as ai_postAnalysis from "../ai/postAnalysis.js";
 import type * as ai_postGeneration from "../ai/postGeneration.js";
 import type * as ai_prompts from "../ai/prompts.js";
 import type * as billing_usage from "../billing/usage.js";
+import type * as demo from "../demo.js";
 import type * as files from "../files.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as instagram from "../instagram.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   "ai/postGeneration": typeof ai_postGeneration;
   "ai/prompts": typeof ai_prompts;
   "billing/usage": typeof billing_usage;
+  demo: typeof demo;
   files: typeof files;
   generatedPosts: typeof generatedPosts;
   instagram: typeof instagram;
