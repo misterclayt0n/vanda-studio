@@ -12,6 +12,7 @@ import {
     CheckCircle2,
     Sparkles,
     ImageIcon,
+    Play,
 } from "lucide-react";
 
 // Post with storage URLs from listByProject query
@@ -100,8 +101,8 @@ export function PostDiffViewer({ posts, analyses }: PostDiffViewerProps) {
                 </div>
             </div>
 
-            {/* Main comparison grid */}
-            <div className="grid grid-cols-2 gap-6">
+            {/* Main comparison grid - key forces re-mount on post change */}
+            <div key={post._id} className="grid grid-cols-2 gap-6">
                 {/* Original */}
                 <OriginalColumn post={post} analysis={analysis} />
 
@@ -171,22 +172,15 @@ function OriginalColumn({
                 </div>
             </div>
 
-            {/* Image */}
-            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                    src={post.mediaStorageUrl || post.thumbnailStorageUrl || post.thumbnailUrl || post.mediaUrl}
-                    alt="Post original"
-                    className="h-full w-full object-cover"
-                />
-            </div>
+            {/* Image/Video */}
+            <PostMedia post={post} />
 
             {/* Caption */}
             <div className="rounded-lg border p-4 space-y-3">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Legenda
                 </p>
-                <p className="text-sm leading-relaxed">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {analysis.currentCaption || "(sem legenda)"}
                 </p>
             </div>
@@ -269,7 +263,7 @@ function SuggestedColumn({ analysis }: { analysis: Doc<"post_analysis"> }) {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Legenda sugerida
                 </p>
-                <p className="text-sm leading-relaxed">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {analysis.suggestedCaption}
                 </p>
             </div>
@@ -295,6 +289,50 @@ function SuggestedColumn({ analysis }: { analysis: Doc<"post_analysis"> }) {
                     <p className="text-sm text-muted-foreground">Post já otimizado</p>
                 )}
             </div>
+        </div>
+    );
+}
+
+function PostMedia({ post }: { post: PostWithStorageUrls }) {
+    const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+    
+    const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+    const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+    
+    // Build list of URLs to try in order of preference
+    const urls = isVideo
+        ? [post.thumbnailStorageUrl, post.thumbnailUrl, post.mediaStorageUrl, post.mediaUrl]
+        : [post.mediaStorageUrl, post.thumbnailStorageUrl, post.mediaUrl, post.thumbnailUrl];
+    
+    // Filter out null/undefined values
+    const validUrls = urls.filter((url): url is string => Boolean(url));
+    const currentUrl = validUrls[currentUrlIndex];
+
+    if (!currentUrl || currentUrlIndex >= validUrls.length) {
+        return (
+            <div className="aspect-square rounded-lg overflow-hidden bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageIcon className="h-8 w-8" />
+                <span className="text-xs">Imagem indisponivel</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="aspect-square rounded-lg overflow-hidden bg-muted relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={currentUrl}
+                alt="Post original"
+                className="h-full w-full object-cover"
+                onError={() => setCurrentUrlIndex((prev) => prev + 1)}
+            />
+            {isVideo && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-full bg-black/60 flex items-center justify-center">
+                        <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
