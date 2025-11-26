@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPost } from "@/components/video-post";
 import { CarouselPost } from "@/components/carousel-post";
-import { ArrowLeft, Instagram, Loader2, ImageOff } from "lucide-react";
+import { ArrowLeft, Instagram, Loader2, ImageOff, FileText, Wand2, Grid3X3 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnalysisSection } from "@/components/analysis";
 
 export default function ProjectDetailsPage() {
@@ -139,76 +140,115 @@ export default function ProjectDetailsPage() {
                 </CardContent>
             </Card>
 
-            {/* AI Analysis Section */}
-            {posts && posts.length > 0 && (
-                <AnalysisSection projectId={projectId} posts={posts} />
-            )}
+            {/* Tabbed Sections */}
+            <Tabs defaultValue="strategy" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="strategy" className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span className="hidden sm:inline">Estratégia</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="suggestions" className="gap-2">
+                        <Wand2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Sugestões</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="posts" className="gap-2">
+                        <Grid3X3 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Posts</span>
+                    </TabsTrigger>
+                </TabsList>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Posts Recentes</CardTitle>
-                    <CardDescription>Últimas publicações capturadas</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {posts === undefined ? (
-                        <div className="flex items-center gap-3 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <p>Carregando posts...</p>
-                        </div>
-                    ) : posts.length === 0 ? (
-                        <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
+                <TabsContent value="strategy" className="mt-6">
+                    {posts && posts.length > 0 ? (
+                        <AnalysisSection projectId={projectId} posts={posts} view="strategy" />
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {posts.map((post) => {
-                                const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
-                                const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
-                                const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
-                                const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
-
-                                // Get the best available image source
-                                const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
-                                const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
-
-                                return (
-                                    <div
-                                        key={post._id}
-                                        className="group rounded-lg border overflow-hidden hover:border-primary/60 transition-colors"
-                                    >
-                                        {isVideo ? (
-                                            <VideoPost
-                                                mediaUrl={post.mediaUrl}
-                                                thumbnailUrl={thumbnailSrc}
-                                                caption={post.caption}
-                                                permalink={post.permalink}
-                                            />
-                                        ) : isCarousel && hasCarouselImages ? (
-                                            <CarouselPost
-                                                images={post.carouselImagesWithUrls!}
-                                                alt={post.caption ?? "Post do Instagram"}
-                                            />
-                                        ) : (
-                                            <Link href={post.permalink} target="_blank" className="block">
-                                                <PostImage
-                                                    src={mediaSrc}
-                                                    fallbackSrc={thumbnailSrc}
-                                                    alt={post.caption ?? "Post do Instagram"}
-                                                />
-                                            </Link>
-                                        )}
-                                        <Link href={post.permalink} target="_blank" className="block p-4 space-y-2">
-                                            <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
-                                            <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                                <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount}` : ""}</span>
-                                                <span>{new Date(post.timestamp).toLocaleDateString()}</span>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <Card>
+                            <CardContent className="flex items-center justify-center py-12">
+                                <p className="text-muted-foreground">Carregue posts para gerar análise de estratégia.</p>
+                            </CardContent>
+                        </Card>
                     )}
-                </CardContent>
-            </Card>
+                </TabsContent>
+
+                <TabsContent value="suggestions" className="mt-6">
+                    {posts && posts.length > 0 ? (
+                        <AnalysisSection projectId={projectId} posts={posts} view="suggestions" />
+                    ) : (
+                        <Card>
+                            <CardContent className="flex items-center justify-center py-12">
+                                <p className="text-muted-foreground">Carregue posts para ver sugestões.</p>
+                            </CardContent>
+                        </Card>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="posts" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Posts Recentes</CardTitle>
+                            <CardDescription>Últimas publicações capturadas</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {posts === undefined ? (
+                                <div className="flex items-center gap-3 text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <p>Carregando posts...</p>
+                                </div>
+                            ) : posts.length === 0 ? (
+                                <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
+                            ) : (
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    {posts.map((post) => {
+                                        const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+                                        const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+                                        const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
+                                        const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
+
+                                        // Get the best available image source
+                                        const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
+                                        const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
+
+                                        return (
+                                            <div
+                                                key={post._id}
+                                                className="group rounded-lg border overflow-hidden hover:border-primary/60 transition-colors"
+                                            >
+                                                {isVideo ? (
+                                                    <VideoPost
+                                                        mediaUrl={post.mediaUrl}
+                                                        thumbnailUrl={thumbnailSrc}
+                                                        caption={post.caption}
+                                                        permalink={post.permalink}
+                                                    />
+                                                ) : isCarousel && hasCarouselImages ? (
+                                                    <CarouselPost
+                                                        images={post.carouselImagesWithUrls!}
+                                                        alt={post.caption ?? "Post do Instagram"}
+                                                    />
+                                                ) : (
+                                                    <Link href={post.permalink} target="_blank" className="block">
+                                                        <PostImage
+                                                            src={mediaSrc}
+                                                            fallbackSrc={thumbnailSrc}
+                                                            alt={post.caption ?? "Post do Instagram"}
+                                                        />
+                                                    </Link>
+                                                )}
+                                                <Link href={post.permalink} target="_blank" className="block p-4 space-y-2">
+                                                    <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
+                                                    <div className="text-xs text-muted-foreground flex items-center justify-between">
+                                                        <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount}` : ""}</span>
+                                                        <span>{new Date(post.timestamp).toLocaleDateString()}</span>
+                                                    </div>
+                                                </Link>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
