@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -24,14 +24,27 @@ interface ProjectHeaderProps {
 export function ProjectHeader({ project }: ProjectHeaderProps) {
     const router = useRouter();
     const [isCompact, setIsCompact] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const handleScroll = () => {
-            setIsCompact(window.scrollY > 120);
-        };
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
 
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
+        // Use IntersectionObserver - triggers when sentinel leaves/enters viewport
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                // When sentinel is not visible (scrolled past), compact the header
+                setIsCompact(!entry.isIntersecting);
+            },
+            {
+                // Trigger when sentinel is 60px from top of viewport
+                rootMargin: "-60px 0px 0px 0px",
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
     }, []);
 
     const handle = project.instagramHandle || extractHandle(project.instagramUrl);
@@ -43,9 +56,13 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
     ];
 
     return (
-        <div
-            className="sticky top-0 z-20 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-background/80 backdrop-blur-xl border-b border-border/50"
-        >
+        <>
+            {/* Invisible sentinel element to detect scroll position - stays in document flow */}
+            <div ref={sentinelRef} className="h-0 w-full" aria-hidden="true" />
+
+            <div
+                className="sticky top-0 z-20 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-background/80 backdrop-blur-xl border-b border-border/50"
+            >
             {/* Always visible top bar */}
             <div className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3">
@@ -146,6 +163,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                 </div>
             </div>
         </div>
+        </>
     );
 }
 
