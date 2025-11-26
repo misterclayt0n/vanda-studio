@@ -34,30 +34,31 @@ export default function DashboardPage() {
     const deleteProject = useMutation(api.projects.remove);
     const fetchInstagramProfile = useAction(api.instagram.fetchProfile);
 
-    const [newProjectUrl, setNewProjectUrl] = useState("");
+    const [newProjectHandle, setNewProjectHandle] = useState("");
     const [isCreating, setIsCreating] = useState(false);
     const [deletingProjectId, setDeletingProjectId] = useState<Id<"projects"> | null>(null);
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newProjectUrl) return;
+        if (!newProjectHandle) return;
 
         setIsCreating(true);
         try {
-            // Simple name extraction for now
-            const name = newProjectUrl.split("/").filter(Boolean).pop() || "Novo Projeto";
+            // Clean the handle (remove @ if present)
+            const cleanHandle = newProjectHandle.replace(/^@/, "").trim();
+            const instagramUrl = `https://instagram.com/${cleanHandle}`;
 
             const projectId = await createProject({
-                name: name,
-                instagramUrl: newProjectUrl,
+                name: cleanHandle,
+                instagramUrl: instagramUrl,
             });
 
             await fetchInstagramProfile({
                 projectId,
-                instagramUrl: newProjectUrl,
+                instagramUrl: instagramUrl,
             });
 
-            setNewProjectUrl("");
+            setNewProjectHandle("");
         } catch (error) {
             console.error("Failed to create project:", error);
         } finally {
@@ -115,19 +116,19 @@ export default function DashboardPage() {
                     <CardContent>
                         <form onSubmit={handleCreateProject} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="url" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                    URL do Instagram
+                                <Label htmlFor="handle" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    @ do Instagram
                                 </Label>
                                 <Input
-                                    id="url"
-                                    placeholder="https://instagram.com/marca"
-                                    value={newProjectUrl}
-                                    onChange={(e) => setNewProjectUrl(e.target.value)}
+                                    id="handle"
+                                    placeholder="@suamarca"
+                                    value={newProjectHandle}
+                                    onChange={(e) => setNewProjectHandle(e.target.value)}
                                     disabled={isCreating}
                                     className="h-11"
                                 />
                             </div>
-                            <Button type="submit" variant="gradient" className="w-full" disabled={isCreating || !newProjectUrl}>
+                            <Button type="submit" variant="gradient" className="w-full" disabled={isCreating || !newProjectHandle}>
                                 {isCreating ? (
                                     <>
                                         <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -158,7 +159,7 @@ export default function DashboardPage() {
                         </div>
                         <h3 className="mt-6 text-xl font-bold">Nenhum projeto ainda</h3>
                         <p className="mb-4 mt-2 text-sm text-muted-foreground max-w-sm">
-                            Comece adicionando uma URL do Instagram ao lado para iniciar sua primeira análise com IA.
+                            Comece adicionando o @ do Instagram ao lado para iniciar sua primeira análise com IA.
                         </p>
                         <div className="flex items-center gap-2 text-xs text-primary">
                             <ArrowRight className="h-3 w-3 animate-pulse" />

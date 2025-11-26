@@ -92,7 +92,7 @@ function Hero() {
           <span className="text-foreground"> as a service.</span>
         </h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
-          Cole o link do Instagram da sua marca e a Vanda faz uma
+          Digite o @ da sua marca e a Vanda faz uma
           <span className="text-foreground font-medium"> análise completa</span>:
           identifica o que funciona, o que falta e entrega
           <span className="text-foreground font-medium"> ideias de posts prontas </span>
@@ -145,7 +145,7 @@ function Hero() {
 }
 
 function PromptPanel() {
-  const [url, setUrl] = useState("");
+  const [handle, setHandle] = useState("");
   const [context, setContext] = useState("");
 
   return (
@@ -156,7 +156,7 @@ function PromptPanel() {
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
-            <CardTitle className="text-xl">O que devemos reimaginar?</CardTitle>
+            <CardTitle className="text-xl">Qual Instagram vamos analisar?</CardTitle>
             <CardDescription>
               A Vanda analisa sua grade, posts e engajamento.
             </CardDescription>
@@ -166,15 +166,15 @@ function PromptPanel() {
       <CardContent>
         <form className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="url" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              URL do Instagram
+            <Label htmlFor="handle" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              @ do Instagram
             </Label>
             <Input
-              id="url"
-              type="url"
-              placeholder="https://instagram.com/sua-marca"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              id="handle"
+              type="text"
+              placeholder="@suamarca"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
               required
               className="h-11"
             />
