@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Play, X } from "lucide-react";
+import { Play, X, ImageOff } from "lucide-react";
 
 interface VideoPostProps {
     mediaUrl: string;
@@ -51,7 +51,7 @@ export function VideoPost({ mediaUrl, thumbnailUrl }: VideoPostProps) {
 
     return (
         <div
-            className="relative aspect-square bg-muted overflow-hidden cursor-pointer group"
+            className="relative aspect-square bg-muted overflow-hidden cursor-pointer"
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -63,16 +63,17 @@ export function VideoPost({ mediaUrl, thumbnailUrl }: VideoPostProps) {
                 <img
                     src={thumbnailUrl}
                     alt=""
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                    className="h-full w-full object-cover"
                     onError={() => setThumbnailError(true)}
                 />
             ) : (
-                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20">
-                    <Play className="h-12 w-12 text-muted-foreground/50" />
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 bg-muted text-muted-foreground">
+                    <ImageOff className="h-8 w-8" />
+                    <span className="text-xs">Thumbnail indisponível</span>
                 </div>
             )}
             <div className="absolute inset-0 flex items-center justify-center">
-                <div className="rounded-full bg-black/60 p-3 group-hover:bg-black/80 transition-colors">
+                <div className="rounded-full bg-black/50 p-3">
                     <Play className="h-8 w-8 text-white fill-white" />
                 </div>
             </div>

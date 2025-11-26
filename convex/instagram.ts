@@ -4,6 +4,7 @@ import { ApifyClient } from "apify-client";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 const DEFAULT_ACTOR_ID = "shu8hvrXbJbY3Eb9W";
 
@@ -20,6 +21,7 @@ type InstagramPostRecord = {
     timestamp: string;
     likeCount?: number;
     commentsCount?: number;
+    carouselImages?: { url: string }[];
 };
 
 export const fetchProfile = action({
@@ -77,10 +79,96 @@ export const fetchProfile = action({
             });
 
             if (posts.length > 0) {
-                await ctx.runMutation(api.instagramPosts.replaceForProject, {
+                const insertedPostIds = await ctx.runMutation(api.instagramPosts.replaceForProject, {
                     projectId: args.projectId,
                     posts,
                 });
+
+                // Download and store media files to Convex storage for reliability
+                // Process in batches to avoid overwhelming the system
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < posts.length; i += BATCH_SIZE) {
+                    const batch = posts.slice(i, i + BATCH_SIZE);
+                    const batchIds = insertedPostIds.slice(i, i + BATCH_SIZE);
+
+                    await Promise.all(
+                        batch.map(async (post, batchIndex) => {
+                            const postId = batchIds[batchIndex];
+                            if (!postId) return;
+
+                            try {
+                                // For images and carousels, store the display image
+                                // For videos, store the thumbnail
+                                const mediaType = post.mediaType.toUpperCase();
+                                const isVideo = mediaType === "VIDEO" || mediaType.includes("VIDEO");
+                                const isCarousel = mediaType === "CAROUSEL_ALBUM";
+
+                                if (isVideo) {
+                                    // For videos, store thumbnail only (video files are large)
+                                    if (post.thumbnailUrl) {
+                                        const thumbnailStorageId = await ctx.runAction(
+                                            api.files.downloadAndStoreFile,
+                                            { url: post.thumbnailUrl }
+                                        );
+                                        if (thumbnailStorageId) {
+                                            await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
+                                                postId,
+                                                thumbnailStorageId,
+                                            });
+                                        }
+                                    }
+                                } else if (isCarousel && post.carouselImages && post.carouselImages.length > 0) {
+                                    // For carousels, store main image and all carousel images
+                                    const mediaStorageId = await ctx.runAction(
+                                        api.files.downloadAndStoreFile,
+                                        { url: post.mediaUrl }
+                                    );
+
+                                    // Download carousel images (limit to first 10 to avoid timeouts)
+                                    const carouselImagesToProcess = post.carouselImages.slice(0, 10);
+                                    const carouselImagesWithStorage: { url: string; storageId?: Id<"_storage"> }[] = [];
+
+                                    for (const img of carouselImagesToProcess) {
+                                        try {
+                                            const storageId = await ctx.runAction(
+                                                api.files.downloadAndStoreFile,
+                                                { url: img.url }
+                                            );
+                                            carouselImagesWithStorage.push({
+                                                url: img.url,
+                                                storageId: storageId ?? undefined,
+                                            });
+                                        } catch {
+                                            // If individual carousel image fails, still include it without storage
+                                            carouselImagesWithStorage.push({ url: img.url });
+                                        }
+                                    }
+
+                                    await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
+                                        postId,
+                                        ...(mediaStorageId ? { mediaStorageId } : {}),
+                                        ...(carouselImagesWithStorage.length > 0 ? { carouselImages: carouselImagesWithStorage } : {}),
+                                    });
+                                } else {
+                                    // For regular images, store the main media
+                                    const mediaStorageId = await ctx.runAction(
+                                        api.files.downloadAndStoreFile,
+                                        { url: post.mediaUrl }
+                                    );
+                                    if (mediaStorageId) {
+                                        await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
+                                            postId,
+                                            mediaStorageId,
+                                        });
+                                    }
+                                }
+                            } catch (error) {
+                                console.error(`Failed to store media for post ${post.instagramId}:`, error);
+                                // Continue with other posts even if one fails
+                            }
+                        })
+                    );
+                }
             }
 
             // Download profile picture to Convex storage for reliability
@@ -136,12 +224,15 @@ function buildProfileFromItems(items: RawInstagramItem[], fallbackUrl: string) {
     const owner = first.owner ?? first.ownerObject ?? {};
     const meta = first.metaData ?? first.metadata ?? {};
 
+    // IMPORTANT: Prefer metaData.username or the username from the root level
+    // over ownerUsername, because ownerUsername can be from a collaborator's post
     const instagramHandle =
         coalesce<string>(
-            first.ownerUsername,
-            owner.username,
             meta.username,
+            first.username,
+            owner.username,
             extractHandleFromUrl(fallbackUrl),
+            first.ownerUsername, // Fallback only - this can be wrong for collab posts
         ) ?? undefined;
 
     const followers = coalesce<number>(
@@ -267,46 +358,114 @@ function buildPostsFromItems(items: RawInstagramItem[], fallbackUrl: string): In
                 item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : undefined,
             ) ?? fallbackUrl;
 
-        // For videos, get thumbnail from displayUrl or thumbnailUrl
-        const thumbnailUrl = isVideo
-            ? coalesce<string>(
-                item.displayUrl,
-                item.thumbnailUrl,
-                item.thumbnail_url,
-                item.imageUrl,
-            )
-            : undefined;
+        // Store thumbnail URL - for videos use displayUrl, for images use images array first item or displayUrl
+        const thumbnailUrl = coalesce<string>(
+            item.displayUrl,
+            item.thumbnailUrl,
+            item.thumbnail_url,
+            item.imageUrl,
+            Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : undefined,
+        );
+
+        // Extract carousel images from childPosts or sidecarChildren or images array
+        const carouselImages = extractCarouselImages(item);
+
+        const mediaType = normalizeMediaType(
+            coalesce<string>(
+                item.mediaType,
+                item.type,
+                isVideo ? "VIDEO" : undefined,
+            ) ?? "IMAGE"
+        );
 
         posts.push({
             instagramId,
             caption: coalesce<string>(item.caption, item.description, item.title),
             mediaUrl,
             thumbnailUrl,
-            mediaType: normalizeMediaType(
-                coalesce<string>(
-                    item.mediaType,
-                    item.type,
-                    isVideo ? "VIDEO" : undefined,
-                ) ?? "IMAGE"
-            ),
+            mediaType,
             permalink,
             timestamp: normalizeTimestamp(
                 item.timestamp ?? item.takenAt ?? item.publishedAt ?? item.createdAt,
             ),
-            likeCount: coalesce<number>(
+            likeCount: sanitizeLikeCount(coalesce<number>(
                 item.likesCount,
                 item.likeCount,
                 item.edge_liked_by?.count,
-            ),
+            )),
             commentsCount: coalesce<number>(
                 item.commentsCount,
                 item.commentCount,
                 item.edge_media_to_comment?.count,
             ),
+            // Only include carouselImages if it's a carousel type and has images
+            ...(mediaType === "CAROUSEL_ALBUM" && carouselImages.length > 0 ? { carouselImages } : {}),
         });
     }
 
     return posts;
+}
+
+function extractCarouselImages(item: RawInstagramItem): { url: string }[] {
+    const images: { url: string }[] = [];
+
+    // Try childPosts array (Apify format)
+    if (Array.isArray(item.childPosts) && item.childPosts.length > 0) {
+        for (const child of item.childPosts) {
+            const url = coalesce<string>(
+                child.displayUrl,
+                child.imageUrl,
+                child.url,
+                child.videoUrl,
+            );
+            if (url) {
+                images.push({ url });
+            }
+        }
+    }
+
+    // Try sidecar_to_children (Instagram API format)
+    if (images.length === 0 && item.edge_sidecar_to_children?.edges) {
+        for (const edge of item.edge_sidecar_to_children.edges) {
+            const node = edge.node;
+            const url = coalesce<string>(
+                node?.display_url,
+                node?.display_resources?.[0]?.src,
+                node?.video_url,
+            );
+            if (url) {
+                images.push({ url });
+            }
+        }
+    }
+
+    // Try sidecarChildren array
+    if (images.length === 0 && Array.isArray(item.sidecarChildren) && item.sidecarChildren.length > 0) {
+        for (const child of item.sidecarChildren) {
+            const url = coalesce<string>(
+                child.displayUrl,
+                child.display_url,
+                child.imageUrl,
+                child.url,
+            );
+            if (url) {
+                images.push({ url });
+            }
+        }
+    }
+
+    // Try images array (some scrapers use this)
+    if (images.length === 0 && Array.isArray(item.images) && item.images.length > 0) {
+        for (const img of item.images) {
+            if (typeof img === "string") {
+                images.push({ url: img });
+            } else if (img && typeof img === "object" && img.url) {
+                images.push({ url: img.url });
+            }
+        }
+    }
+
+    return images;
 }
 
 function normalizeTimestamp(value: unknown): string {
@@ -376,4 +535,12 @@ function normalizeMediaType(type: string): string {
         return "CAROUSEL_ALBUM";
     }
     return upper;
+}
+
+function sanitizeLikeCount(count: number | undefined): number | undefined {
+    // API sometimes returns -1 for hidden or unavailable like counts
+    if (count === undefined || count === null || count < 0) {
+        return undefined;
+    }
+    return count;
 }

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id, Doc } from "@/convex/_generated/dataModel";
+import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPost } from "@/components/video-post";
-import { ArrowLeft, Instagram, Loader2 } from "lucide-react";
+import { CarouselPost } from "@/components/carousel-post";
+import { ArrowLeft, Instagram, Loader2, ImageOff } from "lucide-react";
 import { AnalysisSection } from "@/components/analysis";
 
 export default function ProjectDetailsPage() {
@@ -158,9 +159,15 @@ export default function ProjectDetailsPage() {
                         <p className="text-muted-foreground">Nenhum post coletado ainda.</p>
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {posts.map((post: Doc<"instagram_posts">) => {
+                            {posts.map((post) => {
                                 const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
                                 const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+                                const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
+                                const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
+
+                                // Get the best available image source
+                                const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
+                                const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
 
                                 return (
                                     <div
@@ -170,26 +177,28 @@ export default function ProjectDetailsPage() {
                                         {isVideo ? (
                                             <VideoPost
                                                 mediaUrl={post.mediaUrl}
-                                                thumbnailUrl={post.thumbnailUrl}
+                                                thumbnailUrl={thumbnailSrc}
                                                 caption={post.caption}
                                                 permalink={post.permalink}
                                             />
+                                        ) : isCarousel && hasCarouselImages ? (
+                                            <CarouselPost
+                                                images={post.carouselImagesWithUrls!}
+                                                alt={post.caption ?? "Post do Instagram"}
+                                            />
                                         ) : (
-                                            <Link href={post.permalink} target="_blank">
-                                                <div className="aspect-square bg-muted overflow-hidden">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img
-                                                        src={post.mediaUrl}
-                                                        alt={post.caption ?? "Post do Instagram"}
-                                                        className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                                                    />
-                                                </div>
+                                            <Link href={post.permalink} target="_blank" className="block">
+                                                <PostImage
+                                                    src={mediaSrc}
+                                                    fallbackSrc={thumbnailSrc}
+                                                    alt={post.caption ?? "Post do Instagram"}
+                                                />
                                             </Link>
                                         )}
                                         <Link href={post.permalink} target="_blank" className="block p-4 space-y-2">
                                             <p className="text-sm text-muted-foreground line-clamp-2">{post.caption || "Sem legenda"}</p>
                                             <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                                <span>{post.likeCount ? `❤️ ${post.likeCount}` : "❤️ 0"}</span>
+                                                <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount}` : ""}</span>
                                                 <span>{new Date(post.timestamp).toLocaleDateString()}</span>
                                             </div>
                                         </Link>
@@ -268,5 +277,33 @@ function ProfilePicture({
                 }
             }}
         />
+    );
+}
+
+function PostImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: string; alt: string }) {
+    const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+
+    const urls = [src, fallbackSrc].filter((url): url is string => Boolean(url));
+    const currentUrl = urls[currentUrlIndex];
+
+    if (!currentUrl || currentUrlIndex >= urls.length) {
+        return (
+            <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageOff className="h-8 w-8" />
+                <span className="text-xs">Imagem indisponível</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="aspect-square bg-muted overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={currentUrl}
+                alt={alt}
+                className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                onError={() => setCurrentUrlIndex((prev) => prev + 1)}
+            />
+        </div>
     );
 }

@@ -38,6 +38,11 @@ export default defineSchema({
         timestamp: v.string(), // ISO string from IG
         likeCount: v.optional(v.number()),
         commentsCount: v.optional(v.number()),
+        // Carousel/Sidecar child images
+        carouselImages: v.optional(v.array(v.object({
+            url: v.string(),
+            storageId: v.optional(v.id("_storage")),
+        }))),
         // Analysis fields (can be filled later)
         analysis: v.optional(v.any()),
     }).index("by_project_id", ["projectId"]),
