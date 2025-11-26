@@ -29,11 +29,14 @@ export function PostTabItem({ tab, onSelect }: PostTabItemProps) {
     };
 
     return (
-        <button
+        <div
+            role="button"
+            tabIndex={0}
             onClick={handleClick}
+            onKeyDown={(e) => e.key === "Enter" && handleClick()}
             className={cn(
                 // Base styles
-                "w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 group",
+                "w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-200 group cursor-pointer",
                 // Inactive state
                 "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
                 // Active state
@@ -89,6 +92,6 @@ export function PostTabItem({ tab, onSelect }: PostTabItemProps) {
                     </button>
                 </>
             )}
-        </button>
+        </div>
     );
 }
