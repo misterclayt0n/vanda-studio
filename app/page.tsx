@@ -110,7 +110,7 @@ function Hero() {
             className="group"
           >
             <Zap className="h-4 w-4" />
-            Iniciar Reformulação
+            Analisar meu Instagram
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Button>
           <SignedOut>
