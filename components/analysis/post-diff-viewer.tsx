@@ -6,13 +6,11 @@ import { Button } from "@/components/ui/button";
 import {
     Copy,
     Check,
-    ChevronLeft,
-    ChevronRight,
     AlertCircle,
     CheckCircle2,
     Sparkles,
     ImageIcon,
-    Play,
+    Video,
 } from "lucide-react";
 
 // Post with storage URLs from listByProject query
@@ -31,115 +29,135 @@ interface PostDiffViewerProps {
     analyses: Doc<"post_analysis">[];
 }
 
+function isVideoPost(post: PostWithStorageUrls): boolean {
+    const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+    return mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+}
+
 export function PostDiffViewer({ posts, analyses }: PostDiffViewerProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
 
     // Create a map of post analyses for quick lookup
     const analysisMap = new Map(analyses.map((a) => [a.postId.toString(), a]));
 
-    // Get posts that have analyses
-    const postsWithAnalysis = posts
+    // Get all posts that have analyses
+    const allPostsWithAnalysis = posts
         .map((post) => ({
             post,
             analysis: analysisMap.get(post._id.toString()),
+            isVideo: isVideoPost(post),
         }))
         .filter((item) => item.analysis !== undefined) as {
         post: PostWithStorageUrls;
         analysis: Doc<"post_analysis">;
+        isVideo: boolean;
     }[];
 
-    if (postsWithAnalysis.length === 0) {
+    // Separate image and video posts
+    const imagePostsWithAnalysis = allPostsWithAnalysis.filter((item) => !item.isVideo);
+    const videoCount = allPostsWithAnalysis.filter((item) => item.isVideo).length;
+
+    if (allPostsWithAnalysis.length === 0) {
         return (
             <div className="text-center py-16 text-muted-foreground">
                 <Sparkles className="h-10 w-10 mx-auto mb-4 opacity-30" />
-                <p>Nenhuma análise de post disponível.</p>
+                <p>Nenhuma analise de post disponivel.</p>
             </div>
         );
     }
 
-    const { post, analysis } = postsWithAnalysis[currentIndex];
-
-    const goToPrev = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
-    const goToNext = () => setCurrentIndex((prev) => Math.min(postsWithAnalysis.length - 1, prev + 1));
+    // Ensure currentIndex is valid
+    const safeIndex = Math.min(Math.max(0, currentIndex), imagePostsWithAnalysis.length - 1);
+    const currentItem = imagePostsWithAnalysis[safeIndex];
 
     return (
         <div className="space-y-6">
-            {/* Navigation header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToPrev}
-                        disabled={currentIndex === 0}
-                        className="h-8 w-8"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm font-medium tabular-nums">
-                        {currentIndex + 1} / {postsWithAnalysis.length}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToNext}
-                        disabled={currentIndex === postsWithAnalysis.length - 1}
-                        className="h-8 w-8"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+            {/* Video posts notice */}
+            {videoCount > 0 && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
+                    <Video className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                        {videoCount} {videoCount === 1 ? "video nao suportado" : "videos nao suportados"} no momento.
+                    </p>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                    {new Date(post.timestamp).toLocaleDateString("pt-BR", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                    })}
-                    {post.likeCount !== undefined && post.likeCount >= 0 && (
-                        <span className="ml-2">• {post.likeCount} curtidas</span>
+            )}
+
+            {/* If no image posts, show message */}
+            {imagePostsWithAnalysis.length === 0 ? (
+                <div className="text-center py-16 text-muted-foreground">
+                    <Video className="h-10 w-10 mx-auto mb-4 opacity-30" />
+                    <p>Apenas videos foram analisados.</p>
+                    <p className="text-sm mt-1">Sugestoes para videos em breve.</p>
+                </div>
+            ) : (
+                <>
+                    {/* Post selector grid */}
+                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
+                        {imagePostsWithAnalysis.map(({ post: p, analysis: a }, idx) => {
+                            const isSelected = idx === safeIndex;
+                            const scoreColor = a.score >= 80 ? "bg-green-500" : a.score >= 60 ? "bg-yellow-500" : "bg-red-500";
+                            
+                            return (
+                                <button
+                                    key={p._id}
+                                    onClick={() => setCurrentIndex(idx)}
+                                    className={`relative aspect-square rounded-lg overflow-hidden bg-muted transition-all ${
+                                        isSelected 
+                                            ? "ring-2 ring-primary ring-offset-2 ring-offset-background" 
+                                            : "opacity-60 hover:opacity-100"
+                                    }`}
+                                >
+                                    <PostThumbnail key={p._id} post={p} />
+                                    <div className={`absolute top-1 right-1 px-1 py-0.5 rounded text-[10px] font-bold text-white ${scoreColor}`}>
+                                        {a.score}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Main comparison grid */}
+                    {currentItem && (
+                        <>
+                            <div key={currentItem.post._id} className="grid grid-cols-2 gap-6">
+                                <OriginalColumn post={currentItem.post} analysis={currentItem.analysis} />
+                                <SuggestedColumn analysis={currentItem.analysis} />
+                            </div>
+
+                            {/* AI Reasoning */}
+                            <div className="rounded-lg border bg-muted/30 p-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                        <Sparkles className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium mb-1">Analise da IA</p>
+                                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                            {currentItem.analysis.reasoning}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dot indicators */}
+                            {imagePostsWithAnalysis.length > 1 && (
+                                <div className="flex justify-center gap-1.5">
+                                    {imagePostsWithAnalysis.map((_, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setCurrentIndex(idx)}
+                                            className={`h-2 rounded-full transition-all ${
+                                                idx === safeIndex
+                                                    ? "w-6 bg-primary"
+                                                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
-                </div>
-            </div>
-
-            {/* Main comparison grid - key forces re-mount on post change */}
-            <div key={post._id} className="grid grid-cols-2 gap-6">
-                {/* Original */}
-                <OriginalColumn post={post} analysis={analysis} />
-
-                {/* Suggested */}
-                <SuggestedColumn analysis={analysis} />
-            </div>
-
-            {/* AI Reasoning */}
-            <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-start gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium mb-1">Análise da IA</p>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            {analysis.reasoning}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Dot indicators */}
-            {postsWithAnalysis.length > 1 && (
-                <div className="flex justify-center gap-1.5">
-                    {postsWithAnalysis.map((_, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => setCurrentIndex(idx)}
-                            className={`h-2 rounded-full transition-all ${
-                                idx === currentIndex
-                                    ? "w-6 bg-primary"
-                                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-                            }`}
-                        />
-                    ))}
-                </div>
+                </>
             )}
         </div>
     );
@@ -172,7 +190,7 @@ function OriginalColumn({
                 </div>
             </div>
 
-            {/* Image/Video */}
+            {/* Image */}
             <PostMedia post={post} />
 
             {/* Caption */}
@@ -286,7 +304,7 @@ function SuggestedColumn({ analysis }: { analysis: Doc<"post_analysis"> }) {
                         ))}
                     </div>
                 ) : (
-                    <p className="text-sm text-muted-foreground">Post já otimizado</p>
+                    <p className="text-sm text-muted-foreground">Post ja otimizado</p>
                 )}
             </div>
         </div>
@@ -296,15 +314,8 @@ function SuggestedColumn({ analysis }: { analysis: Doc<"post_analysis"> }) {
 function PostMedia({ post }: { post: PostWithStorageUrls }) {
     const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
     
-    const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
-    const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
-    
     // Build list of URLs to try in order of preference
-    const urls = isVideo
-        ? [post.thumbnailStorageUrl, post.thumbnailUrl, post.mediaStorageUrl, post.mediaUrl]
-        : [post.mediaStorageUrl, post.thumbnailStorageUrl, post.mediaUrl, post.thumbnailUrl];
-    
-    // Filter out null/undefined values
+    const urls = [post.mediaStorageUrl, post.thumbnailStorageUrl, post.mediaUrl, post.thumbnailUrl];
     const validUrls = urls.filter((url): url is string => Boolean(url));
     const currentUrl = validUrls[currentUrlIndex];
 
@@ -326,13 +337,31 @@ function PostMedia({ post }: { post: PostWithStorageUrls }) {
                 className="h-full w-full object-cover"
                 onError={() => setCurrentUrlIndex((prev) => prev + 1)}
             />
-            {isVideo && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="h-12 w-12 rounded-full bg-black/60 flex items-center justify-center">
-                        <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
-                    </div>
-                </div>
-            )}
         </div>
+    );
+}
+
+function PostThumbnail({ post }: { post: PostWithStorageUrls }) {
+    const [error, setError] = useState(false);
+    
+    const imageUrl = post.thumbnailStorageUrl || post.mediaStorageUrl || post.thumbnailUrl || post.mediaUrl;
+
+    if (!imageUrl || error) {
+        return (
+            <div className="h-full w-full bg-muted flex items-center justify-center">
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+        );
+    }
+
+    return (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+            src={imageUrl}
+            alt="Post thumbnail"
+            className="h-full w-full object-cover"
+            onError={() => setError(true)}
+            referrerPolicy="no-referrer"
+        />
     );
 }

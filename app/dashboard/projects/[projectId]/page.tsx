@@ -8,9 +8,8 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { VideoPost } from "@/components/video-post";
 import { CarouselPost } from "@/components/carousel-post";
-import { ArrowLeft, Instagram, Loader2, ImageOff, FileText, Wand2, Grid3X3 } from "lucide-react";
+import { ArrowLeft, Instagram, Loader2, ImageOff, FileText, Wand2, Grid3X3, Video } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnalysisSection } from "@/components/analysis";
 
@@ -173,53 +172,7 @@ export default function ProjectDetailsPage() {
                     ) : posts.length === 0 ? (
                         <EmptyTabContent message="Nenhum post coletado ainda." />
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {posts.map((post) => {
-                                const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
-                                const isVideo = mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
-                                const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
-                                const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
-
-                                const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
-                                const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
-
-                                return (
-                                    <div
-                                        key={post._id}
-                                        className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
-                                    >
-                                        {isVideo ? (
-                                            <VideoPost
-                                                mediaUrl={post.mediaUrl}
-                                                thumbnailUrl={thumbnailSrc}
-                                                caption={post.caption}
-                                                permalink={post.permalink}
-                                            />
-                                        ) : isCarousel && hasCarouselImages ? (
-                                            <CarouselPost
-                                                images={post.carouselImagesWithUrls!}
-                                                alt={post.caption ?? "Post do Instagram"}
-                                            />
-                                        ) : (
-                                            <Link href={post.permalink} target="_blank" className="block">
-                                                <PostImage
-                                                    src={mediaSrc}
-                                                    fallbackSrc={thumbnailSrc}
-                                                    alt={post.caption ?? "Post do Instagram"}
-                                                />
-                                            </Link>
-                                        )}
-                                        <Link href={post.permalink} target="_blank" className="block p-3 space-y-2">
-                                            <p className="text-sm line-clamp-2">{post.caption || "Sem legenda"}</p>
-                                            <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                                <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount} curtidas` : ""}</span>
-                                                <span>{new Date(post.timestamp).toLocaleDateString("pt-BR")}</span>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <PostsGrid posts={posts} />
                     )}
                 </TabsContent>
             </Tabs>
@@ -315,7 +268,7 @@ function PostImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: strin
         return (
             <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
                 <ImageOff className="h-8 w-8" />
-                <span className="text-xs">Imagem indisponível</span>
+                <span className="text-xs">Imagem indisponivel</span>
             </div>
         );
     }
@@ -329,6 +282,96 @@ function PostImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: strin
                 className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                 onError={() => setCurrentUrlIndex((prev) => prev + 1)}
             />
+        </div>
+    );
+}
+
+type PostWithStorageUrls = {
+    _id: string;
+    mediaType?: string;
+    mediaStorageUrl: string | null;
+    thumbnailStorageUrl: string | null;
+    mediaUrl: string;
+    thumbnailUrl?: string;
+    caption?: string;
+    permalink: string;
+    likeCount?: number;
+    timestamp: string;
+    carouselImagesWithUrls?: {
+        url: string;
+        storageUrl?: string | null;
+    }[];
+};
+
+function isVideoPost(post: PostWithStorageUrls): boolean {
+    const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+    return mediaTypeUpper === "VIDEO" || mediaTypeUpper === "REEL" || mediaTypeUpper === "CLIP" || mediaTypeUpper.includes("VIDEO");
+}
+
+function PostsGrid({ posts }: { posts: PostWithStorageUrls[] }) {
+    const imagePosts = posts.filter((post) => !isVideoPost(post));
+    const videoCount = posts.length - imagePosts.length;
+
+    return (
+        <div className="space-y-4">
+            {/* Video notice */}
+            {videoCount > 0 && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
+                    <Video className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                        {videoCount} {videoCount === 1 ? "video nao suportado" : "videos nao suportados"} no momento.
+                    </p>
+                </div>
+            )}
+
+            {/* If no image posts */}
+            {imagePosts.length === 0 ? (
+                <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
+                    <Video className="h-10 w-10 mx-auto mb-4 text-muted-foreground opacity-30" />
+                    <p className="text-muted-foreground">Apenas videos foram coletados.</p>
+                    <p className="text-sm text-muted-foreground mt-1">Suporte a videos em breve.</p>
+                </div>
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {imagePosts.map((post) => {
+                        const mediaTypeUpper = post.mediaType?.toUpperCase() ?? "";
+                        const isCarousel = mediaTypeUpper === "CAROUSEL_ALBUM";
+                        const hasCarouselImages = (post.carouselImagesWithUrls?.length ?? 0) > 0;
+
+                        const mediaSrc = post.mediaStorageUrl || post.mediaUrl;
+                        const thumbnailSrc = post.thumbnailStorageUrl || post.thumbnailUrl;
+
+                        return (
+                            <div
+                                key={post._id}
+                                className="group rounded-xl border bg-card overflow-hidden hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+                            >
+                                {isCarousel && hasCarouselImages ? (
+                                    <CarouselPost
+                                        images={post.carouselImagesWithUrls!}
+                                        alt={post.caption ?? "Post do Instagram"}
+                                    />
+                                ) : (
+                                    <Link href={post.permalink} target="_blank" className="block">
+                                        <PostImage
+                                            src={mediaSrc}
+                                            fallbackSrc={thumbnailSrc}
+                                            alt={post.caption ?? "Post do Instagram"}
+                                        />
+                                    </Link>
+                                )}
+                                <Link href={post.permalink} target="_blank" className="block p-3 space-y-2">
+                                    <p className="text-sm line-clamp-2">{post.caption || "Sem legenda"}</p>
+                                    <div className="text-xs text-muted-foreground flex items-center justify-between">
+                                        <span>{post.likeCount !== undefined && post.likeCount >= 0 ? `${post.likeCount} curtidas` : ""}</span>
+                                        <span>{new Date(post.timestamp).toLocaleDateString("pt-BR")}</span>
+                                    </div>
+                                </Link>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
