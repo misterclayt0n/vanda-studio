@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download, Camera, Palette, Minimize2, Brush } from "lucide-react";
+import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download, Camera, Palette, Minimize2, Brush, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
     Dialog,
@@ -323,7 +323,7 @@ export default function ProjectDetailsPage() {
                             <Wand2 className="h-10 w-10 mx-auto mb-4 text-muted-foreground opacity-30" />
                             <p className="text-muted-foreground">Nenhum post gerado ainda.</p>
                             <p className="text-sm text-muted-foreground mt-1">
-                                Analise 3+ posts e clique em &quot;Criar Post&quot; para gerar conteudo.
+                                Execute a analise de marca e clique em &quot;Criar Post&quot; para gerar conteudo.
                             </p>
                         </div>
                     ) : (
@@ -704,6 +704,7 @@ interface ContextProgressCardProps {
         analyzedCount: number;
         isReady: boolean;
         requiredPosts: number;
+        hasLimitedContext?: boolean;
     } | undefined;
     isReady: boolean;
     onCreateClick: () => void;
@@ -719,6 +720,7 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
     const hasStrategy = contextStatus?.hasStrategy ?? false;
     const analyzedCount = contextStatus?.analyzedCount ?? 0;
     const requiredPosts = contextStatus?.requiredPosts ?? 3;
+    const hasLimitedContext = contextStatus?.hasLimitedContext ?? true;
     const progressPercent = Math.min((analyzedCount / requiredPosts) * 100, 100);
 
     const creditsRequired = 2;
@@ -764,9 +766,9 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
                         {analyzedCount >= requiredPosts ? (
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
                         ) : (
-                            <Circle className="h-4 w-4 text-muted-foreground" />
+                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
                         )}
-                        <span className={analyzedCount >= requiredPosts ? "text-foreground" : "text-muted-foreground"}>
+                        <span className={analyzedCount >= requiredPosts ? "text-foreground" : "text-yellow-600 dark:text-yellow-400"}>
                             Posts analisados ({analyzedCount}/{requiredPosts})
                         </span>
                     </div>
@@ -774,12 +776,19 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
                 </div>
             </div>
 
-            {!canCreate && hasEnoughCredits && (
+            {!canCreate && hasEnoughCredits && !hasStrategy && (
                 <p className="text-xs text-muted-foreground">
-                    {!hasStrategy
-                        ? "Execute a analise de marca na aba Estrategia."
-                        : `Selecione e analise mais ${requiredPosts - analyzedCount} post${requiredPosts - analyzedCount === 1 ? "" : "s"} na aba Posts.`}
+                    Execute a analise de marca na aba Estrategia.
                 </p>
+            )}
+
+            {canCreate && hasLimitedContext && (
+                <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                        Poucos posts analisados. A geracao pode ser menos precisa. Analise mais posts para melhores resultados.
+                    </p>
+                </div>
             )}
         </div>
     );

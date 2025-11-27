@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Sparkles, ArrowRight, Zap, Camera, Palette, Minimize2, Brush, Loader2, Copy, Check, Download, ImageIcon } from "lucide-react";
+import { Sparkles, ArrowRight, Zap, Camera, Palette, Minimize2, Brush, Loader2, Copy, Check, Download, ImageIcon, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { BackgroundGrid } from "@/components/background-grid";
@@ -58,6 +58,7 @@ interface DemoResult {
         contentPillars: string[];
     };
     error?: string;
+    hasLimitedContext?: boolean;
 }
 
 export default function Home() {
@@ -454,6 +455,14 @@ function DemoResultDisplay({ result, onReset }: { result: DemoResult; onReset: (
               Gerar outro
             </Button>
           </div>
+          {result.hasLimitedContext && (
+            <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-sm">
+              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+              <p className="text-yellow-600 dark:text-yellow-400">
+                Este perfil tem poucos ou nenhum post publicado. A analise foi baseada apenas na bio e informacoes do perfil, o que pode resultar em sugestoes menos precisas.
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="grid md:grid-cols-2 gap-0">

@@ -233,7 +233,7 @@ export const checkContextReady = query({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            return { hasStrategy: false, analyzedCount: 0, isReady: false, requiredPosts: 3 };
+            return { hasStrategy: false, analyzedCount: 0, isReady: false, requiredPosts: 3, hasLimitedContext: true };
         }
 
         // Check brand analysis
@@ -257,13 +257,16 @@ export const checkContextReady = query({
 
         const analyzedCount = postAnalyses.filter((a) => a.hasAnalysis).length;
         const requiredPosts = 3;
-        const isReady = hasStrategy && analyzedCount >= requiredPosts;
+        // Only require brand analysis to be ready - posts are optional
+        const isReady = hasStrategy;
+        const hasLimitedContext = analyzedCount < requiredPosts;
 
         return {
             hasStrategy,
             analyzedCount,
             isReady,
             requiredPosts,
+            hasLimitedContext,
         };
     },
 });

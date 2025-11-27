@@ -25,7 +25,7 @@ export const generatePost = action({
             v.literal("artistic")
         )),
     },
-    handler: async (ctx, args): Promise<{ success: boolean; generatedPostId: Id<"generated_posts"> }> => {
+    handler: async (ctx, args): Promise<{ success: boolean; generatedPostId: Id<"generated_posts">; hasLimitedContext?: boolean }> => {
         // 1. Check authentication
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
@@ -60,18 +60,15 @@ export const generatePost = action({
             throw new Error("Incomplete brand analysis. Please run brand analysis again.");
         }
 
-        // 6. Get analyzed posts - need at least 3
+        // 6. Get analyzed posts - no longer required, but used if available
         const postAnalyses = await ctx.runQuery(api.ai.analysisMutations.listPostAnalyses, {
             projectId: args.projectId,
         });
 
         const analyzedPosts = postAnalyses?.filter((a) => a.hasAnalysis && a.analysisDetails) ?? [];
+        const hasLimitedContext = analyzedPosts.length < 3;
 
-        if (analyzedPosts.length < 3) {
-            throw new Error(`Need at least 3 analyzed posts for context. Currently have ${analyzedPosts.length}.`);
-        }
-
-        // 7. Get source post IDs, captions, and image URLs
+        // 7. Get source post IDs, captions, and image URLs (if any posts exist)
         const sourcePosts = await Promise.all(
             analyzedPosts.slice(0, 5).map(async (analysis) => {
                 const post = await ctx.runQuery(api.instagramPosts.get, { postId: analysis.postId });
@@ -176,7 +173,7 @@ export const generatePost = action({
         // 12. Consume prompt (2 prompts: 1 for caption, 1 for image)
         await ctx.runMutation(api.billing.usage.consumePrompt, { count: imageStorageId ? 2 : 1 });
 
-        return { success: true, generatedPostId };
+        return { success: true, generatedPostId, hasLimitedContext };
     },
 });
 

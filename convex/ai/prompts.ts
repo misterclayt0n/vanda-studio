@@ -24,15 +24,12 @@ export const BRAND_ANALYSIS_USER_PROMPT = (data: {
         mediaType: string;
         timestamp: string;
     }>;
-}) => `Analise este perfil do Instagram e forneça uma estratégia completa de transformação da marca.
+    profilePictureUrl?: string | undefined;
+}) => {
+    const hasPosts = data.posts.length > 0;
 
-## Dados do Perfil
-- Handle: @${data.handle}
-- Bio: ${data.bio || "(sem bio)"}
-- Seguidores: ${data.followersCount?.toLocaleString("pt-BR") || "desconhecido"}
-- Total de Posts: ${data.postsCount || "desconhecido"}
-
-## Posts Recentes (${data.posts.length} posts)
+    const postsSection = hasPosts
+        ? `## Posts Recentes (${data.posts.length} posts)
 ${data.posts.map((post, i) => `
 ### Post ${i + 1}
 - Tipo: ${post.mediaType}
@@ -40,14 +37,27 @@ ${data.posts.map((post, i) => `
 - Curtidas: ${post.likeCount ?? "desconhecido"}
 - Comentários: ${post.commentsCount ?? "desconhecido"}
 - Legenda: "${post.caption || "(sem legenda)"}"
-`).join("\n")}
+`).join("\n")}`
+        : `## Posts
+Este perfil ainda não possui posts publicados. Baseie sua análise inteiramente no handle, bio e foto de perfil para inferir a identidade da marca e fornecer recomendações estratégicas para o início da presença digital.`;
+
+    return `Analise este perfil do Instagram e forneça uma estratégia completa de transformação da marca.
+
+## Dados do Perfil
+- Handle: @${data.handle}
+- Bio: ${data.bio || "(sem bio)"}
+- Seguidores: ${data.followersCount?.toLocaleString("pt-BR") || "desconhecido"}
+- Total de Posts: ${data.postsCount || 0}
+${data.profilePictureUrl ? `- Foto de Perfil: (imagem anexada)` : ""}
+
+${postsSection}
 
 ## Schema JSON Obrigatório (responda em português brasileiro)
 {
   "brandVoice": {
-    "current": "Descrição da voz atual da marca baseada nas legendas",
+    "current": "${hasPosts ? "Descrição da voz atual da marca baseada nas legendas" : "Não há posts para analisar - descreva o que a bio e handle sugerem"}",
     "recommended": "Direção recomendada para a voz da marca",
-    "reasoning": "Por que essa mudança vai melhorar o engajamento",
+    "reasoning": "Por que essa direção vai melhorar o engajamento",
     "tone": ["adjetivo1", "adjetivo2", "adjetivo3"]
   },
   "contentPillars": [
@@ -58,20 +68,21 @@ ${data.posts.map((post, i) => `
     }
   ],
   "visualDirection": {
-    "currentStyle": "Descrição do estilo visual atual",
+    "currentStyle": "${hasPosts ? "Descrição do estilo visual atual" : "Sem posts para analisar - baseie-se na foto de perfil se disponível"}",
     "recommendedStyle": "Direção visual recomendada",
     "reasoning": "Por que essa mudança visual vai ajudar"
   },
   "targetAudience": {
-    "current": "Para quem o conteúdo atual atrai",
+    "current": "${hasPosts ? "Para quem o conteúdo atual atrai" : "Não há conteúdo - descreva o público sugerido pelo handle/bio"}",
     "recommended": "Público-alvo ideal",
     "reasoning": "Por que focar neste público faz sentido"
   },
-  "overallScore": 75,
+  "overallScore": ${hasPosts ? "75" : "50"},
   "strategySummary": "Resumo de 2-3 frases das principais recomendações estratégicas"
 }
 
 Analise profundamente e responda com APENAS o objeto JSON.`;
+};
 
 export const POST_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista de conteúdo sênior revisando posts do Instagram como um revisor de código revisa pull requests. Seu trabalho é fornecer feedback específico e acionável sobre a legenda de cada post.
 
@@ -269,7 +280,24 @@ export interface PostGenerationContext {
     additionalContext?: string;
 }
 
-export const POST_GENERATION_USER_PROMPT = (context: PostGenerationContext) => `Baseado no contexto da marca e nos posts de sucesso analisados, crie uma nova legenda para Instagram.
+export const POST_GENERATION_USER_PROMPT = (context: PostGenerationContext) => {
+    const hasAnalyzedPosts = context.analyzedPosts.length > 0;
+
+    const postsSection = hasAnalyzedPosts
+        ? `## Posts Analisados (referência de estilo)
+${context.analyzedPosts
+    .map(
+        (p) => `
+Legenda: "${p.caption}"
+Pontos fortes: ${p.strengths.join(", ")}
+Tom: ${p.toneAnalysis}
+`
+    )
+    .join("\n---\n")}`
+        : `## Nota
+Este perfil ainda não possui posts analisados. Baseie-se inteiramente nas diretrizes da marca (voz, tom, público e pilares de conteúdo) para criar uma legenda que estabeleça a identidade da marca.`;
+
+    return `Baseado no contexto da marca${hasAnalyzedPosts ? " e nos posts de sucesso analisados" : ""}, crie uma nova legenda para Instagram.
 
 ## Marca
 - Voz: ${context.brandVoice.recommended}
@@ -279,16 +307,7 @@ export const POST_GENERATION_USER_PROMPT = (context: PostGenerationContext) => `
 ## Pilares de Conteúdo
 ${context.contentPillars.map((p) => `- ${p.name}: ${p.description}`).join("\n")}
 
-## Posts Analisados (referência de estilo)
-${context.analyzedPosts
-    .map(
-        (p) => `
-Legenda: "${p.caption}"
-Pontos fortes: ${p.strengths.join(", ")}
-Tom: ${p.toneAnalysis}
-`
-    )
-    .join("\n---\n")}
+${postsSection}
 
 ${context.additionalContext ? `## Contexto Adicional do Usuário\n${context.additionalContext}` : ""}
 
@@ -299,6 +318,7 @@ ${context.additionalContext ? `## Contexto Adicional do Usuário\n${context.addi
 }
 
 Gere uma legenda criativa e envolvente. Responda com APENAS o objeto JSON.`;
+};
 
 export interface PostGenerationResponse {
     caption: string;

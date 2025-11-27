@@ -42,6 +42,7 @@ interface DemoResult {
         contentPillars: string[];
     };
     error?: string;
+    hasLimitedContext?: boolean; // True if profile has few/no posts
 }
 
 // Demo generation action - generates a post from an Instagram handle
@@ -136,21 +137,13 @@ export const generateDemo = action({
                     generatedCaption: "",
                     reasoning: "",
                     sourcePosts: [],
-                    error: "Perfil nao encontrado ou sem posts publicos.",
+                    error: "Perfil nao encontrado. Verifique se o @ esta correto.",
                 };
             }
 
-            // 2. Extract posts
+            // 2. Extract posts (may be empty for new accounts)
             const posts = extractPosts(datasetItems).slice(0, 3);
-            if (posts.length < 1) {
-                return {
-                    success: false,
-                    generatedCaption: "",
-                    reasoning: "",
-                    sourcePosts: [],
-                    error: "Nenhum post encontrado no perfil.",
-                };
-            }
+            const hasLimitedContext = posts.length < 3;
 
             // 3. Quick brand analysis
             const profileData = extractProfileData(datasetItems, handle);
@@ -268,6 +261,7 @@ export const generateDemo = action({
                     targetAudience: brandAnalysis.targetAudience.recommended,
                     contentPillars: brandAnalysis.contentPillars.map((p) => p.name),
                 },
+                hasLimitedContext,
             };
         } catch (error) {
             console.error("Demo generation error:", error);
