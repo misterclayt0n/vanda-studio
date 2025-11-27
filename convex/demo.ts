@@ -3,6 +3,7 @@
 import { ApifyClient } from "apify-client";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
+import { api } from "./_generated/api";
 import { callLLM, parseJSONResponse, generateImage, MODELS } from "./ai/llm";
 import {
     POST_GENERATION_SYSTEM_PROMPT,
@@ -54,8 +55,30 @@ export const generateDemo = action({
             v.literal("minimalist"),
             v.literal("artistic")
         )),
+        fingerprint: v.optional(v.string()), // For rate limiting anonymous users
     },
     handler: async (ctx, args): Promise<DemoResult> => {
+        // Check if user is authenticated
+        const identity = await ctx.auth.getUserIdentity();
+        const isAuthenticated = !!identity;
+
+        // Rate limit anonymous users
+        if (!isAuthenticated && args.fingerprint) {
+            const usage = await ctx.runQuery(api.demoUsage.checkDemoUsage, {
+                fingerprint: args.fingerprint,
+            });
+
+            if (!usage.canUse) {
+                return {
+                    success: false,
+                    generatedCaption: "",
+                    reasoning: "",
+                    sourcePosts: [],
+                    error: "Voce ja usou sua demonstracao gratuita. Crie uma conta para continuar!",
+                };
+            }
+        }
+
         const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
         if (!token) {
             return {
@@ -223,6 +246,14 @@ export const generateDemo = action({
                 generatedImageMimeType = imageResult.mimeType;
             } catch (imageError) {
                 console.error("Image generation failed:", imageError);
+            }
+
+            // Record demo usage for anonymous users
+            if (!isAuthenticated && args.fingerprint) {
+                await ctx.runMutation(api.demoUsage.recordDemoUsage, {
+                    fingerprint: args.fingerprint,
+                    instagramHandle: handle,
+                });
             }
 
             return {

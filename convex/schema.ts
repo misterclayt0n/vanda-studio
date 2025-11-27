@@ -178,4 +178,11 @@ export default defineSchema({
         metadata: v.optional(v.any()),
         createdAt: v.number(),
     }).index("by_project_id", ["projectId"]),
+
+    // Demo usage tracking for rate limiting anonymous users
+    demo_usage: defineTable({
+        fingerprint: v.string(), // Browser fingerprint or device ID
+        usedAt: v.number(),
+        instagramHandle: v.string(),
+    }).index("by_fingerprint", ["fingerprint"]),
 });

@@ -1,9 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import { useAction } from "convex/react";
+import { useState, useEffect } from "react";
+import { SignInButton, SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+
+// Generate a simple browser fingerprint for rate limiting
+function generateFingerprint(): string {
+  const components = [
+    navigator.userAgent,
+    navigator.language,
+    new Date().getTimezoneOffset().toString(),
+    screen.width.toString(),
+    screen.height.toString(),
+    screen.colorDepth.toString(),
+  ];
+
+  // Simple hash function
+  const str = components.join("|");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -175,8 +198,23 @@ function PromptPanel() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<DemoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
 
+  const { isSignedIn } = useAuth();
   const generateDemo = useAction(api.demo.generateDemo);
+
+  // Generate fingerprint on mount (client-side only)
+  useEffect(() => {
+    setFingerprint(generateFingerprint());
+  }, []);
+
+  // Check demo usage for anonymous users
+  const demoUsage = useQuery(
+    api.demoUsage.checkDemoUsage,
+    !isSignedIn && fingerprint ? { fingerprint } : "skip"
+  );
+
+  const hasUsedDemo = !isSignedIn && demoUsage && !demoUsage.canUse;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,6 +229,7 @@ function PromptPanel() {
         instagramHandle: handle.trim(),
         additionalContext: context.trim() || undefined,
         imageStyle,
+        fingerprint: !isSignedIn ? fingerprint ?? undefined : undefined,
       });
 
       if (demoResult.success) {
@@ -209,6 +248,39 @@ function PromptPanel() {
   // Show result if we have one
   if (result) {
     return <DemoResultDisplay result={result} onReset={() => setResult(null)} />;
+  }
+
+  // Show message if user has already used their demo
+  if (hasUsedDemo) {
+    return (
+      <Card className="w-full max-w-2xl text-left animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-gradient-purple flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">Voce ja usou sua demonstracao</CardTitle>
+              <CardDescription>
+                Crie uma conta gratuita para continuar gerando posts.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Usuarios anonimos tem direito a 1 demonstracao gratuita.
+            Crie uma conta para ter acesso a mais recursos e gerar posts ilimitados.
+          </p>
+          <SignInButton mode="modal">
+            <Button variant="gradient" size="lg" className="w-full">
+              <Sparkles className="h-4 w-4" />
+              Criar Conta Gratis
+            </Button>
+          </SignInButton>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
