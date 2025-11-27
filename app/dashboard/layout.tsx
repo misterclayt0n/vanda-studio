@@ -1,12 +1,39 @@
 "use client";
 
+import { useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Sidebar, SidebarProvider, MobileMenuButton, PostTabsProvider } from "@/components/sidebar";
+
+// Hook to sync Clerk user to Convex database
+function useStoreUser() {
+    const { user, isLoaded } = useUser();
+    const storeUser = useMutation(api.users.store);
+
+    useEffect(() => {
+        if (!isLoaded || !user) return;
+
+        // Store user in Convex
+        storeUser({
+            name: user.fullName ?? user.firstName ?? "User",
+            email: user.primaryEmailAddress?.emailAddress ?? "",
+            imageUrl: user.imageUrl,
+        }).catch((error) => {
+            // Ignore errors - user might already exist
+            console.log("User sync:", error.message);
+        });
+    }, [isLoaded, user, storeUser]);
+}
 
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    // Sync user to Convex on dashboard load
+    useStoreUser();
+
     return (
         <SidebarProvider>
             <PostTabsProvider>
