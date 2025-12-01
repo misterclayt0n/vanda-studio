@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Sparkles, ArrowRight, Zap, Megaphone, Briefcase, MessageCircle, Loader2, Copy, Check, Download, ImageIcon, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { BackgroundGrid } from "@/components/background-grid";
@@ -195,7 +196,7 @@ function Hero() {
 function PromptPanel() {
   const [handle, setHandle] = useState("");
   const [context, setContext] = useState("");
-  const [postType, setPostType] = useState<PostType>("promocao");
+  const [postType, setPostType] = useState<PostType>("conteudo_profissional");
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<DemoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -324,35 +325,51 @@ function PromptPanel() {
             </Label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { value: "promocao" as const, label: "Promocao", icon: Megaphone, desc: "Vendas e ofertas" },
-                { value: "conteudo_profissional" as const, label: "Profissional", icon: Briefcase, desc: "Autoridade e expertise" },
-                { value: "engajamento" as const, label: "Engajamento", icon: MessageCircle, desc: "Conexao com audiencia" },
-              ].map((type) => (
-                <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => setPostType(type.value)}
-                  disabled={isGenerating}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
-                    postType === type.value
-                      ? "border-primary bg-primary/10 ring-1 ring-primary"
-                      : "border-border hover:border-primary/50 hover:bg-muted/50",
-                    isGenerating && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <div className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-lg",
-                    postType === type.value ? "bg-primary text-primary-foreground" : "bg-muted"
-                  )}>
-                    <type.icon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{type.label}</p>
-                    <p className="text-xs text-muted-foreground">{type.desc}</p>
-                  </div>
-                </button>
-              ))}
+                { value: "promocao" as const, label: "Promocao", icon: Megaphone, desc: "Vendas e ofertas", disabled: true },
+                { value: "conteudo_profissional" as const, label: "Profissional", icon: Briefcase, desc: "Autoridade e expertise", disabled: false },
+                { value: "engajamento" as const, label: "Engajamento", icon: MessageCircle, desc: "Conexao com audiencia", disabled: true },
+              ].map((type) => {
+                const buttonContent = (
+                  <button
+                    type="button"
+                    onClick={() => !type.disabled && setPostType(type.value)}
+                    disabled={isGenerating || type.disabled}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border text-left transition-all w-full",
+                      postType === type.value
+                        ? "border-primary bg-primary/10 ring-1 ring-primary"
+                        : "border-border hover:border-primary/50 hover:bg-muted/50",
+                      (isGenerating || type.disabled) && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-lg",
+                      postType === type.value ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}>
+                      <type.icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{type.label}</p>
+                      <p className="text-xs text-muted-foreground">{type.desc}</p>
+                    </div>
+                  </button>
+                );
+
+                if (type.disabled) {
+                  return (
+                    <Tooltip key={type.value}>
+                      <TooltipTrigger asChild>
+                        {buttonContent}
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Em progresso...
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return <div key={type.value}>{buttonContent}</div>;
+              })}
             </div>
           </div>
 

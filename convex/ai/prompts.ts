@@ -473,7 +473,7 @@ export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
             resolution: "1200x1200px",
             aspect_ratio: "1:1 (Instagram square)",
             output_quality: "High quality, 8K resolution rendering",
-            text_overlay: "NO text in the image - clean visual only"
+            text_overlay: "ABSOLUTELY NO TEXT - no words, letters, numbers, typography, or written content of any kind. Pure visual image only."
         },
         camera_and_style: {
             visual_aesthetic: styleSpec.visual_aesthetic || "Professional photography",
@@ -529,19 +529,21 @@ ${JSON.stringify(imageSpec, null, 2)}
 - Business Category: ${context.businessCategory || "Not specified"}
 - Post Type: ${context.postType || "General"}
 
-## POST CAPTION (for context)
+## POST CAPTION (for context - DO NOT include this text in the image)
 "${context.caption}"
 
 ${context.additionalContext ? `## ADDITIONAL CONTEXT\n${context.additionalContext}` : ""}
 
 ${referenceImagePrompt}
 
-## CRITICAL REQUIREMENTS
-1. Follow the JSON specification precisely
-2. NO text overlays in the image
-3. The image must complement and enhance the caption's message
-4. Create a scroll-stopping composition for Instagram feed
-5. ${context.hasReferenceImages ? "MAINTAIN visual consistency with reference images - this is the highest priority" : "Create a fresh, professional visual"}
+## CRITICAL REQUIREMENTS - READ CAREFULLY
+1. **ABSOLUTELY NO TEXT IN THE IMAGE** - This is the most important rule. Do not include any words, letters, numbers, or typography of any kind. The image must be purely visual with zero text overlays, captions, or written content.
+2. If you need to represent the brand name, use only the logo/visual symbol, never text
+3. Focus on creating a powerful visual composition that tells the story without words
+4. The caption will be added separately by Instagram - the image should complement it visually, not duplicate it
+5. Create a clean, scroll-stopping visual that looks professional on Instagram feed
+6. ${context.hasReferenceImages ? "MAINTAIN visual consistency with reference images - preserve product appearance exactly" : "Create a fresh, professional visual"}
+7. Prefer showing products, lifestyle scenes, or abstract brand-related imagery over any text elements
 
 Generate the image now.`;
 };

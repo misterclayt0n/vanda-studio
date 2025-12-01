@@ -142,12 +142,17 @@ const buildCreativeAnglePrompt = (
 - Ao invés de desconto genérico: "Última chance antes de [evento específico/temporada]"
 - Conecte com momento cultural atual, tendência ou meme relevante`,
 
-        conteudo_profissional: `EXEMPLOS DE ÂNGULOS DE AUTORIDADE CRIATIVOS:
+        conteudo_profissional: `EXEMPLOS DE ÂNGULOS DE AUTORIDADE/CONTEUDISTA CRIATIVOS:
 - Ao invés de "Benefícios do mel": "O que apicultores nunca contam sobre mel de supermercado"
 - Ao invés de "Dicas de uso": "3 erros que até nutricionistas cometem com [produto]"
 - Ao invés de fatos genéricos: "A ciência por trás de por que [fato contraintuitivo]"
-- Ao invés de "somos especialistas": Conte uma história de bastidores única
-- Revele um segredo da indústria que gera curiosidade`,
+- Ao invés de "somos especialistas": Conte uma história de bastidores com DADOS REAIS
+- Revele um segredo da indústria que gera curiosidade E educação
+- Use números específicos: "87% das pessoas não sabem que..."
+- Conecte o produto com um problema real do público-alvo
+- Desmistifique um mito comum do nicho com evidências
+- Mostre o processo por trás do produto (transparência = autoridade)
+- Compare com alternativas de forma educativa (não agressiva)`,
 
         engajamento: `EXEMPLOS DE ÂNGULOS DE ENGAJAMENTO CRIATIVOS:
 - Ao invés de "Você sabia?": "Qual celebridade você acha que consome mais mel? (A resposta vai te surpreender)"
@@ -248,12 +253,17 @@ const buildCaptionPrompt = (
 - Pode mencionar preço/oferta se relevante
 - Hashtags: mix de nicho + venda`,
 
-        conteudo_profissional: `DIRETRIZES PARA POST DE AUTORIDADE:
-- Entregue VALOR real (a pessoa deve aprender algo)
-- Use dados ou fatos específicos quando possível
-- Tom de quem sabe do que fala (sem arrogância)
-- CTA para salvar/compartilhar
-- Hashtags: nicho + autoridade + educacional`,
+        conteudo_profissional: `DIRETRIZES PARA POST DE AUTORIDADE/CONTEUDISTA:
+- Entregue VALOR REAL e PROFUNDO (a pessoa deve aprender algo significativo)
+- Use dados, estatísticas ou fatos específicos quando possível
+- Tom de especialista acessível (confiante mas não arrogante)
+- Estrutura clara: introdução provocativa → desenvolvimento → conclusão com CTA
+- Evite emojis em excesso - máximo 3-4 bem posicionados
+- CTA para salvar/compartilhar o conhecimento
+- Hashtags: nicho + autoridade + educacional
+- NÃO use linguagem genérica ou clichês de coach
+- SEJA ESPECÍFICO: números, nomes, exemplos reais
+- O post deve estabelecer a marca como REFERÊNCIA no assunto`,
 
         engajamento: `DIRETRIZES PARA POST DE ENGAJAMENTO:
 - A pergunta/interação deve ser FÁCIL de responder
@@ -312,16 +322,24 @@ const buildImagePrompt = (
     // Extract the HOOK/HEADLINE from caption (first meaningful line, cleaned up)
     const captionLines = caption.split('\n').filter(line => line.trim().length > 0);
     const rawHeadline = captionLines[0] || creativeAngle;
-    // Clean up: remove hashtags, emojis at start, limit length
-    const headline = rawHeadline
+    // Clean up: remove hashtags, emojis, limit to SHORT text for AI to render properly
+    const cleanedHeadline = rawHeadline
         .replace(/#\w+/g, '')
-        .replace(/^[\s\p{Emoji}]+/gu, '')
-        .trim()
-        .substring(0, 80);
+        .replace(/[\p{Emoji}]/gu, '')
+        .replace(/[""]/g, '')
+        .trim();
     
-    // Extract a secondary line if available
+    // For conteudo_profissional, we need VERY short text (max ~40 chars / 6-8 words)
+    // Take first part of headline, cut at natural break points
+    const shortHeadline = cleanedHeadline.length > 40 
+        ? cleanedHeadline.substring(0, 40).split(/[,\-—:?!]/).filter(s => s.trim())[0]?.trim() || cleanedHeadline.substring(0, 35)
+        : cleanedHeadline;
+    
+    const headline = shortHeadline.substring(0, 45); // Hard limit
+    
+    // Extract a secondary line if available (also shortened)
     const subheadline = captionLines[1]
-        ? captionLines[1].replace(/#\w+/g, '').replace(/^[\s\p{Emoji}]+/gu, '').trim().substring(0, 100)
+        ? captionLines[1].replace(/#\w+/g, '').replace(/[\p{Emoji}]/gu, '').trim().substring(0, 50)
         : "";
     
     // POST TYPE SPECIFIC TEMPLATES - ALL WITH TEXT BAKED INTO THE IMAGE
@@ -348,36 +366,43 @@ ${hasReferenceImages ? `CRÍTICO: O produto deve ser IDÊNTICO ao das imagens de
 
 ESTILO VISUAL: Design gráfico profissional com foto realista integrada
 
-LAYOUT OBRIGATÓRIO (dividido verticalmente):
+LAYOUT OBRIGATÓRIO (dividido verticalmente em 2 partes iguais):
 ┌─────────────────────────────────┐
-│ ${hasProfilePic ? "LOGO (foto perfil)" : "@" + brandName} │ ← TOPO: header com marca
+│ ${hasProfilePic ? "[LOGO pequeno no canto]" : "@" + brandName}     │
 ├────────────────┬────────────────┤
 │                │                │
-│  **TEXTO**     │   **FOTO**     │
+│  LADO          │   LADO         │
+│  ESQUERDO      │   DIREITO      │
 │                │                │
-│  Headline:     │   Imagem       │
-│  "${headline.substring(0, 40)}${headline.length > 40 ? "..." : ""}"  │   realista     │
-│                │   relacionada  │
-│  ${subheadline ? `Sub: "${subheadline.substring(0, 30)}..."` : ""} │   ao negócio   │
+│  Cor sólida    │   Foto real    │
+│  + Texto       │   do produto   │
 │                │                │
 └────────────────┴────────────────┘
 
-LADO ESQUERDO (50%):
+LADO ESQUERDO (50% da imagem):
 - Fundo em COR SÓLIDA da marca (extrair das referências)
 - TEXTO ESCRITO NA IMAGEM:
   * Headline principal em fonte BOLD, grande
-  * Subheadline menor se houver
+  * Máximo 6-8 palavras no headline
   * Fonte: sans-serif moderna, legível
-  * Cor do texto: contraste com fundo (branco ou escuro)
-- Pode ter ícones ou elementos gráficos sutis
+  * Cor do texto: BRANCO ou cor que contraste bem com o fundo
+  * Texto deve caber confortavelmente no espaço
+- NÃO colocar texto demais - menos é mais
 
-LADO DIREITO (50%):
+LADO DIREITO (50% da imagem):
 - FOTOGRAFIA REALISTA relacionada ao negócio
-- Estilo de foto de celular, não stock photo perfeita
+- Estilo de foto de celular de alta qualidade
 - Produto ou cena do dia-a-dia do negócio
+- NÃO pode parecer stock photo artificial
 
-TOPO:
-${hasProfilePic ? "- Incluir a foto de perfil (primeira imagem anexada) como LOGO pequeno no canto superior" : "- Texto @" + brandName + " no topo"}`,
+REGRAS CRÍTICAS PARA O TEXTO:
+1. Use POUCAS PALAVRAS - máximo 8 palavras no total
+2. Fonte GRANDE e LEGÍVEL
+3. Texto deve ter ESPAÇO ao redor (não encostar nas bordas)
+4. Preferir palavras CURTAS
+5. Se o headline original for longo, RESUMA em poucas palavras impactantes
+
+${hasReferenceImages ? `CRÍTICO: O produto deve ser IDÊNTICO ao das imagens de referência - mesma embalagem, cor, formato.` : ""}`,
 
         // ENGAJAMENTO: Bold text + emotional image
         engajamento: `## LAYOUT: POST DE ENGAJAMENTO
@@ -426,17 +451,33 @@ ${hasProfilePic ? "- PRIMEIRA imagem = foto de perfil/logo da marca → USE no t
 - O produto deve ser IGUAL ao das referências`
         : "";
 
+    const textSection = `## TEXTO QUE DEVE APARECER NA IMAGEM
+Headline (EXATAMENTE este texto, sem modificar): "${headline}"
+${subheadline ? `Subheadline: "${subheadline}"` : ""}
+
+IMPORTANTE SOBRE O TEXTO:
+- Renderize EXATAMENTE as palavras acima
+- Use fonte GRANDE, BOLD, sans-serif
+- Texto deve ser 100% LEGÍVEL
+- Deixe MARGEM ao redor do texto
+- Se não conseguir renderizar bem, use MENOS palavras`;
+
+    const criticalRules = `## REGRAS CRÍTICAS
+1. O TEXTO "${headline.substring(0, 30)}${headline.length > 30 ? "..." : ""}" deve estar ESCRITO na imagem, LEGÍVEL
+2. Layout dividido: TEXTO na esquerda, FOTO na direita
+3. A foto deve ser REALISTA (não ilustração)
+4. Cores extraídas das imagens de referência
+5. Se o texto não couber bem, REDUZA para as palavras-chave principais`;
+
     return `## TAREFA
-Gerar imagem COMPLETA para Instagram - tipo: ${POST_TYPE_LABELS[postType]}
+Gerar imagem para Instagram - tipo: ${POST_TYPE_LABELS[postType]}
 
 ## MARCA
 @${brandName}
 Categoria: ${brandAnalysis.businessCategory || "Não especificada"}
 Produto: ${brandAnalysis.productOrService || "Não especificado"}
 
-## TEXTO QUE DEVE APARECER NA IMAGEM
-Headline: "${headline}"
-${subheadline ? `Subheadline: "${subheadline}"` : ""}
+${textSection}
 
 ${templateByPostType[postType]}
 
@@ -444,17 +485,12 @@ ${referenceInstructions}
 
 ## ESPECIFICAÇÕES
 - Formato: 1:1 (quadrado Instagram)
-- TEXTO DEVE ESTAR RENDERIZADO NA IMAGEM (não é placeholder)
 - Estilo: Realista, autêntico (não muito polido/artificial)
-- Qualidade: boa mas não perfeita (estilo conteúdo real de Instagram)
+- Qualidade: profissional mas não artificial
 
-## REGRAS CRÍTICAS
-1. O TEXTO deve estar ESCRITO na imagem final, legível e bem posicionado
-2. A foto deve ser REALISTA, não ilustração nem render 3D perfeito
-3. Layout EXATAMENTE como especificado acima
-4. Cores extraídas das imagens de referência
+${criticalRules}
 
-Gere a imagem completa agora.`;
+Gere a imagem agora.`;
 };
 
 // =============================================================================
