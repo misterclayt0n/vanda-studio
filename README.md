@@ -55,3 +55,20 @@ We currently rely on the following providers
 In the future we need payments, so either:
 - Abacatepay
 - Clerk with stripe
+
+## TODO
+- [ ] Users must be logged in order to trigger the LP generation.
+- [ ] Be able to analyze other profiles as context.
+- [ ] Thinking about it, it's maybe a good idea to provide the entire profile as context (reasonable I mean, since we're already fetching the entire profile anyways so fuck it).
+- [ ] We need a section to provide custom context to the AI about the product (pictures, profile images, custom text, whatever).
+
+## Insights
+- [ ] Promoção, Conteúdo profissional e Posts de engajamento. 
+- [ ] Header presetado com marca dagua da logo do cara.
+- [ ] Clicar em dashboard e ver oq a gente vai fazer por ele - Antes dele criar a conta.
+- [ ] 2 dolares por user recorrente.
+- [ ] Melhor UX do onboarding.
+- [ ] Scheduling de post. Integrar com API do google calendar.
+- [ ] Trocar o hero text por algo mais descritivo sobre o que fazemos: "Automatize o seu instagram com um click"
+- [ ] Adicionar mais metadados sobre conteúdo dos projetos.
+- [ ] After scraping -> Tool call pra db.
