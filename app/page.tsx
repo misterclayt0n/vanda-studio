@@ -32,13 +32,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Sparkles, ArrowRight, Zap, Camera, Palette, Minimize2, Brush, Loader2, Copy, Check, Download, ImageIcon, AlertTriangle } from "lucide-react";
+import { Sparkles, ArrowRight, Zap, Megaphone, Briefcase, MessageCircle, Loader2, Copy, Check, Download, ImageIcon, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { BackgroundGrid } from "@/components/background-grid";
 import { FloatingParticles } from "@/components/floating-particles";
 
-type ImageStyle = "realistic" | "illustrative" | "minimalist" | "artistic";
+type PostType = "promocao" | "conteudo_profissional" | "engajamento";
 
 interface DemoResult {
     success: boolean;
@@ -195,7 +195,7 @@ function Hero() {
 function PromptPanel() {
   const [handle, setHandle] = useState("");
   const [context, setContext] = useState("");
-  const [imageStyle, setImageStyle] = useState<ImageStyle>("realistic");
+  const [postType, setPostType] = useState<PostType>("promocao");
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<DemoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -229,7 +229,7 @@ function PromptPanel() {
       const demoResult = await generateDemo({
         instagramHandle: handle.trim(),
         additionalContext: context.trim() || undefined,
-        imageStyle,
+        postType,
         fingerprint: !isSignedIn ? fingerprint ?? undefined : undefined,
       });
 
@@ -317,26 +317,25 @@ function PromptPanel() {
             />
           </div>
 
-          {/* Image style selector */}
+          {/* Post type selector */}
           <div className="space-y-2">
             <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Estilo da imagem
+              Tipo de post
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { value: "realistic" as const, label: "Realista", icon: Camera, desc: "Foto profissional" },
-                { value: "illustrative" as const, label: "Ilustrativo", icon: Palette, desc: "Arte digital" },
-                { value: "minimalist" as const, label: "Minimalista", icon: Minimize2, desc: "Clean e simples" },
-                { value: "artistic" as const, label: "Artistico", icon: Brush, desc: "Criativo e ousado" },
-              ].map((style) => (
+                { value: "promocao" as const, label: "Promocao", icon: Megaphone, desc: "Vendas e ofertas" },
+                { value: "conteudo_profissional" as const, label: "Profissional", icon: Briefcase, desc: "Autoridade e expertise" },
+                { value: "engajamento" as const, label: "Engajamento", icon: MessageCircle, desc: "Conexao com audiencia" },
+              ].map((type) => (
                 <button
-                  key={style.value}
+                  key={type.value}
                   type="button"
-                  onClick={() => setImageStyle(style.value)}
+                  onClick={() => setPostType(type.value)}
                   disabled={isGenerating}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
-                    imageStyle === style.value
+                    postType === type.value
                       ? "border-primary bg-primary/10 ring-1 ring-primary"
                       : "border-border hover:border-primary/50 hover:bg-muted/50",
                     isGenerating && "opacity-50 cursor-not-allowed"
@@ -344,13 +343,13 @@ function PromptPanel() {
                 >
                   <div className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-lg",
-                    imageStyle === style.value ? "bg-primary text-primary-foreground" : "bg-muted"
+                    postType === type.value ? "bg-primary text-primary-foreground" : "bg-muted"
                   )}>
-                    <style.icon className="h-4 w-4" />
+                    <type.icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{style.label}</p>
-                    <p className="text-xs text-muted-foreground">{style.desc}</p>
+                    <p className="text-sm font-medium">{type.label}</p>
+                    <p className="text-xs text-muted-foreground">{type.desc}</p>
                   </div>
                 </button>
               ))}

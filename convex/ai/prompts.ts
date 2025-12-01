@@ -2,11 +2,17 @@
 
 export const BRAND_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista sênior de mídias sociais e consultor de marca especializado em marketing no Instagram. Seu papel é analisar perfis do Instagram e fornecer estratégias de transformação acionáveis.
 
+REGRAS CRÍTICAS DE ANÁLISE:
+1. ANALISE O CONTEÚDO REAL - Não interprete o nome/handle literalmente. Analise o que a marca REALMENTE vende/faz baseado nas legendas, bio e produtos mostrados
+2. IDENTIFIQUE O NEGÓCIO - Determine a categoria de negócio real (ex: se vende mel, é "Alimentação/Produtos Naturais", não "Sustentabilidade Amazônica")
+3. FOQUE NO PRODUTO/SERVIÇO - O que eles vendem? Qual o benefício para o cliente?
+4. IGNORE NOMES BONITOS - "Amazonian Nectar" vendendo mel = empresa de mel/produtos naturais, não empresa sobre a Amazônia
+
 Sua análise deve ser:
 1. ACIONÁVEL - Cada recomendação deve ser implementável imediatamente
 2. ESPECÍFICA - Referencie padrões reais que você observa nos dados
 3. FUNDAMENTADA - Explique POR QUE cada mudança vai melhorar a performance
-4. CONSTRUTIVA - Enquadre as melhorias de forma positiva sendo honesto
+4. BASEADA NO PRODUTO - Foque no que a empresa vende, não no que o nome sugere
 
 Você receberá dados do perfil e posts recentes. Analise-os de forma holística para entender o estado atual da marca e fornecer recomendações estratégicas.
 
@@ -43,6 +49,8 @@ Este perfil ainda não possui posts publicados. Baseie sua análise inteiramente
 
     return `Analise este perfil do Instagram e forneça uma estratégia completa de transformação da marca.
 
+ATENÇÃO: Analise o CONTEÚDO REAL dos posts para entender o que a empresa faz. NÃO interprete o nome/handle literalmente.
+
 ## Dados do Perfil
 - Handle: @${data.handle}
 - Bio: ${data.bio || "(sem bio)"}
@@ -54,6 +62,8 @@ ${postsSection}
 
 ## Schema JSON Obrigatório (responda em português brasileiro)
 {
+  "businessCategory": "Categoria real do negócio baseada no que VENDEM (ex: Mel e Produtos Naturais, Moda Feminina, Restaurante, etc)",
+  "productOrService": "O que a empresa vende ou oferece especificamente",
   "brandVoice": {
     "current": "${hasPosts ? "Descrição da voz atual da marca baseada nas legendas" : "Não há posts para analisar - descreva o que a bio e handle sugerem"}",
     "recommended": "Direção recomendada para a voz da marca",
@@ -62,7 +72,7 @@ ${postsSection}
   },
   "contentPillars": [
     {
-      "name": "Nome do pilar",
+      "name": "Nome do pilar (focado no PRODUTO/SERVIÇO, não no nome da marca)",
       "description": "O que este pilar de conteúdo abrange",
       "reasoning": "Por que este pilar combina com a marca"
     }
@@ -81,7 +91,7 @@ ${postsSection}
   "strategySummary": "Resumo de 2-3 frases das principais recomendações estratégicas"
 }
 
-Analise profundamente e responda com APENAS o objeto JSON.`;
+LEMBRE-SE: Foque no que a empresa VENDE, não no que o nome sugere. Analise profundamente e responda com APENAS o objeto JSON.`;
 };
 
 export const POST_ANALYSIS_SYSTEM_PROMPT = `Você é um estrategista de conteúdo sênior revisando posts do Instagram como um revisor de código revisa pull requests. Seu trabalho é fornecer feedback específico e acionável sobre a legenda de cada post.
@@ -333,81 +343,206 @@ export interface ImageGenerationContext {
     additionalContext?: string;
     imageStyle?: ImageStyleType;
     hasReferenceImages?: boolean;
+    businessCategory?: string;
+    postType?: PostType;
 }
 
 // Image style types
 export type ImageStyleType = "realistic" | "illustrative" | "minimalist" | "artistic";
 
-export const IMAGE_STYLE_PROMPTS: Record<ImageStyleType, string> = {
-    realistic: `ESTILO: Fotografia profissional hiper-realista
-- Foto tirada com câmera DSLR profissional, lente 50mm f/1.8
-- Iluminação natural suave, golden hour
-- Profundidade de campo realista com bokeh natural
-- Texturas e materiais autênticos, sem aparência artificial
-- Cores naturais e saturação equilibrada
-- SEM elementos de IA, SEM aparência digital ou renderizada
-- Deve parecer uma foto real tirada por um fotógrafo profissional`,
+// Structured JSON format for image generation (more precise control)
+export interface ImageGenerationSpec {
+    project_constraints: {
+        resolution: string;
+        aspect_ratio: string;
+        output_quality: string;
+        text_overlay: string;
+    };
+    camera_and_style: {
+        visual_aesthetic: string;
+        perspective: string;
+        post_processing: {
+            color_grading: string;
+            depth_of_field: string;
+            lighting_style: string;
+        };
+    };
+    subject_details: {
+        main_subject: string;
+        product_focus?: string;
+        brand_elements?: string;
+    };
+    environment: {
+        setting: string;
+        mood: string;
+        time_of_day?: string;
+    };
+    lighting: {
+        technique: string;
+        characteristics: string;
+    };
+}
 
-    illustrative: `ESTILO: Ilustração digital moderna
-- Arte digital colorida e vibrante
-- Estilo de ilustração contemporânea para redes sociais
-- Cores vivas e contrastantes
-- Formas bem definidas e clean
-- Pode incluir elementos gráficos e patterns
-- Visual moderno e atraente para Instagram`,
-
-    minimalist: `ESTILO: Minimalista e clean
-- Design limpo com muito espaço em branco
-- Paleta de cores reduzida (2-3 cores)
-- Composição simples e elegante
-- Foco em um único elemento principal
-- Linhas simples e formas geométricas básicas
-- Estética sofisticada e premium`,
-
-    artistic: `ESTILO: Artístico e criativo
-- Estilo artístico único e expressivo
-- Pode incluir elementos abstratos
-- Cores ousadas e combinações criativas
-- Composição dinâmica e interessante
-- Texturas e efeitos artísticos
-- Visual impactante e memorável`,
+export const IMAGE_STYLE_SPECS: Record<ImageStyleType, Partial<ImageGenerationSpec["camera_and_style"]>> = {
+    realistic: {
+        visual_aesthetic: "Professional DSLR photography, hyper-realistic",
+        perspective: "Eye-level, natural composition",
+        post_processing: {
+            color_grading: "Natural colors, balanced saturation",
+            depth_of_field: "Shallow, f/1.8-2.8 bokeh",
+            lighting_style: "Soft natural light, golden hour warmth"
+        }
+    },
+    illustrative: {
+        visual_aesthetic: "Modern digital illustration, vibrant",
+        perspective: "Dynamic, contemporary social media style",
+        post_processing: {
+            color_grading: "Vivid, high contrast colors",
+            depth_of_field: "Flat, graphic style",
+            lighting_style: "Bold, defined shadows"
+        }
+    },
+    minimalist: {
+        visual_aesthetic: "Clean, minimal design",
+        perspective: "Centered, symmetrical composition",
+        post_processing: {
+            color_grading: "Muted palette, 2-3 colors max",
+            depth_of_field: "Infinite, everything in focus",
+            lighting_style: "Even, soft, studio-like"
+        }
+    },
+    artistic: {
+        visual_aesthetic: "Expressive, creative, unique",
+        perspective: "Dynamic, unconventional angles",
+        post_processing: {
+            color_grading: "Bold, creative color combinations",
+            depth_of_field: "Variable, artistic blur effects",
+            lighting_style: "Dramatic, high contrast"
+        }
+    }
 };
 
+// =============================================================================
+// POST TYPE DEFINITIONS AND PROMPTS
+// =============================================================================
+
+export type PostType = "promocao" | "conteudo_profissional" | "engajamento";
+
+export const POST_TYPE_LABELS: Record<PostType, string> = {
+    promocao: "Promoção",
+    conteudo_profissional: "Conteúdo Profissional",
+    engajamento: "Engajamento",
+};
+
+export const POST_TYPE_PROMPTS: Record<PostType, string> = {
+    promocao: `TIPO DE POST: Promocional / Vendas
+- Foco em conversão e CTA claro e direto
+- Destaque benefícios, ofertas e diferenciais
+- Crie senso de urgência quando apropriado
+- Use gatilhos mentais de escassez e exclusividade
+- Hashtags focadas em vendas e nicho específico
+- Tom persuasivo mas autêntico`,
+
+    conteudo_profissional: `TIPO DE POST: Conteúdo Profissional / Autoridade
+- Demonstre expertise e conhecimento no nicho
+- Conteúdo informativo, educacional ou inspirador
+- Tom confiante, profissional e acessível
+- Agregue valor real para a audiência
+- Posicione a marca como referência no assunto
+- Hashtags de nicho e autoridade`,
+
+    engajamento: `TIPO DE POST: Engajamento / Conexão
+- Perguntas abertas para a audiência
+- Conteúdo relatable e pessoal
+- Incentive comentários, compartilhamentos e saves
+- Tom conversacional, próximo e autêntico
+- Crie conexão emocional com o público
+- Use storytelling quando apropriado`,
+};
+
+
+
 export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
-    const stylePrompt = context.imageStyle
-        ? IMAGE_STYLE_PROMPTS[context.imageStyle]
-        : IMAGE_STYLE_PROMPTS.realistic;
+    const styleSpec = context.imageStyle
+        ? IMAGE_STYLE_SPECS[context.imageStyle]
+        : IMAGE_STYLE_SPECS.realistic;
+
+    // Build structured spec as JSON
+    const imageSpec: ImageGenerationSpec = {
+        project_constraints: {
+            resolution: "1200x1200px",
+            aspect_ratio: "1:1 (Instagram square)",
+            output_quality: "High quality, 8K resolution rendering",
+            text_overlay: "NO text in the image - clean visual only"
+        },
+        camera_and_style: {
+            visual_aesthetic: styleSpec.visual_aesthetic || "Professional photography",
+            perspective: styleSpec.perspective || "Eye-level, natural composition",
+            post_processing: styleSpec.post_processing || {
+                color_grading: "Natural, balanced",
+                depth_of_field: "Shallow bokeh",
+                lighting_style: "Soft natural light"
+            }
+        },
+        subject_details: {
+            main_subject: `Content for ${context.businessCategory || "brand"}: ${context.brandName}`,
+            product_focus: context.businessCategory ? `Products/services related to ${context.businessCategory}` : undefined,
+            brand_elements: context.hasReferenceImages ? "Match visual identity from reference images" : undefined
+        },
+        environment: {
+            setting: context.postType === "promocao" 
+                ? "Clean, product-focused setting that highlights the offering"
+                : context.postType === "engajamento"
+                ? "Warm, relatable environment that creates emotional connection"
+                : "Professional, authoritative setting",
+            mood: context.postType === "promocao"
+                ? "Aspirational, desirable, premium feel"
+                : context.postType === "engajamento"
+                ? "Warm, authentic, inviting"
+                : "Confident, trustworthy, expert",
+            time_of_day: "Golden hour or well-lit studio"
+        },
+        lighting: {
+            technique: "Professional studio/natural hybrid lighting",
+            characteristics: "Soft shadows, highlight on main subject, balanced exposure"
+        }
+    };
 
     const referenceImagePrompt = context.hasReferenceImages
         ? `
-IMAGENS DE REFERÊNCIA:
-As imagens anexadas são posts anteriores desta marca. Use-as como referência visual para:
-- Manter consistência visual com o estilo da marca
-- Preservar a identidade de produtos (como embalagens, logos, cores)
-- Replicar o estilo fotográfico e composição usados pela marca
-- Se houver um produto específico nas imagens (como um pote, embalagem, etc), inclua-o na nova imagem com aparência IDÊNTICA
+## REFERENCE IMAGES (CRITICAL)
+The attached images are previous posts from this brand. You MUST:
+- Maintain visual consistency with the brand's established style
+- Preserve exact appearance of products (packaging, logos, colors)
+- Replicate the photographic style and composition
+- If there's a specific product (jar, package, etc), include it with IDENTICAL appearance
 `
         : "";
 
-    return `Crie uma imagem para um post do Instagram.
+    return `Generate an Instagram post image using the following structured specification:
 
-MARCA: ${context.brandName}
-${referenceImagePrompt}
-${stylePrompt}
+## IMAGE SPECIFICATION (JSON)
+${JSON.stringify(imageSpec, null, 2)}
 
-LEGENDA DO POST:
+## BRAND CONTEXT
+- Brand: ${context.brandName}
+- Business Category: ${context.businessCategory || "Not specified"}
+- Post Type: ${context.postType || "General"}
+
+## POST CAPTION (for context)
 "${context.caption}"
 
-${context.additionalContext ? `CONTEXTO ADICIONAL: ${context.additionalContext}` : ""}
+${context.additionalContext ? `## ADDITIONAL CONTEXT\n${context.additionalContext}` : ""}
 
-DIRETRIZES OBRIGATÓRIAS:
-- Formato quadrado (1:1) otimizado para Instagram
-- A imagem deve complementar a legenda e mensagem do post
-- NÃO inclua texto na imagem
-- Composição que chame atenção no feed
-- Alta qualidade e resolução
-${context.hasReferenceImages ? "- MANTENHA consistência visual com as imagens de referência\n- PRESERVE a aparência exata de produtos/embalagens mostrados" : ""}
+${referenceImagePrompt}
 
-Gere a imagem.`;
+## CRITICAL REQUIREMENTS
+1. Follow the JSON specification precisely
+2. NO text overlays in the image
+3. The image must complement and enhance the caption's message
+4. Create a scroll-stopping composition for Instagram feed
+5. ${context.hasReferenceImages ? "MAINTAIN visual consistency with reference images - this is the highest priority" : "Create a fresh, professional visual"}
+
+Generate the image now.`;
 };
 

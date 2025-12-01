@@ -13,6 +13,8 @@ export const MODELS = {
     GPT_4_1: "openai/gpt-4.1",
     // Image generation
     GEMINI_3_PRO_IMAGE: "google/gemini-3-pro-image-preview",
+    // Web search - Perplexity Sonar has built-in web search
+    PERPLEXITY_SONAR: "perplexity/sonar-pro",
 } as const;
 
 // Default model for analysis tasks
