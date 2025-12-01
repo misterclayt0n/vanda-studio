@@ -189,6 +189,41 @@ interface ReferenceImage {
     description?: string;
 }
 
+// Fetch an image from URL and convert to base64 data URL
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+    try {
+        // Skip if already a data URL
+        if (url.startsWith("data:image")) {
+            return url;
+        }
+
+        console.log(`[IMAGE] Fetching reference image: ${url.substring(0, 80)}...`);
+        
+        const response = await fetch(url, {
+            headers: {
+                // Some CDNs need a user agent
+                "User-Agent": "Mozilla/5.0 (compatible; VandaStudio/1.0)",
+            },
+        });
+        
+        if (!response.ok) {
+            console.error(`[IMAGE] Failed to fetch image: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString("base64");
+        const contentType = response.headers.get("content-type") || "image/jpeg";
+        
+        console.log(`[IMAGE] Successfully fetched image: ${Math.round(buffer.byteLength / 1024)}KB, ${contentType}`);
+        
+        return `data:${contentType};base64,${base64}`;
+    } catch (error) {
+        console.error(`[IMAGE] Error fetching image:`, error instanceof Error ? error.message : error);
+        return null;
+    }
+}
+
 // Generate image using Gemini 3 Pro Image model
 export async function generateImage(
     prompt: string,
@@ -208,13 +243,27 @@ export async function generateImage(
     const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
 
     // Add reference images first (up to 5 for identity preservation)
+    // CRITICAL: We fetch and convert to base64 because Instagram CDN URLs are protected
     if (options?.referenceImages && options.referenceImages.length > 0) {
-        const imagesToUse = options.referenceImages.slice(0, 5);
+        const imagesToUse = options.referenceImages; // Use ALL reference images for maximum brand context
+        console.log(`[IMAGE] Processing ${imagesToUse.length} reference images...`);
+        
+        let successCount = 0;
         for (const img of imagesToUse) {
-            contentParts.push({
-                type: "image_url",
-                image_url: { url: img.url },
-            });
+            const base64Data = await fetchImageAsBase64(img.url);
+            if (base64Data) {
+                contentParts.push({
+                    type: "image_url",
+                    image_url: { url: base64Data },
+                });
+                successCount++;
+            }
+        }
+        
+        console.log(`[IMAGE] Successfully loaded ${successCount}/${imagesToUse.length} reference images`);
+        
+        if (successCount === 0 && imagesToUse.length > 0) {
+            console.warn("[IMAGE] WARNING: No reference images could be loaded! Image will be generated without brand context.");
         }
     }
 

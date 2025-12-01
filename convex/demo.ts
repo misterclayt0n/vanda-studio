@@ -7,8 +7,6 @@ import { api } from "./_generated/api";
 import { callLLM, parseJSONResponse, generateImage, MODELS } from "./ai/llm";
 import {
     PostGenerationResponse,
-    IMAGE_GENERATION_PROMPT,
-    ImageStyleType,
     BRAND_ANALYSIS_SYSTEM_PROMPT,
     BRAND_ANALYSIS_USER_PROMPT,
     PostType,
@@ -103,74 +101,27 @@ interface DemoResult {
     };
     error?: string;
     hasLimitedContext?: boolean;
+    creativeAngle?: string;
 }
 
 // =============================================================================
-// SPECIALIZED POST GENERATION PROMPTS
+// STEP 1: CREATIVE ANGLE BRAINSTORMING
+// This is the KEY differentiator - we first brainstorm a unique angle
 // =============================================================================
 
-const SPECIALIZED_SYSTEM_PROMPTS: Record<PostType, string> = {
-    promocao: `Você é um copywriter especializado em posts promocionais para Instagram. Seu objetivo é criar legendas que VENDEM.
+const CREATIVE_ANGLE_SYSTEM_PROMPT = `Você é um diretor criativo de uma agência de publicidade premiada. Sua especialidade é encontrar ÂNGULOS ÚNICOS e INESPERADOS para posts de Instagram.
 
-Você receberá:
-1. Análise completa da marca (voz, público, pilares)
-2. Posts anteriores da marca para entender o tom
-3. Tendências e contexto do mercado
+Você NÃO escreve posts genéricos. Você encontra o ângulo que faz as pessoas PARAREM de scrollar.
 
-Sua legenda DEVE:
-- Ter um GANCHO irresistível nas primeiras palavras
-- Destacar BENEFÍCIOS claros do produto/serviço
-- Criar URGÊNCIA ou ESCASSEZ quando apropriado
-- Ter um CTA (Call-to-Action) direto e claro
-- Usar gatilhos mentais de forma ética
-- Incluir emojis estratégicos (não excessivos)
-- Ter hashtags relevantes para venda e nicho
+Regras:
+1. NUNCA use clichês ou fatos óbvios que qualquer um pode googlar
+2. SEMPRE busque o ângulo inesperado, a conexão surpreendente
+3. Pense como um criativo de Cannes - qual seria o twist?
+4. O ângulo deve ser ESPECÍFICO para esta marca, não genérico
 
-IMPORTANTE: Responda APENAS com JSON válido. Escreva em português brasileiro.`,
+Responda APENAS com JSON válido.`;
 
-    conteudo_profissional: `Você é um estrategista de conteúdo especializado em posts de AUTORIDADE para Instagram. Seu objetivo é posicionar a marca como REFERÊNCIA no mercado.
-
-Você receberá:
-1. Análise completa da marca (voz, público, pilares)
-2. Posts anteriores da marca para entender o tom
-3. Contexto do mercado e área de atuação
-
-Sua legenda DEVE:
-- Compartilhar CONHECIMENTO valioso sobre o nicho
-- Educar a audiência com informações úteis
-- Demonstrar EXPERTISE e profundidade no assunto
-- Usar dados, fatos ou insights interessantes
-- Tom profissional mas acessível
-- Gerar valor ANTES de pedir qualquer ação
-- Incluir emojis moderados e profissionais
-- Ter hashtags de autoridade e nicho
-
-IMPORTANTE: Responda APENAS com JSON válido. Escreva em português brasileiro.`,
-
-    engajamento: `Você é um especialista em posts VIRAIS e de ENGAJAMENTO para Instagram. Seu objetivo é criar conexão emocional e gerar interação.
-
-Você receberá:
-1. Análise completa da marca (voz, público, pilares)
-2. Posts anteriores da marca para entender o tom
-3. Contexto do mercado
-
-Sua legenda DEVE:
-- Criar CONEXÃO EMOCIONAL com a audiência
-- Fazer PERGUNTAS que gerem comentários
-- Usar storytelling envolvente
-- Ser RELATABLE (a audiência deve se identificar)
-- Incluir hooks curiosos ou controversos (de forma ética)
-- Incentivar compartilhamentos e saves
-- Tom conversacional e próximo
-- Emojis que transmitam emoção
-- Hashtags de engajamento e nicho
-
-DICA: Pense em conteúdo tipo "Top 10 celebridades que usam [produto]", "O que ninguém te conta sobre [nicho]", perguntas polêmicas do setor, etc.
-
-IMPORTANTE: Responda APENAS com JSON válido. Escreva em português brasileiro.`,
-};
-
-const buildSpecializedUserPrompt = (
+const buildCreativeAnglePrompt = (
     postType: PostType,
     brandAnalysis: {
         businessCategory?: string;
@@ -179,82 +130,331 @@ const buildSpecializedUserPrompt = (
         contentPillars: Array<{ name: string; description: string }>;
         targetAudience: { current: string; recommended: string };
     },
-    posts: DemoPost[],
-    additionalContext?: string
+    posts: DemoPost[]
 ): string => {
-    const postsContext = posts.length > 0
-        ? posts.map((p, i) => `Post ${i + 1}: "${p.caption}"`).join("\n")
-        : "Sem posts anteriores disponíveis.";
+    const topPosts = posts.slice(0, 5).map((p, i) => `${i + 1}. "${p.caption}"`).join("\n");
+    
+    const angleExamples: Record<PostType, string> = {
+        promocao: `EXEMPLOS DE ÂNGULOS PROMOCIONAIS CRIATIVOS:
+- Ao invés de "Nosso mel é puro": "O mel que sua avó compraria se ela tivesse Instagram"
+- Ao invés de "Compre agora": "Por que pessoas que acordam às 5h escolhem este produto"
+- Ao invés de "Qualidade premium": "O único [produto] que passou no teste do [pessoa/situação específica]"
+- Ao invés de desconto genérico: "Última chance antes de [evento específico/temporada]"
+- Conecte com momento cultural atual, tendência ou meme relevante`,
 
-    const baseContext = `
-## MARCA
-- Negócio: ${brandAnalysis.businessCategory || "Não identificado"}
-- Produto/Serviço: ${brandAnalysis.productOrService || "Não identificado"}
-- Voz da marca: ${brandAnalysis.brandVoice.recommended}
-- Tom: ${brandAnalysis.brandVoice.tone.join(", ")}
-- Público-alvo: ${brandAnalysis.targetAudience.recommended}
+        conteudo_profissional: `EXEMPLOS DE ÂNGULOS DE AUTORIDADE CRIATIVOS:
+- Ao invés de "Benefícios do mel": "O que apicultores nunca contam sobre mel de supermercado"
+- Ao invés de "Dicas de uso": "3 erros que até nutricionistas cometem com [produto]"
+- Ao invés de fatos genéricos: "A ciência por trás de por que [fato contraintuitivo]"
+- Ao invés de "somos especialistas": Conte uma história de bastidores única
+- Revele um segredo da indústria que gera curiosidade`,
 
-## PILARES DE CONTEÚDO
-${brandAnalysis.contentPillars.map(p => `- ${p.name}: ${p.description}`).join("\n")}
-
-## POSTS ANTERIORES (referência de estilo)
-${postsContext}
-
-${additionalContext ? `## CONTEXTO ADICIONAL\n${additionalContext}` : ""}
-`;
-
-    const typeSpecificInstructions: Record<PostType, string> = {
-        promocao: `
-## OBJETIVO: POST PROMOCIONAL
-Crie uma legenda que VENDA o produto/serviço da marca.
-
-Considere:
-- Qual é o principal benefício que o cliente ganha?
-- Que problema o produto resolve?
-- Por que alguém deveria comprar AGORA?
-
-A legenda deve fazer o leitor querer comprar ou saber mais.`,
-
-        conteudo_profissional: `
-## OBJETIVO: POST DE AUTORIDADE
-Crie uma legenda que posicione a marca como ESPECIALISTA no assunto.
-
-Considere:
-- Que conhecimento único a marca pode compartilhar?
-- Que dúvidas comuns do público você pode responder?
-- Que insight valioso sobre o mercado/produto você pode oferecer?
-
-A legenda deve fazer o leitor pensar "essa marca realmente entende do assunto".`,
-
-        engajamento: `
-## OBJETIVO: POST DE ENGAJAMENTO
-Crie uma legenda que gere CONEXÃO e INTERAÇÃO com a audiência.
-
-Considere:
-- Que pergunta interessante você pode fazer?
-- Que curiosidade ou fato surpreendente sobre o nicho você pode compartilhar?
-- Que história relatable você pode contar?
-
-Exemplos de abordagens:
-- "Você sabia que [fato surpreendente sobre o nicho]?"
-- "Quem mais [situação comum do público]?"
-- "Top 5 [algo interessante relacionado ao produto]"
-- Perguntas de opinião que gerem debate saudável
-
-A legenda deve fazer o leitor querer comentar ou compartilhar.`,
+        engajamento: `EXEMPLOS DE ÂNGULOS DE ENGAJAMENTO CRIATIVOS:
+- Ao invés de "Você sabia?": "Qual celebridade você acha que consome mais mel? (A resposta vai te surpreender)"
+- Ao invés de "Comente sua opinião": "Time mel no café vs Time mel no chá - isso pode acabar amizades 😂"
+- Ao invés de pergunta genérica: "Se seu mel pudesse falar, o que ele diria sobre sua geladeira?"
+- Crie polêmicas saudáveis do nicho: "Mel cristalizado: jogue fora ou é assim mesmo? O debate que divide famílias"
+- Use formato de lista viral: "5 sinais de que você é viciado em [produto] (o 3 é pesado)"`,
     };
 
-    return `${baseContext}
+    return `## MARCA
+- Negócio: ${brandAnalysis.businessCategory || "Não identificado"}
+- Produto/Serviço: ${brandAnalysis.productOrService || "Não identificado"}
+- Público: ${brandAnalysis.targetAudience.recommended}
+- Tom da marca: ${brandAnalysis.brandVoice.tone.join(", ")}
 
-${typeSpecificInstructions[postType]}
+## POSTS ANTERIORES DA MARCA
+${topPosts || "Sem posts anteriores"}
+
+## TIPO DE POST DESEJADO: ${POST_TYPE_LABELS[postType].toUpperCase()}
+
+${angleExamples[postType]}
+
+## SUA TAREFA
+Baseado na marca acima, crie 3 ângulos criativos ÚNICOS e ESPECÍFICOS para um post de ${POST_TYPE_LABELS[postType].toLowerCase()}.
+
+Os ângulos devem:
+1. Ser IMPOSSÍVEIS de usar para outra marca (específicos demais)
+2. Fazer a pessoa parar de scrollar
+3. Ter um "twist" ou elemento inesperado
+4. Respeitar o tom da marca
+
+## FORMATO DE RESPOSTA (JSON)
+{
+  "angles": [
+    {
+      "angle": "Descrição do ângulo criativo em 1-2 frases",
+      "hook": "As primeiras palavras que fariam alguém parar de scrollar",
+      "why_it_works": "Por que esse ângulo é efetivo para esta marca específica"
+    },
+    {
+      "angle": "...",
+      "hook": "...",
+      "why_it_works": "..."
+    },
+    {
+      "angle": "...",
+      "hook": "...", 
+      "why_it_works": "..."
+    }
+  ],
+  "recommended": 0
+}
+
+O campo "recommended" é o índice (0, 1 ou 2) do ângulo que você mais recomenda.
+
+Seja OUSADO. Seja ESPECÍFICO. Seja MEMORÁVEL.`;
+};
+
+// =============================================================================
+// STEP 2: CAPTION GENERATION (using the chosen creative angle)
+// =============================================================================
+
+const CAPTION_SYSTEM_PROMPT = `Você é um copywriter sênior especializado em Instagram. Você recebe um ÂNGULO CRIATIVO já definido e sua tarefa é transformá-lo em uma legenda IRRESISTÍVEL.
+
+Você domina:
+- Copywriting persuasivo
+- Estrutura de posts virais
+- Uso estratégico de emojis
+- Hashtags que performam
+
+Sua legenda deve:
+1. COMEÇAR com o hook do ângulo criativo (as primeiras palavras são TUDO)
+2. Desenvolver o ângulo de forma envolvente
+3. Ter quebras de linha estratégicas para facilitar leitura
+4. Terminar com CTA ou pergunta (dependendo do tipo de post)
+5. Usar emojis de forma ESTRATÉGICA (não decorativa)
+6. Incluir 5-8 hashtags relevantes e específicas
+
+IMPORTANTE: A legenda deve parecer escrita por um HUMANO criativo, não por uma IA genérica.
+
+Responda APENAS com JSON válido.`;
+
+const buildCaptionPrompt = (
+    postType: PostType,
+    creativeAngle: { angle: string; hook: string; why_it_works: string },
+    brandAnalysis: {
+        businessCategory?: string;
+        productOrService?: string;
+        brandVoice: { current: string; recommended: string; tone: string[] };
+        targetAudience: { current: string; recommended: string };
+    }
+): string => {
+    const typeGuidelines: Record<PostType, string> = {
+        promocao: `DIRETRIZES PARA POST PROMOCIONAL:
+- Destaque o BENEFÍCIO principal, não características
+- Crie senso de urgência ou escassez se fizer sentido
+- CTA claro e direto (mas não desesperado)
+- Pode mencionar preço/oferta se relevante
+- Hashtags: mix de nicho + venda`,
+
+        conteudo_profissional: `DIRETRIZES PARA POST DE AUTORIDADE:
+- Entregue VALOR real (a pessoa deve aprender algo)
+- Use dados ou fatos específicos quando possível
+- Tom de quem sabe do que fala (sem arrogância)
+- CTA para salvar/compartilhar
+- Hashtags: nicho + autoridade + educacional`,
+
+        engajamento: `DIRETRIZES PARA POST DE ENGAJAMENTO:
+- A pergunta/interação deve ser FÁCIL de responder
+- Crie identificação (a pessoa pensa "isso sou eu!")
+- Pode ser polêmico/divertido (de forma saudável)
+- CTA: perguntas que geram comentários
+- Hashtags: mix de nicho + virais/tendência`,
+    };
+
+    return `## ÂNGULO CRIATIVO DEFINIDO
+Hook: "${creativeAngle.hook}"
+Ângulo: ${creativeAngle.angle}
+Por que funciona: ${creativeAngle.why_it_works}
+
+## MARCA
+- Negócio: ${brandAnalysis.businessCategory || "Não identificado"}
+- Produto: ${brandAnalysis.productOrService || "Não identificado"}
+- Tom: ${brandAnalysis.brandVoice.tone.join(", ")}
+- Público: ${brandAnalysis.targetAudience.recommended}
+
+## TIPO: ${POST_TYPE_LABELS[postType].toUpperCase()}
+${typeGuidelines[postType]}
+
+## SUA TAREFA
+Transforme o ângulo criativo acima em uma legenda completa para Instagram.
+
+A legenda DEVE:
+1. Começar EXATAMENTE com o hook ou uma variação muito próxima
+2. Ter entre 150-300 palavras (sem contar hashtags)
+3. Usar quebras de linha para facilitar leitura mobile
+4. Incluir 5-8 hashtags específicas no final
 
 ## FORMATO DE RESPOSTA (JSON)
 {
   "caption": "legenda completa com emojis e hashtags",
-  "reasoning": "explicação de 2-3 frases sobre as escolhas criativas"
-}
+  "reasoning": "explicação breve de como você desenvolveu o ângulo"
+}`;
+};
 
-Crie uma legenda ÚNICA e CRIATIVA. Responda com APENAS o objeto JSON.`;
+// =============================================================================
+// STEP 3: IMAGE GENERATION (post-type specific templates with TEXT BAKED IN)
+// =============================================================================
+
+const buildImagePrompt = (
+    brandName: string,
+    caption: string,
+    creativeAngle: string,
+    brandAnalysis: {
+        businessCategory?: string;
+        productOrService?: string;
+    },
+    hasReferenceImages: boolean,
+    hasProfilePic: boolean,
+    postType: PostType
+): string => {
+    // Extract the HOOK/HEADLINE from caption (first meaningful line, cleaned up)
+    const captionLines = caption.split('\n').filter(line => line.trim().length > 0);
+    const rawHeadline = captionLines[0] || creativeAngle;
+    // Clean up: remove hashtags, emojis at start, limit length
+    const headline = rawHeadline
+        .replace(/#\w+/g, '')
+        .replace(/^[\s\p{Emoji}]+/gu, '')
+        .trim()
+        .substring(0, 80);
+    
+    // Extract a secondary line if available
+    const subheadline = captionLines[1]
+        ? captionLines[1].replace(/#\w+/g, '').replace(/^[\s\p{Emoji}]+/gu, '').trim().substring(0, 100)
+        : "";
+    
+    // POST TYPE SPECIFIC TEMPLATES - ALL WITH TEXT BAKED INTO THE IMAGE
+    const templateByPostType: Record<PostType, string> = {
+        // PROMOCAO: Product-focused with subtle text overlay
+        promocao: `## LAYOUT: POST PROMOCIONAL
+
+ESTILO VISUAL: Fotografia realista de produto, qualidade de smartphone de alta gama (não perfeita demais, autêntica)
+
+COMPOSIÇÃO:
+- Produto REAL em destaque (mesmo produto das referências)
+- Fundo lifestyle mas não poluído
+- Iluminação natural, não muito produzida
+
+TEXTO NA IMAGEM:
+- Pequeno badge ou tag com texto de oferta/CTA se apropriado
+- Texto mínimo, foco no produto
+- Fonte moderna e legível
+
+${hasReferenceImages ? `CRÍTICO: O produto deve ser IDÊNTICO ao das imagens de referência - mesma embalagem, cor, formato.` : ""}`,
+
+        // CONTEUDO PROFISSIONAL: Split layout with TEXT ON LEFT, IMAGE ON RIGHT
+        conteudo_profissional: `## LAYOUT: POST EDUCATIVO/CONTEUDISTA
+
+ESTILO VISUAL: Design gráfico profissional com foto realista integrada
+
+LAYOUT OBRIGATÓRIO (dividido verticalmente):
+┌─────────────────────────────────┐
+│ ${hasProfilePic ? "LOGO (foto perfil)" : "@" + brandName} │ ← TOPO: header com marca
+├────────────────┬────────────────┤
+│                │                │
+│  **TEXTO**     │   **FOTO**     │
+│                │                │
+│  Headline:     │   Imagem       │
+│  "${headline.substring(0, 40)}${headline.length > 40 ? "..." : ""}"  │   realista     │
+│                │   relacionada  │
+│  ${subheadline ? `Sub: "${subheadline.substring(0, 30)}..."` : ""} │   ao negócio   │
+│                │                │
+└────────────────┴────────────────┘
+
+LADO ESQUERDO (50%):
+- Fundo em COR SÓLIDA da marca (extrair das referências)
+- TEXTO ESCRITO NA IMAGEM:
+  * Headline principal em fonte BOLD, grande
+  * Subheadline menor se houver
+  * Fonte: sans-serif moderna, legível
+  * Cor do texto: contraste com fundo (branco ou escuro)
+- Pode ter ícones ou elementos gráficos sutis
+
+LADO DIREITO (50%):
+- FOTOGRAFIA REALISTA relacionada ao negócio
+- Estilo de foto de celular, não stock photo perfeita
+- Produto ou cena do dia-a-dia do negócio
+
+TOPO:
+${hasProfilePic ? "- Incluir a foto de perfil (primeira imagem anexada) como LOGO pequeno no canto superior" : "- Texto @" + brandName + " no topo"}`,
+
+        // ENGAJAMENTO: Bold text + emotional image
+        engajamento: `## LAYOUT: POST DE ENGAJAMENTO
+
+ESTILO VISUAL: Design chamativo com foto emocional/relatable
+
+LAYOUT OBRIGATÓRIO:
+┌─────────────────────────────────┐
+│ ${hasProfilePic ? "LOGO (foto perfil)" : "@" + brandName} │ ← TOPO: header com marca
+├────────────────┬────────────────┤
+│                │                │
+│  **PERGUNTA/   │   **FOTO**     │
+│   HOOK**       │                │
+│                │   Imagem       │
+│  "${headline.substring(0, 40)}${headline.length > 40 ? "..." : ""}"  │   que gere     │
+│                │   identificação│
+│  ${subheadline ? `"${subheadline.substring(0, 30)}..."` : ""} │                │
+│                │                │
+└────────────────┴────────────────┘
+
+LADO ESQUERDO (50%):
+- Fundo em COR VIBRANTE (pode ser da marca ou complementar)
+- TEXTO GRANDE E BOLD escrito na imagem:
+  * A pergunta ou hook principal
+  * Fonte impactante, fácil de ler
+  * Pode incluir EMOJIS no texto
+- Estilo: chamativo, parada de scroll
+
+LADO DIREITO (50%):
+- FOTO REALISTA e RELATABLE
+- Pessoas reais, expressões autênticas
+- Situação do cotidiano
+- NÃO pode parecer stock photo
+
+TOPO:
+${hasProfilePic ? "- Logo da marca (foto de perfil) no canto superior" : "- @" + brandName}`,
+    };
+
+    const referenceInstructions = hasReferenceImages
+        ? `
+## IMAGENS DE REFERÊNCIA ANEXADAS
+${hasProfilePic ? "- PRIMEIRA imagem = foto de perfil/logo da marca → USE no topo do design" : ""}
+- Demais imagens = posts anteriores da marca
+- EXTRAIA as cores da marca dessas imagens
+- MANTENHA consistência visual
+- O produto deve ser IGUAL ao das referências`
+        : "";
+
+    return `## TAREFA
+Gerar imagem COMPLETA para Instagram - tipo: ${POST_TYPE_LABELS[postType]}
+
+## MARCA
+@${brandName}
+Categoria: ${brandAnalysis.businessCategory || "Não especificada"}
+Produto: ${brandAnalysis.productOrService || "Não especificado"}
+
+## TEXTO QUE DEVE APARECER NA IMAGEM
+Headline: "${headline}"
+${subheadline ? `Subheadline: "${subheadline}"` : ""}
+
+${templateByPostType[postType]}
+
+${referenceInstructions}
+
+## ESPECIFICAÇÕES
+- Formato: 1:1 (quadrado Instagram)
+- TEXTO DEVE ESTAR RENDERIZADO NA IMAGEM (não é placeholder)
+- Estilo: Realista, autêntico (não muito polido/artificial)
+- Qualidade: boa mas não perfeita (estilo conteúdo real de Instagram)
+
+## REGRAS CRÍTICAS
+1. O TEXTO deve estar ESCRITO na imagem final, legível e bem posicionado
+2. A foto deve ser REALISTA, não ilustração nem render 3D perfeito
+3. Layout EXATAMENTE como especificado acima
+4. Cores extraídas das imagens de referência
+
+Gere a imagem completa agora.`;
 };
 
 // =============================================================================
@@ -425,54 +625,89 @@ export const generateDemo = action({
             logger.completeStep(step2, `${brandAnalysis.businessCategory || "Brand analyzed"}`);
 
             // =================================================================
-            // STEP 3: Generate specialized caption based on post type
+            // STEP 3: Brainstorm creative angles (THE KEY STEP!)
             // =================================================================
-            const step3 = logger.startStep("Generate caption", POST_TYPE_LABELS[postType]);
+            const step3 = logger.startStep("Brainstorm creative angles", POST_TYPE_LABELS[postType]);
             
-            const systemPrompt = SPECIALIZED_SYSTEM_PROMPTS[postType];
-            const userPrompt = buildSpecializedUserPrompt(
-                postType,
-                brandAnalysis,
-                allPosts,
-                args.additionalContext
-            );
-
-            const captionResponse = await callLLM(
+            const creativeAnglePrompt = buildCreativeAnglePrompt(postType, brandAnalysis, allPosts);
+            
+            const angleResponse = await callLLM(
                 [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt },
+                    { role: "system", content: CREATIVE_ANGLE_SYSTEM_PROMPT },
+                    { role: "user", content: creativeAnglePrompt },
                 ],
                 {
                     model: MODELS.GPT_4_1,
-                    temperature: 0.85,
+                    temperature: 0.9, // High creativity
+                    maxTokens: 1024,
+                }
+            );
+
+            const angleResult = parseJSONResponse<{
+                angles: Array<{ angle: string; hook: string; why_it_works: string }>;
+                recommended: number;
+            }>(angleResponse.content);
+
+            const chosenAngle = angleResult.angles[angleResult.recommended] || angleResult.angles[0];
+            
+            console.log(`[DEMO] Creative angle: "${chosenAngle.hook}"`);
+            logger.completeStep(step3, `"${chosenAngle.hook.substring(0, 50)}..."`);
+
+            // =================================================================
+            // STEP 4: Generate caption using the creative angle
+            // =================================================================
+            const step4 = logger.startStep("Generate caption");
+            
+            const captionPrompt = buildCaptionPrompt(postType, chosenAngle, brandAnalysis);
+            
+            const captionResponse = await callLLM(
+                [
+                    { role: "system", content: CAPTION_SYSTEM_PROMPT },
+                    { role: "user", content: captionPrompt },
+                ],
+                {
+                    model: MODELS.GPT_4_1,
+                    temperature: 0.8,
                     maxTokens: 1024,
                 }
             );
 
             const generated = parseJSONResponse<PostGenerationResponse>(captionResponse.content);
             
-            logger.completeStep(step3, `${generated.caption.length} chars`);
+            logger.completeStep(step4, `${generated.caption.length} chars`);
 
             // =================================================================
-            // STEP 4: Generate image
+            // STEP 5: Generate image (post-type specific templates)
             // =================================================================
-            const step4 = logger.startStep("Generate image");
+            const step5 = logger.startStep("Generate image");
             
-            const imageReferenceImages = allPosts
+            // Collect reference images - profile pic FIRST (for logo), then posts
+            const imageReferenceImages: Array<{ url: string }> = [];
+            
+            // Add profile picture first (will be used as logo in the design)
+            const hasProfilePic = !!profileData.profilePicUrl;
+            if (profileData.profilePicUrl) {
+                imageReferenceImages.push({ url: profileData.profilePicUrl });
+                console.log(`[DEMO] Added profile picture as logo reference`);
+            }
+            
+            // Add post images
+            const postImages = allPosts
                 .filter((p) => p.mediaUrl && !p.mediaType.toLowerCase().includes("video"))
-                .slice(0, 5)
                 .map((p) => ({ url: p.mediaUrl }));
+            imageReferenceImages.push(...postImages);
+            
+            console.log(`[DEMO] Total reference images: ${imageReferenceImages.length} (${hasProfilePic ? "1 logo + " : ""}${postImages.length} posts)`);
 
-            const imagePrompt = IMAGE_GENERATION_PROMPT({
-                brandName: handle,
-                visualStyle: "Moderno e profissional",
-                caption: generated.caption,
-                additionalContext: args.additionalContext,
-                imageStyle: args.imageStyle as ImageStyleType | undefined,
-                hasReferenceImages: imageReferenceImages.length > 0,
-                businessCategory: brandAnalysis.businessCategory,
-                postType,
-            });
+            const imagePrompt = buildImagePrompt(
+                handle,
+                generated.caption,
+                chosenAngle.angle,
+                brandAnalysis,
+                imageReferenceImages.length > 0,
+                hasProfilePic,
+                postType
+            );
 
             let generatedImageBase64: string | undefined;
             let generatedImageMimeType: string | undefined;
@@ -483,15 +718,15 @@ export const generateDemo = action({
                 });
                 generatedImageBase64 = imageResult.imageBase64;
                 generatedImageMimeType = imageResult.mimeType;
-                logger.completeStep(step4, "Success");
+                logger.completeStep(step5, "Success");
             } catch (imageError) {
-                logger.failStep(step4, imageError instanceof Error ? imageError.message : "Unknown error");
+                logger.failStep(step5, imageError instanceof Error ? imageError.message : "Unknown error");
             }
 
             // =================================================================
-            // STEP 5: Finalize
+            // STEP 6: Finalize
             // =================================================================
-            const step5 = logger.startStep("Finalize");
+            const step6 = logger.startStep("Finalize");
             
             if (!isAuthenticated && args.fingerprint) {
                 await ctx.runMutation(api.demoUsage.recordDemoUsage, {
@@ -500,7 +735,7 @@ export const generateDemo = action({
                 });
             }
 
-            logger.completeStep(step5);
+            logger.completeStep(step6);
             
             console.log("=".repeat(60));
             console.log(`[DEMO] ${logger.getSummary()}`);
@@ -519,6 +754,7 @@ export const generateDemo = action({
                     contentPillars: brandAnalysis.contentPillars.map((p) => p.name),
                 },
                 hasLimitedContext,
+                creativeAngle: chosenAngle.angle,
             };
         } catch (error) {
             console.error("[DEMO] Error:", error);
@@ -567,11 +803,26 @@ function extractProfileData(items: RawInstagramItem[], handle: string) {
     const first = items[0] || {};
     const owner = first.ownerUsername ? first : (first.owner || {});
 
+    // Extract profile picture URL from various possible fields
+    const profilePicUrl = 
+        owner.profilePicUrl ||
+        owner.profilePictureUrl ||
+        owner.profilePicUrlHd ||
+        owner.profilePicUrlHD ||
+        owner.profile_pic_url ||
+        owner.profile_pic_url_hd ||
+        first.ownerProfilePicUrl ||
+        first.ownerProfilePicUrlHd ||
+        first.profilePicUrl ||
+        first.profile_pic_url ||
+        null;
+
     return {
         handle,
         bio: owner.biography || first.ownerBiography || "",
         followersCount: owner.followersCount || owner.edge_followed_by?.count,
         postsCount: owner.postsCount || owner.edge_owner_to_timeline_media?.count,
+        profilePicUrl,
     };
 }
 
