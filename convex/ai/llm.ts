@@ -15,6 +15,8 @@ export const MODELS = {
     GEMINI_3_PRO_IMAGE: "google/gemini-3-pro-image-preview",
     // Web search - Perplexity Sonar has built-in web search
     PERPLEXITY_SONAR: "perplexity/sonar-pro",
+    // Vision analysis - for analyzing images
+    GEMINI_2_5_FLASH_VISION: "google/gemini-2.5-flash",
 } as const;
 
 // Default model for analysis tasks
@@ -455,6 +457,95 @@ export async function generateImage(
     }
 
     throw new Error("Falha ao gerar imagem. O modelo nao retornou uma imagem valida.");
+}
+
+// Vision-enabled LLM call for analyzing images
+export async function callVisionLLM(
+    prompt: string,
+    imageUrls: string[],
+    options?: {
+        model?: string;
+        maxTokens?: number;
+        temperature?: number;
+        jsonMode?: boolean;
+    }
+): Promise<LLMResponse> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        throw new Error("OPENROUTER_API_KEY environment variable is not set");
+    }
+
+    const model = options?.model ?? MODELS.GEMINI_2_5_FLASH_VISION;
+
+    // Build multimodal content array
+    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+    // Add images first
+    console.log(`[VISION] Processing ${imageUrls.length} images for analysis...`);
+    let successCount = 0;
+    
+    for (const url of imageUrls) {
+        const base64Data = await fetchImageAsBase64(url);
+        if (base64Data) {
+            contentParts.push({
+                type: "image_url",
+                image_url: { url: base64Data },
+            });
+            successCount++;
+        }
+    }
+    
+    console.log(`[VISION] Successfully loaded ${successCount}/${imageUrls.length} images`);
+
+    // Add the text prompt
+    contentParts.push({
+        type: "text",
+        text: prompt,
+    });
+
+    const response = await fetch(OPENROUTER_API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": process.env.SITE_URL ?? "https://vanda.studio",
+            "X-Title": "Vanda Studio",
+        },
+        body: JSON.stringify({
+            model,
+            messages: [
+                {
+                    role: "user",
+                    content: contentParts,
+                },
+            ],
+            max_tokens: options?.maxTokens ?? 2048,
+            temperature: options?.temperature ?? 0.5,
+            ...(options?.jsonMode && {
+                response_format: { type: "json_object" },
+            }),
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.choices || data.choices.length === 0) {
+        throw new Error("No response from OpenRouter API");
+    }
+
+    const content = data.choices[0].message?.content ?? "";
+    const tokensUsed = (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0);
+
+    return {
+        content,
+        tokensUsed,
+        model: data.model ?? model,
+    };
 }
 
 // Convex action wrapper for testing LLM connection

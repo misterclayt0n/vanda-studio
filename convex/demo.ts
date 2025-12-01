@@ -4,7 +4,7 @@ import { ApifyClient } from "apify-client";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
-import { callLLM, parseJSONResponse, generateImage, MODELS } from "./ai/llm";
+import { callLLM, callVisionLLM, parseJSONResponse, generateImage, MODELS } from "./ai/llm";
 import {
     PostGenerationResponse,
     BRAND_ANALYSIS_SYSTEM_PROMPT,
@@ -87,6 +87,56 @@ interface DemoPost {
     mediaType: string;
 }
 
+interface VisualIdentity {
+    hasEstablishedIdentity: boolean;
+    identityStrength: "forte" | "moderada" | "fraca" | "inexistente";
+    summary: string;
+    colorPalette: {
+        primary: string;
+        secondary: string;
+        accent: string;
+        background: string;
+        text: string;
+    };
+    layoutPattern: {
+        type: string;
+        description: string;
+        textPlacement: string;
+        hasConsistentTemplate: boolean;
+    };
+    photographyStyle: {
+        type: string;
+        lighting: string;
+        composition: string;
+        backgroundStyle: string;
+    };
+    typography: {
+        usesTextInImages: boolean;
+        fontStyle: string;
+        textSize: string;
+        textEffect: string;
+    };
+    graphicElements: {
+        usesLogo: boolean;
+        usesBorders: boolean;
+        usesIcons: boolean;
+        usesOverlays: boolean;
+        specificElements: string[];
+    };
+    filters: {
+        hasConsistentFilter: boolean;
+        filterDescription: string;
+        saturation: string;
+        contrast: string;
+        warmth: string;
+    };
+    recommendations: {
+        mustMatch: string[];
+        canVary: string[];
+        avoid: string[];
+    };
+}
+
 interface DemoResult {
     success: boolean;
     generatedCaption: string;
@@ -103,6 +153,92 @@ interface DemoResult {
     hasLimitedContext?: boolean;
     creativeAngle?: string;
 }
+
+// =============================================================================
+// STEP 0: VISUAL IDENTITY RECOGNITION
+// Analyze existing posts to extract visual patterns and brand identity
+// =============================================================================
+
+const VISUAL_IDENTITY_SYSTEM_PROMPT = `Você é um diretor de arte especializado em análise de identidade visual para Instagram. Sua tarefa é analisar as imagens dos posts de uma marca e extrair padrões visuais detalhados.
+
+Você deve identificar:
+1. Se a marca já tem um PADRÃO VISUAL ESTABELECIDO (posts profissionais com layout consistente) ou se são posts amadores/inconsistentes
+2. Cores predominantes e paleta de cores
+3. Estilo de fotografia (produto, lifestyle, flat lay, etc)
+4. Tipografia e uso de texto nas imagens (se houver)
+5. Elementos gráficos recorrentes (bordas, ícones, logos, overlays)
+6. Layout e composição típica
+7. Filtros ou tratamento de cor
+
+SEJA MUITO ESPECÍFICO. Se a marca usa um layout dividido com texto na esquerda e foto na direita, DESCREVA ISSO. Se usa sempre fundo amarelo com texto preto, DESCREVA ISSO.
+
+Responda APENAS com JSON válido.`;
+
+const buildVisualIdentityPrompt = (brandName: string, postCount: number): string => {
+    return `Analise estas ${postCount} imagens de posts do Instagram da marca @${brandName}.
+
+Seu objetivo é extrair a IDENTIDADE VISUAL para que possamos gerar novos posts que se ENCAIXEM PERFEITAMENTE no feed existente.
+
+## RESPONDA COM ESTE JSON:
+{
+  "hasEstablishedIdentity": true/false,
+  "identityStrength": "forte" | "moderada" | "fraca" | "inexistente",
+  "summary": "Resumo em 2-3 frases do estilo visual geral",
+  
+  "colorPalette": {
+    "primary": "#hexcode ou descrição (ex: 'amarelo mostarda')",
+    "secondary": "#hexcode ou descrição",
+    "accent": "#hexcode ou descrição",
+    "background": "cor predominante de fundo",
+    "text": "cor predominante de texto"
+  },
+  
+  "layoutPattern": {
+    "type": "foto_pura" | "texto_sobre_foto" | "split_layout" | "carrossel" | "colagem" | "variado",
+    "description": "Descrição detalhada do layout típico",
+    "textPlacement": "esquerda" | "direita" | "centro" | "topo" | "base" | "sobre_imagem" | "sem_texto",
+    "hasConsistentTemplate": true/false
+  },
+  
+  "photographyStyle": {
+    "type": "produto" | "lifestyle" | "flat_lay" | "retrato" | "ambiente" | "misto",
+    "lighting": "natural" | "estúdio" | "dramática" | "suave",
+    "composition": "centralizado" | "regra_dos_tercos" | "close_up" | "wide",
+    "backgroundStyle": "sólido" | "desfocado" | "contextual" | "branco" | "colorido"
+  },
+  
+  "typography": {
+    "usesTextInImages": true/false,
+    "fontStyle": "sans-serif" | "serif" | "script" | "bold" | "misto",
+    "textSize": "grande" | "médio" | "pequeno",
+    "textEffect": "sombra" | "outline" | "clean" | "gradiente"
+  },
+  
+  "graphicElements": {
+    "usesLogo": true/false,
+    "usesBorders": true/false,
+    "usesIcons": true/false,
+    "usesOverlays": true/false,
+    "specificElements": ["lista de elementos recorrentes"]
+  },
+  
+  "filters": {
+    "hasConsistentFilter": true/false,
+    "filterDescription": "descrição do tratamento de cor/filtro",
+    "saturation": "alta" | "normal" | "baixa" | "dessaturado",
+    "contrast": "alto" | "normal" | "baixo",
+    "warmth": "quente" | "neutro" | "frio"
+  },
+  
+  "recommendations": {
+    "mustMatch": ["lista de elementos OBRIGATÓRIOS para manter consistência"],
+    "canVary": ["elementos que podem variar"],
+    "avoid": ["elementos que NÃO combinam com a marca"]
+  }
+}
+
+Analise TODAS as imagens com atenção e seja ESPECÍFICO sobre os padrões que você observa.`;
+};
 
 // =============================================================================
 // STEP 1: CREATIVE ANGLE BRAINSTORMING
@@ -317,7 +453,8 @@ const buildImagePrompt = (
     },
     hasReferenceImages: boolean,
     hasProfilePic: boolean,
-    postType: PostType
+    postType: PostType,
+    visualIdentity: VisualIdentity | null
 ): string => {
     // Extract the HOOK/HEADLINE from caption (first meaningful line, cleaned up)
     const captionLines = caption.split('\n').filter(line => line.trim().length > 0);
@@ -451,6 +588,61 @@ ${hasProfilePic ? "- PRIMEIRA imagem = foto de perfil/logo da marca → USE no t
 - O produto deve ser IGUAL ao das referências`
         : "";
 
+    // Build visual identity section if we have analysis
+    const visualIdentitySection = visualIdentity && visualIdentity.hasEstablishedIdentity
+        ? `
+## IDENTIDADE VISUAL DA MARCA (CRÍTICO - SEGUIR EXATAMENTE)
+A marca já tem uma identidade visual estabelecida. O post gerado DEVE se encaixar perfeitamente no feed existente.
+
+### PALETA DE CORES (OBRIGATÓRIO):
+- Cor primária: ${visualIdentity.colorPalette.primary}
+- Cor secundária: ${visualIdentity.colorPalette.secondary}
+- Cor de fundo: ${visualIdentity.colorPalette.background}
+- Cor de texto: ${visualIdentity.colorPalette.text}
+
+### PADRÃO DE LAYOUT:
+- Tipo: ${visualIdentity.layoutPattern.type}
+- Descrição: ${visualIdentity.layoutPattern.description}
+- Posição do texto: ${visualIdentity.layoutPattern.textPlacement}
+${visualIdentity.layoutPattern.hasConsistentTemplate ? "- A marca usa um TEMPLATE CONSISTENTE - replique o mesmo estilo" : ""}
+
+### ESTILO DE FOTOGRAFIA:
+- Tipo: ${visualIdentity.photographyStyle.type}
+- Iluminação: ${visualIdentity.photographyStyle.lighting}
+- Composição: ${visualIdentity.photographyStyle.composition}
+- Fundo: ${visualIdentity.photographyStyle.backgroundStyle}
+
+### TIPOGRAFIA:
+${visualIdentity.typography.usesTextInImages ? `- USA texto nas imagens: ${visualIdentity.typography.fontStyle}, tamanho ${visualIdentity.typography.textSize}` : "- NÃO usa texto nas imagens (apenas foto)"}
+${visualIdentity.typography.textEffect !== "clean" ? `- Efeito de texto: ${visualIdentity.typography.textEffect}` : ""}
+
+### ELEMENTOS GRÁFICOS:
+${visualIdentity.graphicElements.usesLogo ? "- Inclui LOGO da marca" : ""}
+${visualIdentity.graphicElements.usesBorders ? "- Usa BORDAS/molduras" : ""}
+${visualIdentity.graphicElements.usesOverlays ? "- Usa OVERLAYS coloridos" : ""}
+${visualIdentity.graphicElements.specificElements.length > 0 ? `- Elementos específicos: ${visualIdentity.graphicElements.specificElements.join(", ")}` : ""}
+
+### FILTROS E TRATAMENTO:
+- ${visualIdentity.filters.filterDescription}
+- Saturação: ${visualIdentity.filters.saturation}
+- Contraste: ${visualIdentity.filters.contrast}
+- Temperatura: ${visualIdentity.filters.warmth}
+
+### ELEMENTOS OBRIGATÓRIOS:
+${visualIdentity.recommendations.mustMatch.map(item => `- ✓ ${item}`).join("\n")}
+
+### EVITAR:
+${visualIdentity.recommendations.avoid.map(item => `- ✗ ${item}`).join("\n")}
+`
+        : visualIdentity
+        ? `
+## IDENTIDADE VISUAL
+A marca ainda não tem uma identidade visual forte estabelecida (${visualIdentity.identityStrength}).
+Crie um visual profissional e moderno que possa servir como referência para posts futuros.
+${visualIdentity.summary}
+`
+        : "";
+
     const textSection = `## TEXTO QUE DEVE APARECER NA IMAGEM
 Headline (EXATAMENTE este texto, sem modificar): "${headline}"
 ${subheadline ? `Subheadline: "${subheadline}"` : ""}
@@ -466,8 +658,9 @@ IMPORTANTE SOBRE O TEXTO:
 1. O TEXTO "${headline.substring(0, 30)}${headline.length > 30 ? "..." : ""}" deve estar ESCRITO na imagem, LEGÍVEL
 2. Layout dividido: TEXTO na esquerda, FOTO na direita
 3. A foto deve ser REALISTA (não ilustração)
-4. Cores extraídas das imagens de referência
-5. Se o texto não couber bem, REDUZA para as palavras-chave principais`;
+4. ${visualIdentity?.hasEstablishedIdentity ? "SIGA A IDENTIDADE VISUAL DA MARCA - cores, estilo, elementos" : "Cores extraídas das imagens de referência"}
+5. Se o texto não couber bem, REDUZA para as palavras-chave principais
+${visualIdentity?.hasEstablishedIdentity ? "6. O post DEVE parecer que foi feito pela mesma pessoa que fez os outros posts da marca" : ""}`;
 
     return `## TAREFA
 Gerar imagem para Instagram - tipo: ${POST_TYPE_LABELS[postType]}
@@ -477,6 +670,8 @@ Gerar imagem para Instagram - tipo: ${POST_TYPE_LABELS[postType]}
 Categoria: ${brandAnalysis.businessCategory || "Não especificada"}
 Produto: ${brandAnalysis.productOrService || "Não especificado"}
 
+${visualIdentitySection}
+
 ${textSection}
 
 ${templateByPostType[postType]}
@@ -485,7 +680,7 @@ ${referenceInstructions}
 
 ## ESPECIFICAÇÕES
 - Formato: 1:1 (quadrado Instagram)
-- Estilo: Realista, autêntico (não muito polido/artificial)
+- Estilo: ${visualIdentity?.hasEstablishedIdentity ? "IGUAL ao estilo existente da marca" : "Realista, autêntico (não muito polido/artificial)"}
 - Qualidade: profissional mas não artificial
 
 ${criticalRules}
@@ -617,9 +812,50 @@ export const generateDemo = action({
             logger.completeStep(step1, `Found ${allPosts.length} posts, ${profileData.followersCount ?? 0} followers`);
 
             // =================================================================
-            // STEP 2: Generate brand analysis
+            // STEP 2: Analyze visual identity from post images
             // =================================================================
-            const step2 = logger.startStep("Analyze brand");
+            const step2 = logger.startStep("Analyze visual identity");
+            
+            let visualIdentity: VisualIdentity | null = null;
+            
+            // Get image URLs for vision analysis (up to 6 posts)
+            const imageUrlsForAnalysis = allPosts
+                .filter(p => p.mediaUrl && !p.mediaType.toLowerCase().includes("video"))
+                .slice(0, 6)
+                .map(p => p.mediaUrl);
+            
+            if (imageUrlsForAnalysis.length >= 2) {
+                try {
+                    const visualIdentityPrompt = buildVisualIdentityPrompt(handle, imageUrlsForAnalysis.length);
+                    
+                    const visionResponse = await callVisionLLM(
+                        visualIdentityPrompt,
+                        imageUrlsForAnalysis,
+                        {
+                            model: MODELS.GEMINI_2_5_FLASH_VISION,
+                            temperature: 0.3, // Lower temperature for more accurate analysis
+                            maxTokens: 2048,
+                            jsonMode: true,
+                        }
+                    );
+                    
+                    visualIdentity = parseJSONResponse<VisualIdentity>(visionResponse.content);
+                    
+                    console.log(`[DEMO] Visual identity: ${visualIdentity.identityStrength} | Layout: ${visualIdentity.layoutPattern.type}`);
+                    logger.completeStep(step2, `${visualIdentity.identityStrength} identity, ${visualIdentity.layoutPattern.type} layout`);
+                } catch (visionError) {
+                    console.error("[DEMO] Visual identity analysis failed:", visionError);
+                    logger.failStep(step2, visionError instanceof Error ? visionError.message : "Unknown error");
+                    // Continue without visual identity - will use defaults
+                }
+            } else {
+                logger.completeStep(step2, "Skipped - not enough images");
+            }
+
+            // =================================================================
+            // STEP 3: Generate brand analysis (text-based)
+            // =================================================================
+            const step3 = logger.startStep("Analyze brand");
             
             const brandAnalysisPrompt = BRAND_ANALYSIS_USER_PROMPT({
                 handle,
@@ -658,12 +894,12 @@ export const generateDemo = action({
 
             console.log(`[DEMO] Business: ${brandAnalysis.businessCategory || "?"} | Product: ${brandAnalysis.productOrService || "?"}`);
             
-            logger.completeStep(step2, `${brandAnalysis.businessCategory || "Brand analyzed"}`);
+            logger.completeStep(step3, `${brandAnalysis.businessCategory || "Brand analyzed"}`);
 
             // =================================================================
-            // STEP 3: Brainstorm creative angles (THE KEY STEP!)
+            // STEP 4: Brainstorm creative angles (THE KEY STEP!)
             // =================================================================
-            const step3 = logger.startStep("Brainstorm creative angles", POST_TYPE_LABELS[postType]);
+            const step4 = logger.startStep("Brainstorm creative angles", POST_TYPE_LABELS[postType]);
             
             const creativeAnglePrompt = buildCreativeAnglePrompt(postType, brandAnalysis, allPosts);
             
@@ -687,12 +923,12 @@ export const generateDemo = action({
             const chosenAngle = angleResult.angles[angleResult.recommended] || angleResult.angles[0];
             
             console.log(`[DEMO] Creative angle: "${chosenAngle.hook}"`);
-            logger.completeStep(step3, `"${chosenAngle.hook.substring(0, 50)}..."`);
+            logger.completeStep(step4, `"${chosenAngle.hook.substring(0, 50)}..."`);
 
             // =================================================================
-            // STEP 4: Generate caption using the creative angle
+            // STEP 5: Generate caption using the creative angle
             // =================================================================
-            const step4 = logger.startStep("Generate caption");
+            const step5 = logger.startStep("Generate caption");
             
             const captionPrompt = buildCaptionPrompt(postType, chosenAngle, brandAnalysis);
             
@@ -710,12 +946,12 @@ export const generateDemo = action({
 
             const generated = parseJSONResponse<PostGenerationResponse>(captionResponse.content);
             
-            logger.completeStep(step4, `${generated.caption.length} chars`);
+            logger.completeStep(step5, `${generated.caption.length} chars`);
 
             // =================================================================
-            // STEP 5: Generate image (post-type specific templates)
+            // STEP 6: Generate image (post-type specific templates)
             // =================================================================
-            const step5 = logger.startStep("Generate image");
+            const step6 = logger.startStep("Generate image");
             
             // Collect reference images - profile pic FIRST (for logo), then posts
             const imageReferenceImages: Array<{ url: string }> = [];
@@ -742,7 +978,8 @@ export const generateDemo = action({
                 brandAnalysis,
                 imageReferenceImages.length > 0,
                 hasProfilePic,
-                postType
+                postType,
+                visualIdentity
             );
 
             let generatedImageBase64: string | undefined;
@@ -754,15 +991,15 @@ export const generateDemo = action({
                 });
                 generatedImageBase64 = imageResult.imageBase64;
                 generatedImageMimeType = imageResult.mimeType;
-                logger.completeStep(step5, "Success");
+                logger.completeStep(step6, "Success");
             } catch (imageError) {
-                logger.failStep(step5, imageError instanceof Error ? imageError.message : "Unknown error");
+                logger.failStep(step6, imageError instanceof Error ? imageError.message : "Unknown error");
             }
 
             // =================================================================
-            // STEP 6: Finalize
+            // STEP 7: Finalize
             // =================================================================
-            const step6 = logger.startStep("Finalize");
+            const step7 = logger.startStep("Finalize");
             
             if (!isAuthenticated && args.fingerprint) {
                 await ctx.runMutation(api.demoUsage.recordDemoUsage, {
@@ -771,7 +1008,7 @@ export const generateDemo = action({
                 });
             }
 
-            logger.completeStep(step6);
+            logger.completeStep(step7);
             
             console.log("=".repeat(60));
             console.log(`[DEMO] ${logger.getSummary()}`);
