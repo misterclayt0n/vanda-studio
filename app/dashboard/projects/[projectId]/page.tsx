@@ -53,7 +53,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AnalysisSection, PostDetailView } from "@/components/analysis";
 import { usePostTabs } from "@/components/sidebar";
-import { BriefBuilderDialog } from "@/components/brief-builder";
 import { cn } from "@/lib/utils";
 
 export default function ProjectDetailsPage() {
@@ -67,9 +66,6 @@ export default function ProjectDetailsPage() {
     const [selectedPostIds, setSelectedPostIds] = useState<Set<Id<"instagram_posts">>>(new Set());
     const [isAnalyzingBatch, setIsAnalyzingBatch] = useState(false);
     const [batchError, setBatchError] = useState<string | null>(null);
-
-    // Generation state
-    const [showBriefBuilder, setShowBriefBuilder] = useState(false);
 
     const analyzePost = useAction(api.ai.postAnalysis.analyzePost);
 
@@ -251,7 +247,7 @@ export default function ProjectDetailsPage() {
             <ContextProgressCard
                 contextStatus={contextStatus}
                 isReady={contextStatus?.isReady ?? false}
-                onCreateClick={() => setShowBriefBuilder(true)}
+                onCreateClick={() => router.push(`/dashboard/projects/${projectId}/create`)}
                 quota={quota}
             />
 
@@ -324,12 +320,6 @@ export default function ProjectDetailsPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Brief Builder Dialog */}
-            <BriefBuilderDialog
-                open={showBriefBuilder}
-                onOpenChange={setShowBriefBuilder}
-                projectId={projectId}
-            />
         </div>
     );
 }

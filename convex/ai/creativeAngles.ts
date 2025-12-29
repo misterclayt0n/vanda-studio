@@ -121,7 +121,7 @@ export const brainstormAngles = action({
                 { role: "user", content: CREATIVE_ANGLES_USER_PROMPT(input) },
             ],
             {
-                model: "google/gemini-2.5-flash-preview",
+                model: "google/gemini-2.5-flash",
                 temperature: 0.9, // Higher temperature for more creative variety
                 jsonMode: true,
             }
