@@ -81,6 +81,19 @@ export const updateBrandAnalysis = mutation({
         }),
         overallScore: v.number(),
         strategySummary: v.string(),
+        // NEW: Visual identity extracted from actual images
+        visualIdentity: v.optional(v.object({
+            colorPalette: v.array(v.string()),
+            layoutPatterns: v.array(v.string()),
+            photographyStyle: v.string(),
+            graphicElements: v.array(v.string()),
+            filterTreatment: v.string(),
+            dominantColors: v.optional(v.array(v.string())),
+            consistencyScore: v.optional(v.number()),
+        })),
+        // NEW: Business category
+        businessCategory: v.optional(v.string()),
+        productOrService: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         await ctx.db.patch(args.analysisId, {
@@ -90,6 +103,9 @@ export const updateBrandAnalysis = mutation({
             targetAudience: args.targetAudience,
             overallScore: args.overallScore,
             strategySummary: args.strategySummary,
+            visualIdentity: args.visualIdentity,
+            businessCategory: args.businessCategory,
+            productOrService: args.productOrService,
         });
     },
 });

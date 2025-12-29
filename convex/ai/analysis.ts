@@ -4,11 +4,14 @@ import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import { Id, Doc } from "../_generated/dataModel";
-import { callLLM, parseJSONResponse } from "./llm";
+import { callLLM, callVisionLLM, parseJSONResponse } from "./llm";
 import {
     BRAND_ANALYSIS_SYSTEM_PROMPT,
     BRAND_ANALYSIS_USER_PROMPT,
     BrandAnalysisResponse,
+    VISUAL_IDENTITY_SYSTEM_PROMPT,
+    VISUAL_IDENTITY_USER_PROMPT,
+    VisualIdentityResponse,
 } from "./prompts";
 
 // Main action to request a full analysis
@@ -80,7 +83,48 @@ export const requestAnalysis = action({
 
             const brandAnalysis = parseJSONResponse<BrandAnalysisResponse>(brandResponse.content);
 
-            // 8. Store brand analysis results
+            // 8. Extract visual identity from actual post images using vision LLM
+            let visualIdentity: VisualIdentityResponse | undefined;
+            
+            // Get image URLs for top posts (prefer high-engagement posts)
+            const postsWithImages = posts
+                .filter((p: Doc<"instagram_posts"> & { mediaStorageUrl?: string | null }) => 
+                    p.mediaType !== "VIDEO" && (p.mediaStorageUrl || p.mediaUrl)
+                )
+                .sort((a: Doc<"instagram_posts">, b: Doc<"instagram_posts">) => 
+                    (b.likeCount || 0) - (a.likeCount || 0)
+                )
+                .slice(0, 8); // Take top 8 for visual analysis
+
+            if (postsWithImages.length >= 3) {
+                try {
+                    const imageUrls = postsWithImages.map(
+                        (p: Doc<"instagram_posts"> & { mediaStorageUrl?: string | null }) => 
+                            p.mediaStorageUrl || p.mediaUrl
+                    );
+
+                    const visionPrompt = `${VISUAL_IDENTITY_SYSTEM_PROMPT}\n\n${VISUAL_IDENTITY_USER_PROMPT(
+                        project.instagramHandle || project.name,
+                        imageUrls.length
+                    )}`;
+
+                    const visionResponse = await callVisionLLM(
+                        visionPrompt,
+                        imageUrls,
+                        { temperature: 0.5, jsonMode: true }
+                    );
+
+                    visualIdentity = parseJSONResponse<VisualIdentityResponse>(visionResponse.content);
+                    console.log("[ANALYSIS] Visual identity extracted:", visualIdentity.summary);
+                } catch (visionError) {
+                    console.error("[ANALYSIS] Failed to extract visual identity:", visionError);
+                    // Continue without visual identity - it's optional
+                }
+            } else {
+                console.log("[ANALYSIS] Not enough image posts for visual identity analysis");
+            }
+
+            // 9. Store brand analysis results (including visual identity)
             await ctx.runMutation(api.ai.analysisMutations.updateBrandAnalysis, {
                 analysisId,
                 brandVoice: brandAnalysis.brandVoice,
@@ -89,6 +133,16 @@ export const requestAnalysis = action({
                 targetAudience: brandAnalysis.targetAudience,
                 overallScore: brandAnalysis.overallScore,
                 strategySummary: brandAnalysis.strategySummary,
+                // NEW: Visual identity from vision LLM
+                visualIdentity: visualIdentity ? {
+                    colorPalette: visualIdentity.colorPalette,
+                    layoutPatterns: visualIdentity.layoutPatterns,
+                    photographyStyle: visualIdentity.photographyStyle,
+                    graphicElements: visualIdentity.graphicElements,
+                    filterTreatment: visualIdentity.filterTreatment,
+                    dominantColors: visualIdentity.dominantColors,
+                    consistencyScore: visualIdentity.consistencyScore,
+                } : undefined,
             });
 
             // Post analysis is now done on-demand per post, not in batch

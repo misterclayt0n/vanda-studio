@@ -10,6 +10,9 @@
 
 import type * as ai_analysis from "../ai/analysis.js";
 import type * as ai_analysisMutations from "../ai/analysisMutations.js";
+import type * as ai_creativeAngles from "../ai/creativeAngles.js";
+import type * as ai_creativeAnglesMutations from "../ai/creativeAnglesMutations.js";
+import type * as ai_enhancedPostGeneration from "../ai/enhancedPostGeneration.js";
 import type * as ai_llm from "../ai/llm.js";
 import type * as ai_postAnalysis from "../ai/postAnalysis.js";
 import type * as ai_postGeneration from "../ai/postGeneration.js";
@@ -22,6 +25,7 @@ import type * as generatedPosts from "../generatedPosts.js";
 import type * as instagram from "../instagram.js";
 import type * as instagramPosts from "../instagramPosts.js";
 import type * as projects from "../projects.js";
+import type * as referenceImages from "../referenceImages.js";
 import type * as users from "../users.js";
 
 import type {
@@ -33,6 +37,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   "ai/analysis": typeof ai_analysis;
   "ai/analysisMutations": typeof ai_analysisMutations;
+  "ai/creativeAngles": typeof ai_creativeAngles;
+  "ai/creativeAnglesMutations": typeof ai_creativeAnglesMutations;
+  "ai/enhancedPostGeneration": typeof ai_enhancedPostGeneration;
   "ai/llm": typeof ai_llm;
   "ai/postAnalysis": typeof ai_postAnalysis;
   "ai/postGeneration": typeof ai_postGeneration;
@@ -45,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   instagram: typeof instagram;
   instagramPosts: typeof instagramPosts;
   projects: typeof projects;
+  referenceImages: typeof referenceImages;
   users: typeof users;
 }>;
 

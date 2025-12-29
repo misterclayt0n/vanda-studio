@@ -109,7 +109,6 @@ export const create = mutation({
     args: {
         projectId: v.id("projects"),
         caption: v.string(),
-        additionalContext: v.optional(v.string()),
         brandAnalysisId: v.id("brand_analysis"),
         sourcePostIds: v.array(v.id("instagram_posts")),
         reasoning: v.optional(v.string()),
@@ -117,6 +116,24 @@ export const create = mutation({
         imageStorageId: v.optional(v.id("_storage")),
         imagePrompt: v.optional(v.string()),
         imageModel: v.optional(v.string()),
+        // NEW: Full brief used for generation
+        brief: v.optional(v.object({
+            postType: v.string(),
+            contentPillar: v.optional(v.string()),
+            customTopic: v.optional(v.string()),
+            toneOverride: v.optional(v.array(v.string())),
+            captionLength: v.optional(v.string()),
+            includeHashtags: v.optional(v.boolean()),
+            additionalContext: v.optional(v.string()),
+            referenceText: v.optional(v.string()),
+            referenceImageIds: v.optional(v.array(v.id("_storage"))),
+        })),
+        // NEW: Selected creative angle
+        selectedAngle: v.optional(v.object({
+            hook: v.string(),
+            approach: v.string(),
+            whyItWorks: v.string(),
+        })),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -143,7 +160,6 @@ export const create = mutation({
         return await ctx.db.insert("generated_posts", {
             projectId: args.projectId,
             caption: args.caption,
-            additionalContext: args.additionalContext,
             brandAnalysisId: args.brandAnalysisId,
             sourcePostIds: args.sourcePostIds,
             reasoning: args.reasoning,
@@ -151,6 +167,8 @@ export const create = mutation({
             imageStorageId: args.imageStorageId,
             imagePrompt: args.imagePrompt,
             imageModel: args.imageModel,
+            brief: args.brief,
+            selectedAngle: args.selectedAngle,
             status: "generated",
             createdAt: now,
             updatedAt: now,

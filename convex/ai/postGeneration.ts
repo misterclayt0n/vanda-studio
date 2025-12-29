@@ -160,7 +160,6 @@ export const generatePost = action({
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
-            additionalContext: args.additionalContext,
             brandAnalysisId: brandAnalysis._id,
             sourcePostIds: sourcePosts.map((p) => p.postId),
             reasoning: generated.reasoning,
@@ -168,6 +167,11 @@ export const generatePost = action({
             imageStorageId,
             imagePrompt: imageStorageId ? imagePrompt : undefined,
             imageModel: imageStorageId ? MODELS.GEMINI_3_PRO_IMAGE : undefined,
+            // Store additional context in brief
+            brief: args.additionalContext ? {
+                postType: "conteudo_profissional",
+                additionalContext: args.additionalContext,
+            } : undefined,
         });
 
         // 12. Consume prompt (2 prompts: 1 for caption, 1 for image)

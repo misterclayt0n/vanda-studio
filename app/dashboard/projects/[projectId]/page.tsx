@@ -26,19 +26,13 @@ import {
     Tick01Icon,
     Delete01Icon,
     Download01Icon,
-    Camera01Icon,
-    PaintBrush01Icon,
-    Minimize01Icon,
-    ArtboardToolIcon,
     AlertDiamondIcon,
-    PaintBoardIcon,
 } from "@hugeicons/core-free-icons";
 import { Progress } from "@/components/ui/progress";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -53,12 +47,13 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AnalysisSection, PostDetailView } from "@/components/analysis";
 import { usePostTabs } from "@/components/sidebar";
+import { BriefBuilderDialog } from "@/components/brief-builder";
 import { cn } from "@/lib/utils";
 
 export default function ProjectDetailsPage() {
@@ -74,14 +69,9 @@ export default function ProjectDetailsPage() {
     const [batchError, setBatchError] = useState<string | null>(null);
 
     // Generation state
-    const [showCreateDialog, setShowCreateDialog] = useState(false);
-    const [additionalContext, setAdditionalContext] = useState("");
-    const [imageStyle, setImageStyle] = useState<"realistic" | "illustrative" | "minimalist" | "artistic">("realistic");
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [generateError, setGenerateError] = useState<string | null>(null);
+    const [showBriefBuilder, setShowBriefBuilder] = useState(false);
 
     const analyzePost = useAction(api.ai.postAnalysis.analyzePost);
-    const generatePost = useAction(api.ai.postGeneration.generatePost);
 
     // Derive selected post ID from context - no need for local state
     const selectedPostId = useMemo(() => {
@@ -169,27 +159,6 @@ export default function ProjectDetailsPage() {
             setSelectedPostIds(new Set());
         }
     }, [selectedPostIds, analyzePost, projectId]);
-
-    // Handle post generation
-    const handleGenerate = useCallback(async () => {
-        setIsGenerating(true);
-        setGenerateError(null);
-        try {
-            await generatePost({
-                projectId,
-                additionalContext: additionalContext.trim() || undefined,
-                imageStyle,
-            });
-            setShowCreateDialog(false);
-            setAdditionalContext("");
-            setImageStyle("realistic");
-        } catch (err) {
-            console.error("Failed to generate post:", err);
-            setGenerateError(err instanceof Error ? err.message : "Erro ao gerar post");
-        } finally {
-            setIsGenerating(false);
-        }
-    }, [generatePost, projectId, additionalContext, imageStyle]);
 
     // Handle opening a post
     const handleOpenPost = (post: PostWithStorageUrls) => {
@@ -282,7 +251,7 @@ export default function ProjectDetailsPage() {
             <ContextProgressCard
                 contextStatus={contextStatus}
                 isReady={contextStatus?.isReady ?? false}
-                onCreateClick={() => setShowCreateDialog(true)}
+                onCreateClick={() => setShowBriefBuilder(true)}
                 quota={quota}
             />
 
@@ -355,102 +324,12 @@ export default function ProjectDetailsPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Create Post Dialog */}
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Criar Novo Post</DialogTitle>
-                        <DialogDescription>
-                            A IA vai gerar um post baseado na sua marca e posts analisados.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        {/* Context summary */}
-                        <div className="rounded-none bg-muted p-3 text-sm">
-                            <p className="font-medium mb-1">Contexto disponivel:</p>
-                            <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                                <li>Analise de marca {contextStatus?.hasStrategy ? "✓" : "pendente"}</li>
-                                <li>{contextStatus?.analyzedCount ?? 0} posts analisados</li>
-                            </ul>
-                        </div>
-
-                        {/* Image style selector */}
-                        <div className="space-y-2">
-                            <Label>Estilo da imagem</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { value: "realistic" as const, label: "Realista", icon: Camera01Icon, desc: "Foto profissional" },
-                                    { value: "illustrative" as const, label: "Ilustrativo", icon: PaintBoardIcon, desc: "Arte digital" },
-                                    { value: "minimalist" as const, label: "Minimalista", icon: Minimize01Icon, desc: "Clean e simples" },
-                                    { value: "artistic" as const, label: "Artistico", icon: PaintBrush01Icon, desc: "Criativo e ousado" },
-                                ].map((style) => (
-                                    <button
-                                        key={style.value}
-                                        type="button"
-                                        onClick={() => setImageStyle(style.value)}
-                                        className={cn(
-                                            "flex items-center gap-3 p-3 rounded-none border text-left transition-all",
-                                            imageStyle === style.value
-                                                ? "border-primary bg-primary/10 ring-1 ring-primary"
-                                                : "border-border hover:border-primary/50 hover:bg-muted/50"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "flex h-9 w-9 items-center justify-center rounded-none",
-                                            imageStyle === style.value ? "bg-primary text-primary-foreground" : "bg-muted"
-                                        )}>
-                                            <HugeiconsIcon icon={style.icon} className="size-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium">{style.label}</p>
-                                            <p className="text-xs text-muted-foreground">{style.desc}</p>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Additional context input */}
-                        <div className="space-y-2">
-                            <Label htmlFor="context">Contexto adicional (opcional)</Label>
-                            <Textarea
-                                id="context"
-                                placeholder="Tom desejado, tema especifico, promocao, data comemorativa..."
-                                value={additionalContext}
-                                onChange={(e) => setAdditionalContext(e.target.value)}
-                                rows={3}
-                            />
-                        </div>
-
-                        {/* Error display */}
-                        {generateError && (
-                            <div className="p-3 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-                                {generateError}
-                            </div>
-                        )}
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleGenerate} disabled={isGenerating || !contextStatus?.isReady}>
-                            {isGenerating ? (
-                                <>
-                                    <HugeiconsIcon icon={Loading03Icon} className="size-4 mr-2 animate-spin" />
-                                    Gerando...
-                                </>
-                            ) : (
-                                <>
-                                    <HugeiconsIcon icon={SparklesIcon} className="size-4 mr-2" />
-                                    Gerar Post
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Brief Builder Dialog */}
+            <BriefBuilderDialog
+                open={showBriefBuilder}
+                onOpenChange={setShowBriefBuilder}
+                projectId={projectId}
+            />
         </div>
     );
 }

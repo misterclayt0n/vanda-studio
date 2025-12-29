@@ -45,6 +45,10 @@ export default defineSchema({
         }))),
         // Analysis fields (can be filled later)
         analysis: v.optional(v.any()),
+        // Embedding for semantic search (1536 dimensions for text-embedding-3-small)
+        captionEmbedding: v.optional(v.array(v.float64())),
+        // Engagement score (normalized 0-1) for weighting
+        engagementScore: v.optional(v.float64()),
     }).index("by_project_id", ["projectId"]),
 
     // User subscription & quota tracking
@@ -83,6 +87,19 @@ export default defineSchema({
             recommended: v.string(),
             reasoning: v.string(),
         })),
+        // NEW: Visual Identity extracted from actual images using vision LLM
+        visualIdentity: v.optional(v.object({
+            colorPalette: v.array(v.string()),        // Hex codes
+            layoutPatterns: v.array(v.string()),     // "centered", "grid", "split"
+            photographyStyle: v.string(),            // "product-focused", "lifestyle"
+            graphicElements: v.array(v.string()),    // "logo overlay", "borders", "icons"
+            filterTreatment: v.string(),             // "warm", "cool", "high-contrast"
+            dominantColors: v.optional(v.array(v.string())), // Most used colors
+            consistencyScore: v.optional(v.number()), // How consistent is visual style
+        })),
+        // NEW: Business category confirmed/extracted
+        businessCategory: v.optional(v.string()),
+        productOrService: v.optional(v.string()),
         overallScore: v.optional(v.number()),
         strategySummary: v.optional(v.string()),
         errorMessage: v.optional(v.string()),
@@ -126,7 +143,8 @@ export default defineSchema({
     generated_posts: defineTable({
         projectId: v.id("projects"),
         caption: v.string(),
-        additionalContext: v.optional(v.string()), // User's additional input
+        // Legacy field - kept for backwards compatibility
+        additionalContext: v.optional(v.string()),
         // Context references
         brandAnalysisId: v.id("brand_analysis"),
         sourcePostIds: v.array(v.id("instagram_posts")), // Posts used as context
@@ -142,8 +160,70 @@ export default defineSchema({
         status: v.string(), // "generated" | "edited" | "regenerated"
         createdAt: v.number(),
         updatedAt: v.number(),
+
+        // NEW: Full brief that was used for generation
+        brief: v.optional(v.object({
+            postType: v.string(), // "promocao" | "conteudo_profissional" | "engajamento"
+            contentPillar: v.optional(v.string()), // Selected pillar name
+            customTopic: v.optional(v.string()),
+            toneOverride: v.optional(v.array(v.string())),
+            captionLength: v.optional(v.string()), // "curta" | "media" | "longa"
+            includeHashtags: v.optional(v.boolean()),
+            additionalContext: v.optional(v.string()),
+            // Reference materials info (not the actual files)
+            referenceText: v.optional(v.string()),
+            referenceImageIds: v.optional(v.array(v.id("_storage"))),
+        })),
+        // NEW: Selected creative angle
+        selectedAngle: v.optional(v.object({
+            hook: v.string(),
+            approach: v.string(),
+            whyItWorks: v.string(),
+        })),
     }).index("by_project_id", ["projectId"])
       .index("by_created_at", ["createdAt"]),
+
+    // NEW: Creative angles (brainstormed options before generation)
+    creative_angles: defineTable({
+        projectId: v.id("projects"),
+        briefHash: v.string(), // Hash of the brief to retrieve later
+        angles: v.array(v.object({
+            id: v.string(),
+            hook: v.string(),
+            approach: v.string(),
+            whyItWorks: v.string(),
+            exampleOpener: v.string(),
+        })),
+        // The brief that generated these angles
+        brief: v.object({
+            postType: v.string(),
+            contentPillar: v.optional(v.string()),
+            customTopic: v.optional(v.string()),
+            toneOverride: v.optional(v.array(v.string())),
+            referenceText: v.optional(v.string()),
+            additionalContext: v.optional(v.string()),
+        }),
+        createdAt: v.number(),
+        expiresAt: v.number(), // TTL - angles expire after some time
+    }).index("by_project_id", ["projectId"])
+      .index("by_brief_hash", ["briefHash"]),
+
+    // NEW: Reference images uploaded by user for generation
+    reference_images: defineTable({
+        projectId: v.id("projects"),
+        storageId: v.id("_storage"),
+        filename: v.string(),
+        mimeType: v.string(),
+        // Vision LLM analysis of the image
+        analysis: v.optional(v.object({
+            description: v.string(),
+            dominantColors: v.array(v.string()),
+            style: v.string(),
+            mood: v.string(),
+            elements: v.array(v.string()), // Objects/elements detected
+        })),
+        createdAt: v.number(),
+    }).index("by_project_id", ["projectId"]),
 
     // Per-project conversation
     conversations: defineTable({

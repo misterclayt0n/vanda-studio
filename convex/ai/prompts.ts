@@ -462,6 +462,334 @@ export const POST_TYPE_PROMPTS: Record<PostType, string> = {
 
 
 
+// =============================================================================
+// VISUAL IDENTITY EXTRACTION (Vision LLM)
+// =============================================================================
+
+export const VISUAL_IDENTITY_SYSTEM_PROMPT = `Você é um especialista em identidade visual e design. Sua tarefa é analisar imagens de posts do Instagram de uma marca e extrair sua identidade visual consistente.
+
+Analise TODAS as imagens fornecidas em conjunto para identificar padrões visuais recorrentes.
+
+IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON.`;
+
+export const VISUAL_IDENTITY_USER_PROMPT = (brandName: string, numImages: number) => `Analise estas ${numImages} imagens de posts do Instagram da marca "${brandName}" e extraia a identidade visual.
+
+## Schema JSON Obrigatório
+{
+  "colorPalette": ["#hex1", "#hex2", "#hex3", "#hex4", "#hex5"],
+  "dominantColors": ["cor1", "cor2", "cor3"],
+  "layoutPatterns": ["padrao1", "padrao2"],
+  "photographyStyle": "descrição do estilo fotográfico predominante",
+  "graphicElements": ["elemento1", "elemento2"],
+  "filterTreatment": "descrição do tratamento de cor/filtro usado",
+  "consistencyScore": 75,
+  "summary": "Resumo de 2-3 frases da identidade visual da marca"
+}
+
+Notas sobre os campos:
+- colorPalette: 5 cores hexadecimais mais usadas
+- dominantColors: nomes das cores dominantes em português
+- layoutPatterns: padrões de composição (ex: "centralizado", "grid", "produto em destaque", "lifestyle")
+- photographyStyle: estilo geral (ex: "produto em fundo clean", "lifestyle aspiracional", "flat lay")
+- graphicElements: elementos gráficos recorrentes (ex: "logo no canto", "bordas", "texto sobreposto")
+- filterTreatment: tratamento de cor (ex: "tons quentes", "alto contraste", "pastel", "saturado")
+- consistencyScore: 0-100 indicando quão consistente é o visual entre posts
+
+Analise as imagens e responda com APENAS o objeto JSON.`;
+
+export interface VisualIdentityResponse {
+    colorPalette: string[];
+    dominantColors: string[];
+    layoutPatterns: string[];
+    photographyStyle: string;
+    graphicElements: string[];
+    filterTreatment: string;
+    consistencyScore: number;
+    summary?: string;
+}
+
+// =============================================================================
+// CREATIVE ANGLES BRAINSTORM
+// =============================================================================
+
+export const CREATIVE_ANGLES_SYSTEM_PROMPT = `Você é um diretor criativo sênior especializado em conteúdo para Instagram. Seu trabalho é gerar ângulos criativos únicos e envolventes para posts.
+
+Você vai receber um brief com informações sobre a marca, tipo de post desejado e contexto adicional. Gere 3 ângulos criativos DIFERENTES que poderiam funcionar para este post.
+
+Cada ângulo deve ser:
+1. ÚNICO - abordagem distinta dos outros
+2. ESPECÍFICO - não genérico, deve ser aplicável apenas a esta marca
+3. ENVOLVENTE - deve capturar atenção
+4. EXECUTÁVEL - deve ser possível transformar em uma legenda real
+
+IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON. Escreva em português brasileiro.`;
+
+export interface CreativeAnglesBriefInput {
+    brandName: string;
+    brandVoice: {
+        recommended: string;
+        tone: string[];
+    };
+    targetAudience: string;
+    contentPillars: Array<{ name: string; description: string }>;
+    postType: PostType;
+    selectedPillar?: string;
+    customTopic?: string;
+    toneOverride?: string[];
+    referenceText?: string;
+    additionalContext?: string;
+    // Top performing posts for inspiration
+    topPosts?: Array<{
+        caption: string;
+        engagement: number;
+    }>;
+}
+
+export const CREATIVE_ANGLES_USER_PROMPT = (input: CreativeAnglesBriefInput) => {
+    const postTypePrompt = POST_TYPE_PROMPTS[input.postType];
+    
+    const topPostsSection = input.topPosts && input.topPosts.length > 0
+        ? `## Posts de Sucesso (para inspiração de tom e estilo)
+${input.topPosts.map((p, i) => `${i + 1}. "${p.caption.substring(0, 150)}${p.caption.length > 150 ? '...' : ''}" (engajamento: ${p.engagement})`).join('\n')}`
+        : '';
+
+    return `Gere 3 ângulos criativos para um post do Instagram.
+
+## Marca
+- Nome: ${input.brandName}
+- Voz: ${input.brandVoice.recommended}
+- Tom: ${input.toneOverride?.join(', ') || input.brandVoice.tone.join(', ')}
+- Público: ${input.targetAudience}
+
+## Pilares de Conteúdo
+${input.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}
+
+## Brief do Post
+${postTypePrompt}
+
+${input.selectedPillar ? `- Pilar escolhido: ${input.selectedPillar}` : ''}
+${input.customTopic ? `- Tópico específico: ${input.customTopic}` : ''}
+${input.referenceText ? `- Material de referência: "${input.referenceText}"` : ''}
+${input.additionalContext ? `- Contexto adicional: ${input.additionalContext}` : ''}
+
+${topPostsSection}
+
+## Schema JSON Obrigatório
+{
+  "angles": [
+    {
+      "id": "angle_1",
+      "hook": "Conceito principal do gancho (5-10 palavras)",
+      "approach": "Descrição da abordagem criativa (1-2 frases)",
+      "whyItWorks": "Por que este ângulo funciona para esta marca/objetivo",
+      "exampleOpener": "Exemplo de como a legenda poderia começar (primeiras 15-20 palavras)"
+    },
+    {
+      "id": "angle_2",
+      "hook": "...",
+      "approach": "...",
+      "whyItWorks": "...",
+      "exampleOpener": "..."
+    },
+    {
+      "id": "angle_3",
+      "hook": "...",
+      "approach": "...",
+      "whyItWorks": "...",
+      "exampleOpener": "..."
+    }
+  ]
+}
+
+IMPORTANTE: Os 3 ângulos devem ser SIGNIFICATIVAMENTE diferentes entre si. Não repita a mesma ideia com palavras diferentes.
+
+Gere os ângulos e responda com APENAS o objeto JSON.`;
+};
+
+export interface CreativeAnglesResponse {
+    angles: Array<{
+        id: string;
+        hook: string;
+        approach: string;
+        whyItWorks: string;
+        exampleOpener: string;
+    }>;
+}
+
+// =============================================================================
+// ENHANCED POST GENERATION (with brief and angle)
+// =============================================================================
+
+export interface EnhancedPostGenerationContext {
+    brandName: string;
+    brandVoice: {
+        recommended: string;
+        tone: string[];
+    };
+    targetAudience: string;
+    contentPillars: Array<{ name: string; description: string }>;
+    visualIdentity?: VisualIdentityResponse;
+    // The brief
+    postType: PostType;
+    selectedPillar?: string;
+    customTopic?: string;
+    toneOverride?: string[];
+    captionLength?: 'curta' | 'media' | 'longa';
+    includeHashtags?: boolean;
+    referenceText?: string;
+    additionalContext?: string;
+    // Reference images analysis
+    referenceImagesAnalysis?: Array<{
+        description: string;
+        elements: string[];
+    }>;
+    // Selected creative angle
+    selectedAngle: {
+        hook: string;
+        approach: string;
+        exampleOpener: string;
+    };
+    // Relevant posts (from semantic search)
+    relevantPosts?: Array<{
+        caption: string;
+        strengths: string[];
+        toneAnalysis: string;
+        engagementScore: number;
+    }>;
+}
+
+export const ENHANCED_POST_GENERATION_SYSTEM_PROMPT = `Você é um criador de conteúdo especializado em Instagram. Seu trabalho é gerar legendas envolventes e autênticas baseadas em um brief detalhado e um ângulo criativo específico.
+
+Você vai receber:
+1. Contexto completo da marca
+2. Um brief detalhado com o objetivo do post
+3. Um ângulo criativo selecionado pelo usuário
+4. Material de referência (se houver)
+
+Sua tarefa é transformar o ângulo criativo em uma legenda completa que:
+- Siga EXATAMENTE o ângulo e tom propostos
+- Seja autêntica para a marca
+- Gere engajamento
+- Atenda ao objetivo do tipo de post
+
+IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON. Escreva em português brasileiro.`;
+
+export const ENHANCED_POST_GENERATION_USER_PROMPT = (context: EnhancedPostGenerationContext) => {
+    const postTypePrompt = POST_TYPE_PROMPTS[context.postType];
+    
+    const lengthGuideline = {
+        curta: '50-100 caracteres (sem hashtags) - direto ao ponto',
+        media: '100-200 caracteres (sem hashtags) - desenvolvimento moderado',
+        longa: '200-350 caracteres (sem hashtags) - storytelling completo',
+    }[context.captionLength || 'media'];
+
+    const relevantPostsSection = context.relevantPosts && context.relevantPosts.length > 0
+        ? `## Posts de Referência (estilo e tom)
+${context.relevantPosts.map((p, i) => `
+### Referência ${i + 1} (engajamento: ${(p.engagementScore * 100).toFixed(0)}%)
+Legenda: "${p.caption}"
+Pontos fortes: ${p.strengths.join(', ')}
+Tom: ${p.toneAnalysis}
+`).join('\n')}`
+        : '';
+
+    const referenceImagesSection = context.referenceImagesAnalysis && context.referenceImagesAnalysis.length > 0
+        ? `## Imagens de Referência Enviadas pelo Usuário
+${context.referenceImagesAnalysis.map((img, i) => `
+Imagem ${i + 1}: ${img.description}
+Elementos: ${img.elements.join(', ')}
+`).join('\n')}`
+        : '';
+
+    return `Crie uma legenda de Instagram baseada no ângulo criativo selecionado.
+
+## Marca
+- Nome: ${context.brandName}
+- Voz: ${context.brandVoice.recommended}
+- Tom: ${context.toneOverride?.join(', ') || context.brandVoice.tone.join(', ')}
+- Público: ${context.targetAudience}
+
+## Pilares de Conteúdo
+${context.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}
+
+## Brief do Post
+${postTypePrompt}
+
+${context.selectedPillar ? `- Pilar escolhido: ${context.selectedPillar}` : ''}
+${context.customTopic ? `- Tópico específico: ${context.customTopic}` : ''}
+${context.referenceText ? `\n## Material de Referência do Usuário\n"${context.referenceText}"` : ''}
+${context.additionalContext ? `\n## Contexto Adicional\n${context.additionalContext}` : ''}
+
+## Ângulo Criativo Selecionado (SEGUIR ESTE ÂNGULO)
+- Hook: ${context.selectedAngle.hook}
+- Abordagem: ${context.selectedAngle.approach}
+- Exemplo de abertura: "${context.selectedAngle.exampleOpener}"
+
+${relevantPostsSection}
+
+${referenceImagesSection}
+
+## Diretrizes de Formato
+- Tamanho: ${lengthGuideline}
+- Hashtags: ${context.includeHashtags !== false ? 'Incluir 5-10 hashtags relevantes no final' : 'NÃO incluir hashtags'}
+- Emojis: Usar naturalmente quando apropriado
+
+## Schema JSON Obrigatório
+{
+  "caption": "legenda completa seguindo o ângulo criativo",
+  "reasoning": "explicação de 2-3 frases das escolhas criativas e como seguiu o ângulo",
+  "hashtags": ["hashtag1", "hashtag2", "..."]
+}
+
+IMPORTANTE: A legenda DEVE seguir o ângulo criativo selecionado. O exemplo de abertura é uma sugestão - você pode adaptar, mas mantenha a essência.
+
+Gere a legenda e responda com APENAS o objeto JSON.`;
+};
+
+export interface EnhancedPostGenerationResponse {
+    caption: string;
+    reasoning: string;
+    hashtags?: string[];
+}
+
+// =============================================================================
+// REFERENCE IMAGE ANALYSIS (Vision LLM)
+// =============================================================================
+
+export const REFERENCE_IMAGE_ANALYSIS_SYSTEM_PROMPT = `Você é um especialista em análise visual. Sua tarefa é descrever imagens enviadas pelo usuário para uso como referência na geração de conteúdo.
+
+Foque em:
+1. O que está na imagem (objetos, produtos, pessoas, cenário)
+2. O estilo visual (cores, composição, mood)
+3. Elementos que podem ser reproduzidos ou referenciados
+
+IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON.`;
+
+export const REFERENCE_IMAGE_ANALYSIS_USER_PROMPT = `Analise esta imagem que será usada como referência para geração de conteúdo.
+
+## Schema JSON Obrigatório
+{
+  "description": "Descrição detalhada do que está na imagem (2-3 frases)",
+  "dominantColors": ["cor1", "cor2", "cor3"],
+  "style": "Estilo visual geral (ex: minimalista, vibrante, profissional)",
+  "mood": "Mood/atmosfera da imagem (ex: acolhedor, luxuoso, divertido)",
+  "elements": ["elemento1", "elemento2", "elemento3"]
+}
+
+Analise a imagem e responda com APENAS o objeto JSON.`;
+
+export interface ReferenceImageAnalysisResponse {
+    description: string;
+    dominantColors: string[];
+    style: string;
+    mood: string;
+    elements: string[];
+}
+
+// =============================================================================
+// IMAGE GENERATION PROMPT (existing, keeping for reference)
+// =============================================================================
+
 export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
     const styleSpec = context.imageStyle
         ? IMAGE_STYLE_SPECS[context.imageStyle]
