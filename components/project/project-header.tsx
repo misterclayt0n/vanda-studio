@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Instagram } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft01Icon, InstagramIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 
 interface ProjectHeaderProps {
@@ -72,7 +73,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                         onClick={() => router.push("/dashboard")}
                         className="shrink-0"
                     >
-                        <ArrowLeft className="h-4 w-4" />
+                        <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
                     </Button>
 
                     {/* Profile picture with size transition */}
@@ -120,7 +121,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
 
                 <Button asChild variant="outline" size="sm">
                     <Link href={project.instagramUrl} target="_blank" rel="noopener noreferrer">
-                        <Instagram className="h-4 w-4" />
+                        <HugeiconsIcon icon={InstagramIcon} className="size-4" />
                         <span className={cn(
                             "transition-all duration-300 ease-out overflow-hidden",
                             isCompact ? "w-0 opacity-0" : "w-auto opacity-100 ml-2"
@@ -146,7 +147,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                         {stats.map((stat) => (
                             <div
                                 key={stat.label}
-                                className="rounded-xl border bg-card/50 backdrop-blur-sm p-3 text-center"
+                                className="rounded-none border bg-card/50 backdrop-blur-sm p-3 text-center"
                             >
                                 <p className="text-xl font-bold tabular-nums">{stat.value}</p>
                                 <p className="text-xs text-muted-foreground">{stat.label}</p>

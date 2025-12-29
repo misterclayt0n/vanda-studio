@@ -3,25 +3,23 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id, Doc } from "@/convex/_generated/dataModel";
-import { Button } from "@/components/ui/button";
+import { Id } from "@/convex/_generated/dataModel";
 import {
     Card,
     CardContent,
-    CardDescription,
-    CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-    History,
-    ChevronDown,
-    ChevronUp,
-    CheckCircle2,
-    XCircle,
-    Clock,
-    Loader2,
-    TrendingUp,
-} from "lucide-react";
+    Time01Icon,
+    ArrowDown01Icon,
+    ArrowUp01Icon,
+    CheckmarkCircle02Icon,
+    CancelCircleIcon,
+    Clock01Icon,
+    Loading01Icon,
+    AnalyticsUpIcon,
+} from "@hugeicons/core-free-icons";
 
 interface AnalysisHistoryProps {
     projectId: Id<"projects">;
@@ -47,21 +45,21 @@ export function AnalysisHistory({
     const getStatusIcon = (status: string) => {
         switch (status) {
             case "completed":
-                return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+                return <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-3.5 text-[var(--success)]" />;
             case "failed":
-                return <XCircle className="h-4 w-4 text-red-500" />;
+                return <HugeiconsIcon icon={CancelCircleIcon} strokeWidth={2} className="size-3.5 text-destructive" />;
             case "processing":
             case "pending":
-                return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+                return <HugeiconsIcon icon={Loading01Icon} strokeWidth={2} className="size-3.5 text-primary animate-spin" />;
             default:
-                return <Clock className="h-4 w-4 text-muted-foreground" />;
+                return <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />;
         }
     };
 
     const getStatusText = (status: string) => {
         switch (status) {
             case "completed":
-                return "Concluída";
+                return "Concluida";
             case "failed":
                 return "Falhou";
             case "processing":
@@ -74,44 +72,44 @@ export function AnalysisHistory({
     };
 
     return (
-        <Card className="border-dashed">
-            <CardHeader className="pb-3">
+        <Card className="ring-1 ring-foreground/10">
+            <div className="p-3">
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="flex items-center justify-between w-full text-left"
                 >
                     <div className="flex items-center gap-2">
-                        <History className="h-4 w-4 text-muted-foreground" />
-                        <CardTitle className="text-base">Histórico de Análises</CardTitle>
-                        <span className="text-xs text-muted-foreground">
-                            ({analyses.length} análises)
+                        <HugeiconsIcon icon={Time01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
+                        <CardTitle className="text-xs">Historico de Analises</CardTitle>
+                        <span className="text-[10px] text-muted-foreground">
+                            ({analyses.length} analises)
                         </span>
                     </div>
                     {isExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
                     ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
                     )}
                 </button>
-            </CardHeader>
+            </div>
 
             {isExpanded && (
-                <CardContent className="pt-0">
-                    <div className="space-y-2">
+                <CardContent className="pt-0 pb-3">
+                    <div className="space-y-1.5">
                         {analyses.map((analysis) => (
                             <button
                                 key={analysis._id}
                                 onClick={() => onSelectAnalysis?.(analysis._id)}
-                                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${
+                                className={`w-full flex items-center justify-between p-2.5 rounded-none ring-1 transition-colors text-left ${
                                     currentAnalysisId === analysis._id
-                                        ? "border-primary bg-primary/5"
-                                        : "border-border/50 hover:border-primary/30 hover:bg-muted/50"
+                                        ? "ring-primary bg-primary/5"
+                                        : "ring-foreground/10 hover:ring-foreground/20 hover:bg-muted/50"
                                 }`}
                             >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5">
                                     {getStatusIcon(analysis.status)}
                                     <div>
-                                        <p className="text-sm font-medium">
+                                        <p className="text-xs font-medium">
                                             {new Date(analysis.createdAt).toLocaleDateString(
                                                 "pt-BR",
                                                 {
@@ -123,16 +121,16 @@ export function AnalysisHistory({
                                                 }
                                             )}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-[10px] text-muted-foreground">
                                             {getStatusText(analysis.status)}
                                         </p>
                                     </div>
                                 </div>
 
                                 {analysis.status === "completed" && analysis.overallScore && (
-                                    <div className="flex items-center gap-1 text-sm">
-                                        <TrendingUp className="h-3 w-3 text-primary" />
-                                        <span className="font-bold text-primary">
+                                    <div className="flex items-center gap-1 text-xs">
+                                        <HugeiconsIcon icon={AnalyticsUpIcon} strokeWidth={2} className="size-3 text-primary" />
+                                        <span className="font-medium text-primary">
                                             {analysis.overallScore}
                                         </span>
                                         <span className="text-muted-foreground">/100</span>

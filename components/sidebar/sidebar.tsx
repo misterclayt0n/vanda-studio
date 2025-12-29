@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
-import { LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Menu, X, Coins } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { DashboardSquare01Icon, Settings01Icon, LeftToRightListBulletIcon, RightToLeftListBulletIcon, Menu01Icon, Cancel01Icon, CoinsSwapIcon } from "@hugeicons/core-free-icons";
 import { useSidebar } from "./sidebar-context";
 import { usePostTabs } from "./post-tabs-context";
 import { SidebarItem } from "./sidebar-item";
@@ -35,7 +36,7 @@ export function Sidebar() {
             {/* Mobile overlay */}
             {isMobileOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
+                    className="fixed inset-0 z-40 bg-background/80 supports-[backdrop-filter]:backdrop-blur-xs md:hidden"
                     onClick={closeMobile}
                 />
             )}
@@ -43,26 +44,26 @@ export function Sidebar() {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out",
+                    "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 ease-in-out",
                     // Desktop - sticky with fixed height
                     "md:sticky md:top-0 md:h-screen md:translate-x-0",
-                    isCollapsed ? "md:w-16" : "md:w-60",
+                    isCollapsed ? "md:w-14" : "md:w-56",
                     // Mobile - fixed overlay
-                    "w-72 -translate-x-full",
+                    "w-64 -translate-x-full",
                     isMobileOpen && "translate-x-0"
                 )}
             >
                 {/* Header */}
                 <div className={cn(
-                    "flex h-16 items-center border-b border-sidebar-border px-4",
+                    "flex h-12 items-center border-b border-sidebar-border px-3",
                     isCollapsed && "justify-center px-2"
                 )}>
-                    <Link href="/dashboard" className="flex items-center gap-3 group">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-pink text-white text-xs font-bold shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300 group-hover:scale-105 shrink-0">
+                    <Link href="/dashboard" className="flex items-center gap-2.5 group">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-none bg-primary text-primary-foreground text-xs font-medium shrink-0">
                             VS
                         </div>
                         {!isCollapsed && (
-                            <span className="font-bold tracking-tight text-sidebar-foreground">
+                            <span className="text-xs font-medium tracking-tight text-sidebar-foreground">
                                 Vanda Studio
                             </span>
                         )}
@@ -71,36 +72,36 @@ export function Sidebar() {
                     {/* Mobile close button */}
                     <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-xs"
                         className="ml-auto md:hidden"
                         onClick={closeMobile}
                     >
-                        <X className="h-5 w-5" />
+                        <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-4" />
                     </Button>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+                <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
                     <SidebarItem
                         href="/dashboard"
-                        icon={LayoutDashboard}
+                        icon={DashboardSquare01Icon}
                         label="Dashboard"
                     />
                     <SidebarItem
                         href="/dashboard/settings"
-                        icon={Settings}
+                        icon={Settings01Icon}
                         label="Configuracoes"
                     />
 
                     {/* Open Post Tabs */}
                     {projectTabs.length > 0 && (
-                        <div className="pt-4 mt-4 border-t border-sidebar-border">
+                        <div className="pt-3 mt-3 border-t border-sidebar-border">
                             {!isCollapsed && (
-                                <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                                <p className="px-2 mb-2 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
                                     Posts Abertos
                                 </p>
                             )}
-                            <div className="space-y-1">
+                            <div className="space-y-0.5">
                                 {projectTabs.map((tab) => (
                                     <PostTabItem
                                         key={tab.postId}
@@ -116,21 +117,21 @@ export function Sidebar() {
                 {/* Credits Display */}
                 {quota && (
                     <div className={cn(
-                        "border-t border-sidebar-border p-3",
+                        "border-t border-sidebar-border p-2",
                         isCollapsed && "flex justify-center"
                     )}>
                         {isCollapsed ? (
                             <div
-                                className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                                className="flex h-7 w-7 items-center justify-center rounded-none bg-primary/10 text-primary"
                                 title={`${quota.remaining} creditos restantes`}
                             >
-                                <Coins className="h-4 w-4" />
+                                <HugeiconsIcon icon={CoinsSwapIcon} strokeWidth={2} className="size-3.5" />
                             </div>
                         ) : (
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                        <Coins className="h-4 w-4" />
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-none bg-primary/10 text-primary">
+                                        <HugeiconsIcon icon={CoinsSwapIcon} strokeWidth={2} className="size-3.5" />
                                     </div>
                                     <div>
                                         <p className="text-xs font-medium text-sidebar-foreground">Creditos</p>
@@ -146,18 +147,18 @@ export function Sidebar() {
 
                 {/* Footer */}
                 <div className={cn(
-                    "flex items-center gap-3 border-t border-sidebar-border p-3",
+                    "flex items-center gap-2 border-t border-sidebar-border p-2",
                     isCollapsed && "flex-col gap-2"
                 )}>
                     {/* User button */}
                     <UserButton
                         appearance={{
                             elements: {
-                                avatarBox: "h-9 w-9 ring-2 ring-primary/30 hover:ring-primary transition-all duration-300",
+                                avatarBox: "h-7 w-7 rounded-none",
                                 userButtonTrigger: "focus:shadow-none focus-visible:outline-none p-0",
-                                userButtonPopoverCard: "bg-popover/95 backdrop-blur-xl border border-border/50 shadow-xl",
-                                userButtonPopoverActionButton: "hover:bg-accent/50",
-                                userButtonPopoverActionButtonText: "text-foreground",
+                                userButtonPopoverCard: "bg-popover rounded-none ring-1 ring-foreground/10",
+                                userButtonPopoverActionButton: "hover:bg-accent rounded-none",
+                                userButtonPopoverActionButtonText: "text-foreground text-xs",
                                 userButtonPopoverFooter: "hidden",
                             },
                         }}
@@ -166,18 +167,18 @@ export function Sidebar() {
                     {/* Collapse toggle - desktop only */}
                     <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-xs"
                         onClick={toggle}
                         className={cn(
-                            "hidden md:flex h-9 w-9 shrink-0",
+                            "hidden md:flex h-7 w-7 shrink-0",
                             isCollapsed ? "mx-auto" : "ml-auto"
                         )}
                         title={isCollapsed ? "Expandir sidebar" : "Recolher sidebar"}
                     >
                         {isCollapsed ? (
-                            <PanelLeftOpen className="h-4 w-4" />
+                            <HugeiconsIcon icon={RightToLeftListBulletIcon} strokeWidth={2} className="size-3.5" />
                         ) : (
-                            <PanelLeftClose className="h-4 w-4" />
+                            <HugeiconsIcon icon={LeftToRightListBulletIcon} strokeWidth={2} className="size-3.5" />
                         )}
                     </Button>
                 </div>
@@ -192,11 +193,11 @@ export function MobileMenuButton() {
     return (
         <Button
             variant="ghost"
-            size="icon"
+            size="icon-xs"
             className="md:hidden"
             onClick={openMobile}
         >
-            <Menu className="h-5 w-5" />
+            <HugeiconsIcon icon={Menu01Icon} strokeWidth={2} className="size-4" />
         </Button>
     );
 }

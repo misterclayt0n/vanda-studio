@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Play, X, ImageOff } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { PlayIcon, Cancel01Icon, ImageNotFound01Icon } from "@hugeicons/core-free-icons";
 
 interface VideoPostProps {
     mediaUrl: string;
@@ -23,17 +24,17 @@ export function VideoPost({ mediaUrl, thumbnailUrl }: VideoPostProps) {
 
     if (isPlaying) {
         return (
-            <div className="relative aspect-square bg-black">
+            <div className="relative aspect-square bg-foreground">
                 <button
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setIsPlaying(false);
                     }}
-                    className="absolute top-2 right-2 z-10 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors"
-                    aria-label="Fechar vídeo"
+                    className="absolute top-2 right-2 z-10 rounded-none bg-foreground/60 p-1 text-background hover:bg-foreground/80 transition-colors"
+                    aria-label="Fechar video"
                 >
-                    <X className="h-4 w-4" />
+                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-4" />
                 </button>
                 <video
                     ref={videoRef}
@@ -68,13 +69,13 @@ export function VideoPost({ mediaUrl, thumbnailUrl }: VideoPostProps) {
                 />
             ) : (
                 <div className="h-full w-full flex flex-col items-center justify-center gap-2 bg-muted text-muted-foreground">
-                    <ImageOff className="h-8 w-8" />
-                    <span className="text-xs">Thumbnail indisponível</span>
+                    <HugeiconsIcon icon={ImageNotFound01Icon} strokeWidth={2} className="size-6" />
+                    <span className="text-xs">Thumbnail indisponivel</span>
                 </div>
             )}
             <div className="absolute inset-0 flex items-center justify-center">
-                <div className="rounded-full bg-black/50 p-3">
-                    <Play className="h-8 w-8 text-white fill-white" />
+                <div className="rounded-none bg-foreground/50 p-3">
+                    <HugeiconsIcon icon={PlayIcon} strokeWidth={2} className="size-6 text-background" />
                 </div>
             </div>
         </div>

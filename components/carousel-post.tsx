@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft01Icon, ArrowRight01Icon, ImageNotFound01Icon } from "@hugeicons/core-free-icons";
 
 type CarouselImage = {
     url: string;
@@ -21,7 +22,7 @@ export function CarouselPost({ images, alt = "Carousel image" }: CarouselPostPro
     if (images.length === 0) {
         return (
             <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                <ImageOff className="h-8 w-8" />
+                <HugeiconsIcon icon={ImageNotFound01Icon} strokeWidth={2} className="size-6" />
                 <span className="text-xs">Imagem indisponivel</span>
             </div>
         );
@@ -51,7 +52,7 @@ export function CarouselPost({ images, alt = "Carousel image" }: CarouselPostPro
         <div className="relative aspect-square bg-muted overflow-hidden group/carousel">
             {hasFailed ? (
                 <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <ImageOff className="h-8 w-8" />
+                    <HugeiconsIcon icon={ImageNotFound01Icon} strokeWidth={2} className="size-6" />
                     <span className="text-xs">Imagem indisponivel</span>
                 </div>
             ) : (
@@ -69,24 +70,24 @@ export function CarouselPost({ images, alt = "Carousel image" }: CarouselPostPro
                 <>
                     <button
                         onClick={goToPrevious}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-foreground/60 hover:bg-foreground/80 text-background rounded-none p-1 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
                         aria-label="Previous image"
                     >
-                        <ChevronLeft className="h-4 w-4" />
+                        <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} className="size-4" />
                     </button>
                     <button
                         onClick={goToNext}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-foreground/60 hover:bg-foreground/80 text-background rounded-none p-1 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
                         aria-label="Next image"
                     >
-                        <ChevronRight className="h-4 w-4" />
+                        <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-4" />
                     </button>
                 </>
             )}
 
             {/* Dots indicator */}
             {images.length > 1 && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                     {images.map((_, index) => (
                         <button
                             key={index}
@@ -95,10 +96,10 @@ export function CarouselPost({ images, alt = "Carousel image" }: CarouselPostPro
                                 e.stopPropagation();
                                 setCurrentIndex(index);
                             }}
-                            className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                            className={`w-1.5 h-1.5 rounded-none transition-colors ${
                                 index === currentIndex
-                                    ? "bg-white"
-                                    : "bg-white/50 hover:bg-white/75"
+                                    ? "bg-background"
+                                    : "bg-background/50 hover:bg-background/75"
                             }`}
                             aria-label={`Go to image ${index + 1}`}
                         />
@@ -108,7 +109,7 @@ export function CarouselPost({ images, alt = "Carousel image" }: CarouselPostPro
 
             {/* Image counter */}
             {images.length > 1 && (
-                <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md">
+                <div className="absolute top-2 right-2 bg-foreground/60 text-background text-xs px-2 py-0.5 rounded-none">
                     {currentIndex + 1} / {images.length}
                 </div>
             )}

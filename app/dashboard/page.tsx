@@ -4,6 +4,18 @@ import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+    Add01Icon,
+    InstagramIcon,
+    ArrowRight01Icon,
+    Delete02Icon,
+    AiMagicIcon,
+    FlashIcon,
+    UserMultiple02Icon,
+    GridViewIcon,
+    Loading01Icon,
+} from "@hugeicons/core-free-icons";
 
 // Type for project with storage URL (matches backend)
 type ProjectWithStorageUrl = Doc<"projects"> & {
@@ -24,7 +36,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Instagram, ArrowRight, Trash, Sparkles, Zap, Users, Grid3X3, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -80,43 +91,43 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-extrabold tracking-tight">
-                        <span className="text-gradient">Dashboard</span>
+                <div className="space-y-0.5">
+                    <h1 className="text-lg font-medium tracking-tight">
+                        Dashboard
                     </h1>
-                    <p className="text-muted-foreground">
-                        Gerencie suas marcas e análises.
+                    <p className="text-xs text-muted-foreground">
+                        Gerencie suas marcas e analises.
                     </p>
                 </div>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-                        <Sparkles className="h-3 w-3 text-primary" />
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-none bg-primary/10 ring-1 ring-primary/20">
+                        <HugeiconsIcon icon={AiMagicIcon} strokeWidth={2} className="size-3 text-primary" />
                         <span>Powered by AI</span>
                     </div>
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="col-span-full md:col-span-1 border-dashed border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="col-span-full md:col-span-1 ring-1 ring-primary/20">
                     <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-gradient-purple flex items-center justify-center shadow-lg shadow-primary/20">
-                                <Plus className="h-5 w-5 text-white" />
+                        <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-none bg-primary/10 flex items-center justify-center">
+                                <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-4 text-primary" />
                             </div>
                             <div>
-                                <CardTitle>Novo Projeto</CardTitle>
-                                <CardDescription>
+                                <CardTitle className="text-sm">Novo Projeto</CardTitle>
+                                <CardDescription className="text-xs">
                                     Adicione uma conta do Instagram
                                 </CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleCreateProject} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="handle" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <form onSubmit={handleCreateProject} className="space-y-3">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="handle" className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                                     @ do Instagram
                                 </Label>
                                 <Input
@@ -125,18 +136,17 @@ export default function DashboardPage() {
                                     value={newProjectHandle}
                                     onChange={(e) => setNewProjectHandle(e.target.value)}
                                     disabled={isCreating}
-                                    className="h-11"
                                 />
                             </div>
-                            <Button type="submit" variant="gradient" className="w-full" disabled={isCreating || !newProjectHandle}>
+                            <Button type="submit" className="w-full" disabled={isCreating || !newProjectHandle}>
                                 {isCreating ? (
                                     <>
-                                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <HugeiconsIcon icon={Loading01Icon} strokeWidth={2} className="size-3.5 animate-spin" />
                                         Criando...
                                     </>
                                 ) : (
                                     <>
-                                        <Zap className="h-4 w-4" />
+                                        <HugeiconsIcon icon={FlashIcon} strokeWidth={2} className="size-3.5" />
                                         Criar Projeto
                                     </>
                                 )}
@@ -147,22 +157,22 @@ export default function DashboardPage() {
 
                 {projects === undefined ? (
                     // Loading state
-                    <div className="col-span-full flex flex-col items-center justify-center py-16 text-muted-foreground">
-                        <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
-                        <span>Carregando projetos...</span>
+                    <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <HugeiconsIcon icon={Loading01Icon} strokeWidth={2} className="size-5 animate-spin mb-3" />
+                        <span className="text-xs">Carregando projetos...</span>
                     </div>
                 ) : projects.length === 0 ? (
                     // Empty state
-                    <div className="col-span-full md:col-span-2 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 p-12 text-center animate-in fade-in-50 bg-gradient-to-br from-muted/30 to-transparent">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-purple shadow-lg shadow-primary/20">
-                            <Instagram className="h-8 w-8 text-white" />
+                    <div className="col-span-full md:col-span-2 flex flex-col items-center justify-center rounded-none ring-1 ring-foreground/10 p-10 text-center animate-in fade-in-50">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-primary/10">
+                            <HugeiconsIcon icon={InstagramIcon} strokeWidth={2} className="size-6 text-primary" />
                         </div>
-                        <h3 className="mt-6 text-xl font-bold">Nenhum projeto ainda</h3>
-                        <p className="mb-4 mt-2 text-sm text-muted-foreground max-w-sm">
-                            Comece adicionando o @ do Instagram ao lado para iniciar sua primeira análise com IA.
+                        <h3 className="mt-4 text-sm font-medium">Nenhum projeto ainda</h3>
+                        <p className="mb-3 mt-1 text-xs text-muted-foreground max-w-sm">
+                            Comece adicionando o @ do Instagram ao lado para iniciar sua primeira analise com IA.
                         </p>
-                        <div className="flex items-center gap-2 text-xs text-primary">
-                            <ArrowRight className="h-3 w-3 animate-pulse" />
+                        <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                            <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3" />
                             <span>Adicione seu primeiro projeto</span>
                         </div>
                     </div>
@@ -172,40 +182,40 @@ export default function DashboardPage() {
                         <Card key={project._id} className="group relative overflow-hidden">
                             {/* Profile Picture & Header */}
                             <CardHeader>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5">
                                     {/* Profile Picture */}
                                     <div className="relative shrink-0">
-                                        <div className="h-12 w-12 rounded-xl overflow-hidden ring-2 ring-border/50 bg-gradient-to-br from-primary/20 to-pink-500/20">
+                                        <div className="h-10 w-10 rounded-none overflow-hidden ring-1 ring-foreground/10 bg-muted">
                                             {project.profilePictureStorageUrl ? (
                                                 <Image
                                                     src={project.profilePictureStorageUrl}
                                                     alt={project.name}
-                                                    width={48}
-                                                    height={48}
+                                                    width={40}
+                                                    height={40}
                                                     className="h-full w-full object-cover"
                                                 />
                                             ) : (
                                                 <div className="h-full w-full flex items-center justify-center">
-                                                    <Instagram className="h-5 w-5 text-primary/60" />
+                                                    <HugeiconsIcon icon={InstagramIcon} strokeWidth={2} className="size-4 text-muted-foreground" />
                                                 </div>
                                             )}
                                         </div>
                                         {/* Online indicator */}
-                                        <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-background border-2 border-background flex items-center justify-center">
-                                            <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                                        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-none bg-background ring-1 ring-background flex items-center justify-center">
+                                            <div className="h-2 w-2 rounded-none bg-[var(--success)]" />
                                         </div>
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <CardTitle className="truncate">
+                                        <CardTitle className="truncate text-xs">
                                             @{project.instagramHandle || project.name}
                                         </CardTitle>
                                         {project.bio ? (
-                                            <CardDescription className="line-clamp-1">
+                                            <CardDescription className="line-clamp-1 text-[10px]">
                                                 {project.bio}
                                             </CardDescription>
                                         ) : (
-                                            <CardDescription className="truncate">
+                                            <CardDescription className="truncate text-[10px]">
                                                 {project.instagramUrl}
                                             </CardDescription>
                                         )}
@@ -213,13 +223,13 @@ export default function DashboardPage() {
                                 </div>
                             </CardHeader>
 
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-3">
                                 {/* Stats */}
                                 {(project.followersCount !== undefined || project.postsCount !== undefined) && (
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-3">
                                         {project.followersCount !== undefined && (
-                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                <Users className="h-3 w-3" />
+                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                <HugeiconsIcon icon={UserMultiple02Icon} strokeWidth={2} className="size-3" />
                                                 <span className="font-medium text-foreground">
                                                     {project.followersCount >= 1000
                                                         ? `${(project.followersCount / 1000).toFixed(1)}k`
@@ -229,8 +239,8 @@ export default function DashboardPage() {
                                             </div>
                                         )}
                                         {project.postsCount !== undefined && (
-                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                <Grid3X3 className="h-3 w-3" />
+                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                <HugeiconsIcon icon={GridViewIcon} strokeWidth={2} className="size-3" />
                                                 <span className="font-medium text-foreground">{project.postsCount}</span>
                                                 <span>posts</span>
                                             </div>
@@ -239,7 +249,7 @@ export default function DashboardPage() {
                                 )}
 
                                 {/* Actions */}
-                                <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                                <div className="flex items-center justify-between pt-2 border-t">
                                     <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
                                         {new Date(project.createdAt).toLocaleDateString("pt-BR", {
                                             day: "2-digit",
@@ -247,45 +257,45 @@ export default function DashboardPage() {
                                             year: "numeric"
                                         })}
                                     </span>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                         <Button
                                             variant="outline"
-                                            size="sm"
+                                            size="xs"
                                             asChild
                                         >
                                             <Link href={`/dashboard/projects/${project._id}`}>
                                                 Abrir
-                                                <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                                                <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3" />
                                             </Link>
                                         </Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button
                                                     variant="ghost"
-                                                    size="icon-sm"
+                                                    size="icon-xs"
                                                     title="Excluir projeto"
                                                     disabled={deletingProjectId === project._id}
                                                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                                 >
                                                     {deletingProjectId === project._id ? (
-                                                        <div className="h-3 w-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                                                        <HugeiconsIcon icon={Loading01Icon} strokeWidth={2} className="size-3 animate-spin" />
                                                     ) : (
-                                                        <Trash className="h-3.5 w-3.5" />
+                                                        <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="size-3" />
                                                     )}
                                                 </Button>
                                             </AlertDialogTrigger>
-                                            <AlertDialogContent className="border-border/50 bg-background/95 backdrop-blur-xl">
+                                            <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Excluir projeto</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Deseja realmente excluir o projeto &quot;{project.name}&quot;? Essa ação não pode ser desfeita.
+                                                        Deseja realmente excluir o projeto &quot;{project.name}&quot;? Essa acao nao pode ser desfeita.
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                                     <AlertDialogAction
                                                         onClick={() => handleDeleteProject(project._id)}
-                                                        className="bg-destructive text-white hover:bg-destructive/90"
+                                                        variant="destructive"
                                                     >
                                                         Excluir
                                                     </AlertDialogAction>
@@ -298,9 +308,9 @@ export default function DashboardPage() {
 
                             {/* Loading overlay */}
                             {project.isFetching && (
-                                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                        <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                <div className="absolute inset-0 bg-background/80 supports-[backdrop-filter]:backdrop-blur-xs flex items-center justify-center">
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <HugeiconsIcon icon={Loading01Icon} strokeWidth={2} className="size-4 animate-spin" />
                                         <span>Analisando perfil...</span>
                                     </div>
                                 </div>

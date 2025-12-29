@@ -9,7 +9,30 @@ import { Button } from "@/components/ui/button";
 import { CarouselPost } from "@/components/carousel-post";
 import { ProjectHeader } from "@/components/project";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, ImageOff, FileText, Grid3X3, Video, BarChart3, CheckCircle2, Sparkles, Circle, Wand2, Copy, Check, Trash2, Download, Camera, Palette, Minimize2, Brush, AlertTriangle } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+    ArrowLeft01Icon,
+    Loading03Icon,
+    ImageNotFound01Icon,
+    File01Icon,
+    GridIcon,
+    Video01Icon,
+    AnalyticsUpIcon,
+    CheckmarkCircle02Icon,
+    SparklesIcon,
+    CircleIcon,
+    MagicWand01Icon,
+    Copy01Icon,
+    Tick01Icon,
+    Delete01Icon,
+    Download01Icon,
+    Camera01Icon,
+    PaintBrush01Icon,
+    Minimize01Icon,
+    ArtboardToolIcon,
+    AlertDiamondIcon,
+    PaintBoardIcon,
+} from "@hugeicons/core-free-icons";
 import { Progress } from "@/components/ui/progress";
 import {
     Dialog,
@@ -189,7 +212,7 @@ export default function ProjectDetailsPage() {
             <div className="space-y-4">
                 <p className="text-muted-foreground">Projeto inválido.</p>
                 <Button onClick={() => router.push("/dashboard")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                    <HugeiconsIcon icon={ArrowLeft01Icon} className="mr-2 size-4" /> Voltar
                 </Button>
             </div>
         );
@@ -198,7 +221,7 @@ export default function ProjectDetailsPage() {
     if (project === undefined) {
         return (
             <div className="flex flex-col items-center justify-center py-24 space-y-4 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <HugeiconsIcon icon={Loading03Icon} className="size-8 animate-spin" />
                 <p>Carregando projeto...</p>
             </div>
         );
@@ -209,7 +232,7 @@ export default function ProjectDetailsPage() {
             <div className="space-y-4">
                 <p className="text-muted-foreground">Projeto não encontrado.</p>
                 <Button onClick={() => router.push("/dashboard")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                    <HugeiconsIcon icon={ArrowLeft01Icon} className="mr-2 size-4" /> Voltar
                 </Button>
             </div>
         );
@@ -230,7 +253,7 @@ export default function ProjectDetailsPage() {
                     </p>
                 </div>
                 <Button variant="ghost" onClick={() => router.push("/dashboard")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para o dashboard
+                    <HugeiconsIcon icon={ArrowLeft01Icon} className="mr-2 size-4" /> Voltar para o dashboard
                 </Button>
             </div>
         );
@@ -267,15 +290,15 @@ export default function ProjectDetailsPage() {
             <Tabs defaultValue="strategy" className="w-full">
                 <TabsList className="w-full">
                     <TabsTrigger value="strategy">
-                        <FileText className="h-4 w-4" />
+                        <HugeiconsIcon icon={File01Icon} className="size-4" />
                         <span className="hidden sm:inline">Estrategia</span>
                     </TabsTrigger>
                     <TabsTrigger value="posts">
-                        <Grid3X3 className="h-4 w-4" />
+                        <HugeiconsIcon icon={GridIcon} className="size-4" />
                         <span className="hidden sm:inline">Posts</span>
                     </TabsTrigger>
                     <TabsTrigger value="generated" className="relative">
-                        <Wand2 className="h-4 w-4" />
+                        <HugeiconsIcon icon={MagicWand01Icon} className="size-4" />
                         <span className="hidden sm:inline">Posts Gerados</span>
                         {generatedPosts && generatedPosts.length > 0 && (
                             <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
@@ -296,7 +319,7 @@ export default function ProjectDetailsPage() {
                 <TabsContent value="posts" className="mt-6">
                     {posts === undefined ? (
                         <div className="flex items-center justify-center py-16">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <HugeiconsIcon icon={Loading03Icon} className="size-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : posts.length === 0 ? (
                         <EmptyTabContent message="Nenhum post coletado ainda." />
@@ -316,11 +339,11 @@ export default function ProjectDetailsPage() {
                 <TabsContent value="generated" className="mt-6">
                     {generatedPosts === undefined ? (
                         <div className="flex items-center justify-center py-16">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <HugeiconsIcon icon={Loading03Icon} className="size-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : generatedPosts.length === 0 ? (
-                        <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
-                            <Wand2 className="h-10 w-10 mx-auto mb-4 text-muted-foreground opacity-30" />
+                        <div className="rounded-none border border-dashed bg-muted/30 py-16 text-center">
+                            <HugeiconsIcon icon={MagicWand01Icon} className="size-10 mx-auto mb-4 text-muted-foreground opacity-30" />
                             <p className="text-muted-foreground">Nenhum post gerado ainda.</p>
                             <p className="text-sm text-muted-foreground mt-1">
                                 Execute a analise de marca e clique em &quot;Criar Post&quot; para gerar conteudo.
@@ -344,7 +367,7 @@ export default function ProjectDetailsPage() {
 
                     <div className="space-y-4 py-4">
                         {/* Context summary */}
-                        <div className="rounded-lg bg-muted p-3 text-sm">
+                        <div className="rounded-none bg-muted p-3 text-sm">
                             <p className="font-medium mb-1">Contexto disponivel:</p>
                             <ul className="list-disc list-inside text-muted-foreground space-y-1">
                                 <li>Analise de marca {contextStatus?.hasStrategy ? "✓" : "pendente"}</li>
@@ -357,27 +380,27 @@ export default function ProjectDetailsPage() {
                             <Label>Estilo da imagem</Label>
                             <div className="grid grid-cols-2 gap-2">
                                 {[
-                                    { value: "realistic" as const, label: "Realista", icon: Camera, desc: "Foto profissional" },
-                                    { value: "illustrative" as const, label: "Ilustrativo", icon: Palette, desc: "Arte digital" },
-                                    { value: "minimalist" as const, label: "Minimalista", icon: Minimize2, desc: "Clean e simples" },
-                                    { value: "artistic" as const, label: "Artistico", icon: Brush, desc: "Criativo e ousado" },
+                                    { value: "realistic" as const, label: "Realista", icon: Camera01Icon, desc: "Foto profissional" },
+                                    { value: "illustrative" as const, label: "Ilustrativo", icon: PaintBoardIcon, desc: "Arte digital" },
+                                    { value: "minimalist" as const, label: "Minimalista", icon: Minimize01Icon, desc: "Clean e simples" },
+                                    { value: "artistic" as const, label: "Artistico", icon: PaintBrush01Icon, desc: "Criativo e ousado" },
                                 ].map((style) => (
                                     <button
                                         key={style.value}
                                         type="button"
                                         onClick={() => setImageStyle(style.value)}
                                         className={cn(
-                                            "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
+                                            "flex items-center gap-3 p-3 rounded-none border text-left transition-all",
                                             imageStyle === style.value
                                                 ? "border-primary bg-primary/10 ring-1 ring-primary"
                                                 : "border-border hover:border-primary/50 hover:bg-muted/50"
                                         )}
                                     >
                                         <div className={cn(
-                                            "flex h-9 w-9 items-center justify-center rounded-lg",
+                                            "flex h-9 w-9 items-center justify-center rounded-none",
                                             imageStyle === style.value ? "bg-primary text-primary-foreground" : "bg-muted"
                                         )}>
-                                            <style.icon className="h-4 w-4" />
+                                            <HugeiconsIcon icon={style.icon} className="size-4" />
                                         </div>
                                         <div>
                                             <p className="text-sm font-medium">{style.label}</p>
@@ -402,7 +425,7 @@ export default function ProjectDetailsPage() {
 
                         {/* Error display */}
                         {generateError && (
-                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                            <div className="p-3 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive">
                                 {generateError}
                             </div>
                         )}
@@ -415,12 +438,12 @@ export default function ProjectDetailsPage() {
                         <Button onClick={handleGenerate} disabled={isGenerating || !contextStatus?.isReady}>
                             {isGenerating ? (
                                 <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <HugeiconsIcon icon={Loading03Icon} className="size-4 mr-2 animate-spin" />
                                     Gerando...
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    <HugeiconsIcon icon={SparklesIcon} className="size-4 mr-2" />
                                     Gerar Post
                                 </>
                             )}
@@ -434,7 +457,7 @@ export default function ProjectDetailsPage() {
 
 function EmptyTabContent({ message }: { message: string }) {
     return (
-        <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
+        <div className="rounded-none border border-dashed bg-muted/30 py-16 text-center">
             <p className="text-muted-foreground">{message}</p>
         </div>
     );
@@ -449,7 +472,7 @@ function PostImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: strin
     if (!currentUrl || currentUrlIndex >= urls.length) {
         return (
             <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                <ImageOff className="h-8 w-8" />
+                <HugeiconsIcon icon={ImageNotFound01Icon} className="size-8" />
                 <span className="text-xs">Imagem indisponivel</span>
             </div>
         );
@@ -525,7 +548,7 @@ function PostsGrid({
     return (
         <div className="space-y-4">
             {/* Selection header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border bg-muted/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-none border bg-muted/30">
                 <div className="flex items-center gap-4">
                     <p className="text-sm text-muted-foreground">
                         <span className="font-medium text-foreground">{selectedCount}</span> selecionados
@@ -533,8 +556,8 @@ function PostsGrid({
                         <span className="font-medium text-foreground">{analyzedCount}</span> analisados
                     </p>
                     {analyzedCount >= 3 && (
-                        <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/30">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                        <Badge variant="success" className="gap-1">
+                            <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3" />
                             Contexto pronto
                         </Badge>
                     )}
@@ -547,12 +570,12 @@ function PostsGrid({
                 >
                     {isAnalyzing ? (
                         <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <HugeiconsIcon icon={Loading03Icon} className="size-4 animate-spin" />
                             Analisando...
                         </>
                     ) : (
                         <>
-                            <BarChart3 className="h-4 w-4" />
+                            <HugeiconsIcon icon={AnalyticsUpIcon} className="size-4" />
                             Analisar Selecionados ({selectedNotAnalyzed.length})
                         </>
                     )}
@@ -561,15 +584,15 @@ function PostsGrid({
 
             {/* Error display */}
             {error && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                <div className="p-3 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive">
                     {error}
                 </div>
             )}
 
             {/* Video notice */}
             {videoCount > 0 && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
-                    <Video className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-3 p-3 rounded-none bg-muted/50 border border-muted-foreground/20">
+                    <HugeiconsIcon icon={Video01Icon} className="size-5 text-muted-foreground shrink-0" />
                     <p className="text-sm text-muted-foreground">
                         {videoCount} {videoCount === 1 ? "video nao suportado" : "videos nao suportados"} no momento.
                     </p>
@@ -578,8 +601,8 @@ function PostsGrid({
 
             {/* If no image posts */}
             {imagePosts.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-muted/30 py-16 text-center">
-                    <Video className="h-10 w-10 mx-auto mb-4 text-muted-foreground opacity-30" />
+                <div className="rounded-none border border-dashed bg-muted/30 py-16 text-center">
+                    <HugeiconsIcon icon={Video01Icon} className="size-10 mx-auto mb-4 text-muted-foreground opacity-30" />
                     <p className="text-muted-foreground">Apenas videos foram coletados.</p>
                     <p className="text-sm text-muted-foreground mt-1">Suporte a videos em breve.</p>
                 </div>
@@ -611,7 +634,7 @@ function PostsGrid({
                             <div
                                 key={post._id}
                                 className={cn(
-                                    "group rounded-xl border bg-card overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/5",
+                                    "group rounded-none border bg-card overflow-hidden transition-all",
                                     isSelected && "border-primary ring-2 ring-primary/20",
                                     hasAnalysis && !isSelected && "border-green-500/30",
                                     !isSelected && !hasAnalysis && "hover:border-primary/40"
@@ -655,7 +678,7 @@ function PostsGrid({
                                         {/* Score badge */}
                                         {score !== undefined && (
                                             <div
-                                                className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${scoreColor}`}
+                                                className={`absolute top-2 right-2 px-2 py-1 rounded-none text-xs font-bold text-white shadow-lg ${scoreColor}`}
                                             >
                                                 {score}
                                             </div>
@@ -663,8 +686,8 @@ function PostsGrid({
 
                                         {/* Analysis indicator */}
                                         {hasAnalysis && (
-                                            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/90 shadow-lg">
-                                                <CheckCircle2 className="h-3 w-3 text-white" />
+                                            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-none bg-green-500/90 shadow-lg">
+                                                <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3 text-white" />
                                                 <span className="text-[10px] font-medium text-white">Analisado</span>
                                             </div>
                                         )}
@@ -728,20 +751,17 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
     const canCreate = isReady && hasEnoughCredits;
 
     return (
-        <div className="rounded-xl border bg-card p-4 space-y-4">
+        <div className="rounded-none border bg-card p-4 space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-sm">Contexto para Geracao</h3>
                 <div title={!canCreate && !hasEnoughCredits ? "Creditos insuficientes" : undefined}>
                     <Button
                         onClick={onCreateClick}
                         disabled={!canCreate}
-                        className={cn(
-                            "gap-2",
-                            canCreate && "animate-pulse bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90"
-                        )}
+                        className="gap-2"
                         size="sm"
                     >
-                        <Sparkles className="h-4 w-4" />
+                        <HugeiconsIcon icon={SparklesIcon} className="size-4" />
                         Criar Post
                     </Button>
                 </div>
@@ -751,9 +771,9 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
                 {/* Strategy check */}
                 <div className="flex items-center gap-2 text-sm">
                     {hasStrategy ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4 text-green-500" />
                     ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground" />
+                        <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
                     )}
                     <span className={hasStrategy ? "text-foreground" : "text-muted-foreground"}>
                         Analise de marca
@@ -764,9 +784,9 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
                 <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                         {analyzedCount >= requiredPosts ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4 text-green-500" />
                         ) : (
-                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            <HugeiconsIcon icon={AlertDiamondIcon} className="size-4 text-yellow-500" />
                         )}
                         <span className={analyzedCount >= requiredPosts ? "text-foreground" : "text-yellow-600 dark:text-yellow-400"}>
                             Posts analisados ({analyzedCount}/{requiredPosts})
@@ -783,8 +803,8 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
             )}
 
             {canCreate && hasLimitedContext && (
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs">
-                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-2 p-2 rounded-none bg-yellow-500/10 border border-yellow-500/30 text-xs">
+                    <HugeiconsIcon icon={AlertDiamondIcon} className="size-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
                     <p className="text-yellow-600 dark:text-yellow-400">
                         Poucos posts analisados. A geracao pode ser menos precisa. Analise mais posts para melhores resultados.
                     </p>
@@ -844,7 +864,7 @@ function GeneratedPostCard({ post, onClick }: { post: GeneratedPostWithImage; on
 
     return (
         <div
-            className="group rounded-xl border bg-card overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:shadow-primary/5 hover:border-primary/40"
+            className="group rounded-none border bg-card overflow-hidden cursor-pointer transition-all hover:border-primary/40"
             onClick={onClick}
         >
             {/* Image */}
@@ -859,13 +879,13 @@ function GeneratedPostCard({ post, onClick }: { post: GeneratedPostWithImage; on
                             onError={() => setImageError(true)}
                         />
                         <Badge className="absolute top-2 right-2 bg-purple-600/90 hover:bg-purple-600">
-                            <Sparkles className="h-3 w-3 mr-1" />
+                            <HugeiconsIcon icon={SparklesIcon} className="size-3 mr-1" />
                             IA
                         </Badge>
                     </>
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <Wand2 className="h-8 w-8 opacity-30" />
+                        <HugeiconsIcon icon={MagicWand01Icon} className="size-8 opacity-30" />
                         <span className="text-xs">Sem imagem</span>
                     </div>
                 )}
@@ -873,10 +893,10 @@ function GeneratedPostCard({ post, onClick }: { post: GeneratedPostWithImage; on
                 {/* Quick copy button */}
                 <button
                     onClick={handleCopy}
-                    className="absolute bottom-2 right-2 p-2 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                    className="absolute bottom-2 right-2 p-2 rounded-none bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
                     title="Copiar legenda"
                 >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? <HugeiconsIcon icon={Tick01Icon} className="size-4" /> : <HugeiconsIcon icon={Copy01Icon} className="size-4" />}
                 </button>
 
                 {/* Hover overlay */}
@@ -964,7 +984,7 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
         <div className="space-y-4">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    <HugeiconsIcon icon={SparklesIcon} className="size-5 text-purple-500" />
                     Post Gerado
                 </DialogTitle>
                 <DialogDescription>
@@ -981,7 +1001,7 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
 
             {/* Image */}
             {post.imageUrl && !imageError && (
-                <div className="relative rounded-lg overflow-hidden bg-muted">
+                <div className="relative rounded-none overflow-hidden bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={post.imageUrl}
@@ -995,7 +1015,7 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
                         className="absolute top-2 right-2"
                         onClick={handleDownload}
                     >
-                        <Download className="h-4 w-4 mr-1" />
+                        <HugeiconsIcon icon={Download01Icon} className="size-4 mr-1" />
                         Baixar
                     </Button>
                 </div>
@@ -1012,7 +1032,7 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
                         className="resize-none"
                     />
                 ) : (
-                    <div className="p-3 rounded-lg bg-muted/50 border">
+                    <div className="p-3 rounded-none bg-muted/50 border">
                         <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.caption}</p>
                     </div>
                 )}
@@ -1033,7 +1053,7 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
                 {isEditing ? (
                     <>
                         <Button onClick={handleSave} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            {isSaving ? <HugeiconsIcon icon={Loading03Icon} className="size-4 animate-spin mr-2" /> : null}
                             Salvar
                         </Button>
                         <Button variant="outline" onClick={() => {
@@ -1049,13 +1069,13 @@ function GeneratedPostDetail({ post, onClose }: { post: GeneratedPostWithImage; 
                             Editar
                         </Button>
                         <Button variant="outline" onClick={handleCopy}>
-                            {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                            {copied ? <HugeiconsIcon icon={Tick01Icon} className="size-4 mr-2" /> : <HugeiconsIcon icon={Copy01Icon} className="size-4 mr-2" />}
                             Copiar
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
                                 <Button variant="ghost" className="text-destructive hover:text-destructive ml-auto">
-                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    <HugeiconsIcon icon={Delete01Icon} className="size-4 mr-2" />
                                     Excluir
                                 </Button>
                             </AlertDialogTrigger>
