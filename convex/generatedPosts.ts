@@ -335,10 +335,10 @@ export const checkContextReady = query({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            return { hasStrategy: false, analyzedCount: 0, isReady: false, requiredPosts: 3, hasLimitedContext: true };
+            return { hasStrategy: false, analyzedCount: 0, isReady: true, requiredPosts: 3, hasLimitedContext: true };
         }
 
-        // Check brand analysis
+        // Check brand analysis (optional, for context enrichment)
         const brandAnalyses = await ctx.db
             .query("brand_analysis")
             .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
@@ -351,7 +351,7 @@ export const checkContextReady = query({
             !!latestAnalysis.targetAudience &&
             !!latestAnalysis.contentPillars;
 
-        // Check post analyses
+        // Check post analyses (optional, for context enrichment)
         const postAnalyses = await ctx.db
             .query("post_analysis")
             .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
@@ -359,9 +359,9 @@ export const checkContextReady = query({
 
         const analyzedCount = postAnalyses.filter((a) => a.hasAnalysis).length;
         const requiredPosts = 3;
-        // Only require brand analysis to be ready - posts are optional
-        const isReady = hasStrategy;
-        const hasLimitedContext = analyzedCount < requiredPosts;
+        // Always ready - brand analysis and posts are optional context
+        const isReady = true;
+        const hasLimitedContext = !hasStrategy || analyzedCount < requiredPosts;
 
         return {
             hasStrategy,

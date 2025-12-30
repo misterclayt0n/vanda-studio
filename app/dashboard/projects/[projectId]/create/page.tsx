@@ -415,12 +415,18 @@ export default function CreatePostPage() {
             </div>
 
             {/* Main Content - Two Columns */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6 min-h-0">
                 {/* Left Column - Brief */}
-                <div className="flex flex-col gap-4 min-h-0">
-                    <div className="rounded-none border bg-card p-4 space-y-4">
+                <aside className="flex flex-col min-h-0">
+                    <div className="rounded-none border bg-card flex flex-col min-h-0">
+                        <div className="px-4 py-3 border-b">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Brief do post
+                            </p>
+                        </div>
+
                         {/* Post Type - Compact */}
-                        <div className="space-y-2">
+                        <div className="p-4 border-b space-y-2">
                             <Label className="text-xs">Tipo de Post</Label>
                             <div className="flex gap-2">
                                 {(["promocao", "conteudo_profissional", "engajamento"] as PostType[]).map((type) => (
@@ -441,7 +447,7 @@ export default function CreatePostPage() {
                         </div>
 
                         {/* Context */}
-                        <div className="space-y-1">
+                        <div className="p-4 border-b space-y-1">
                             <Label className="text-xs">O que voce quer comunicar?</Label>
                             <Textarea
                                 placeholder="Descreva o que voce quer no post... Ex: Post sobre o dia do mel, fundo branco, texto na imagem"
@@ -456,7 +462,7 @@ export default function CreatePostPage() {
                         </div>
 
                         {/* Image Upload - Compact */}
-                        <div className="space-y-1">
+                        <div className="p-4 border-b space-y-1">
                             <Label className="text-xs">Imagens de Referencia (opcional)</Label>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
@@ -501,19 +507,21 @@ export default function CreatePostPage() {
                         </div>
 
                         {/* Credits info */}
-                        <div className="pt-2 border-t">
+                        <div className="p-4">
                             <p className="text-[10px] text-muted-foreground">
                                 Custo: 2 creditos (1 legenda + 1 imagem) | Saldo: {userQuota?.remaining ?? 0} creditos
                             </p>
                         </div>
                     </div>
-                </div>
+                </aside>
 
                 {/* Right Column - Preview/Result */}
                 <div className="rounded-none border bg-card p-4 flex flex-col min-h-0">
-                    <h2 className="font-medium text-sm mb-3">
-                        {generatedPost ? "Post Gerado" : "Preview"}
-                    </h2>
+                    <div className="border-b pb-3 mb-4">
+                        <h2 className="font-medium text-sm">
+                            {generatedPost ? "Post Gerado" : "Preview"}
+                        </h2>
+                    </div>
                     
                     {isGenerating ? (
                         <div className="flex-1 flex flex-col items-center justify-center">
@@ -522,302 +530,308 @@ export default function CreatePostPage() {
                             <p className="text-xs text-muted-foreground mt-1">Isso pode levar ate 30s</p>
                         </div>
                     ) : generatedPost && generatedPostData ? (
-                        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-                            {/* Generated Image with regenerate overlay */}
-                            <div className="relative aspect-square rounded-none bg-muted/50 border mb-3 overflow-hidden group shrink-0">
-                                {isRegeneratingImage ? (
-                                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/80">
-                                        <HugeiconsIcon icon={Loading03Icon} className="size-8 animate-spin text-primary mb-2" />
-                                        <p className="text-xs text-muted-foreground">Regenerando imagem...</p>
-                                    </div>
-                                ) : generatedPostData.imageUrl ? (
-                                    <>
-                                        <img
-                                            src={generatedPostData.imageUrl}
-                                            alt="Generated"
-                                            className="w-full h-full object-cover"
-                                        />
-                                        {/* Hover overlay with actions */}
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="rounded-none"
-                                                onClick={() => setShowFeedbackFor(showFeedbackFor === "image" ? null : "image")}
-                                            >
-                                                <HugeiconsIcon icon={RefreshIcon} className="size-3 mr-1" />
-                                                Regenerar
-                                            </Button>
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="rounded-none"
-                                                asChild
-                                            >
-                                                <a href={generatedPostData.imageUrl} download>
-                                                    <HugeiconsIcon icon={Download01Icon} className="size-3" />
-                                                </a>
-                                            </Button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                        <HugeiconsIcon icon={Image01Icon} className="size-8 opacity-30" />
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* Feedback input for image regeneration */}
-                            {showFeedbackFor === "image" && (
-                                <div className="mb-3 p-3 border bg-muted/30 space-y-2 shrink-0">
-                                    <Label className="text-xs">O que voce quer mudar na imagem?</Label>
-                                    <Textarea
-                                        placeholder="Ex: Fundo branco, mais claro, foco no produto..."
-                                        value={feedback}
-                                        onChange={(e) => setFeedback(e.target.value)}
-                                        rows={2}
-                                        className="rounded-none text-sm"
-                                    />
-                                    <div className="flex gap-2 items-center">
-                                        <Button
-                                            size="sm"
-                                            className="rounded-none gap-1"
-                                            onClick={() => showRegenerateConfirmation("image")}
-                                            disabled={isRegeneratingImage}
-                                        >
-                                            {isRegeneratingImage ? (
-                                                <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
-                                            ) : (
-                                                <HugeiconsIcon icon={RefreshIcon} className="size-3" />
-                                            )}
-                                            Regenerar Imagem
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="rounded-none"
-                                            onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
-                                        >
-                                            Cancelar
-                                        </Button>
-                                        <span className="text-xs text-muted-foreground ml-auto">
-                                            1 credito
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* Caption section */}
-                            <div className="flex-1 min-h-0 flex flex-col">
-                                <div className="flex items-center justify-between mb-2 shrink-0">
-                                    <p className="text-xs text-muted-foreground">Legenda</p>
-                                    <div className="flex gap-1">
-                                        {!isEditingCaption && (
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] min-h-0">
+                                <div className="flex flex-col min-h-0 gap-3">
+                                    {/* Generated Image with regenerate overlay */}
+                                    <div className="relative w-full max-w-[420px] aspect-[4/5] rounded-none bg-muted/50 border overflow-hidden group mx-auto">
+                                        {isRegeneratingImage ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-muted/80">
+                                                <HugeiconsIcon icon={Loading03Icon} className="size-8 animate-spin text-primary mb-2" />
+                                                <p className="text-xs text-muted-foreground">Regenerando imagem...</p>
+                                            </div>
+                                        ) : generatedPostData.imageUrl ? (
                                             <>
+                                                <img
+                                                    src={generatedPostData.imageUrl}
+                                                    alt="Generated"
+                                                    className="w-full h-full object-contain"
+                                                />
+                                                {/* Hover overlay with actions */}
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="rounded-none"
+                                                        onClick={() => setShowFeedbackFor(showFeedbackFor === "image" ? null : "image")}
+                                                    >
+                                                        <HugeiconsIcon icon={RefreshIcon} className="size-3 mr-1" />
+                                                        Regenerar
+                                                    </Button>
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="rounded-none"
+                                                        asChild
+                                                    >
+                                                        <a href={generatedPostData.imageUrl} download>
+                                                            <HugeiconsIcon icon={Download01Icon} className="size-3" />
+                                                        </a>
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                <HugeiconsIcon icon={Image01Icon} className="size-8 opacity-30" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Feedback input for image regeneration */}
+                                    {showFeedbackFor === "image" && (
+                                        <div className="p-3 border bg-muted/30 space-y-2">
+                                            <Label className="text-xs">O que voce quer mudar na imagem?</Label>
+                                            <Textarea
+                                                placeholder="Ex: Fundo branco, mais claro, foco no produto..."
+                                                value={feedback}
+                                                onChange={(e) => setFeedback(e.target.value)}
+                                                rows={2}
+                                                className="rounded-none text-sm"
+                                            />
+                                            <div className="flex gap-2 items-center">
                                                 <Button
-                                                    variant="ghost"
                                                     size="sm"
-                                                    className="h-6 px-2"
-                                                    onClick={handleStartEditCaption}
-                                                    title="Editar legenda"
+                                                    className="rounded-none gap-1"
+                                                    onClick={() => showRegenerateConfirmation("image")}
+                                                    disabled={isRegeneratingImage}
                                                 >
-                                                    <HugeiconsIcon icon={Edit01Icon} className="size-3" />
+                                                    {isRegeneratingImage ? (
+                                                        <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
+                                                    ) : (
+                                                        <HugeiconsIcon icon={RefreshIcon} className="size-3" />
+                                                    )}
+                                                    Regenerar Imagem
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-6 px-2"
-                                                    onClick={() => setShowFeedbackFor(showFeedbackFor === "caption" ? null : "caption")}
-                                                    title="Regenerar legenda"
+                                                    className="rounded-none"
+                                                    onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
                                                 >
-                                                    <HugeiconsIcon icon={RefreshIcon} className="size-3" />
+                                                    Cancelar
                                                 </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 px-2"
-                                                    onClick={handleCopyCaption}
-                                                    title="Copiar legenda"
-                                                >
-                                                    <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className="size-3" />
-                                                </Button>
-                                                {generationHistory && generationHistory.length > 0 && (
+                                                <span className="text-xs text-muted-foreground ml-auto">
+                                                    1 credito
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Caption section */}
+                                <div className="flex flex-col min-h-0 border-t border-border/60 pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border/60 lg:pl-4">
+                                    <div className="flex items-center justify-between mb-2 shrink-0">
+                                        <p className="text-xs text-muted-foreground">Legenda</p>
+                                        <div className="flex gap-1">
+                                            {!isEditingCaption && (
+                                                <>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
                                                         className="h-6 px-2"
-                                                        onClick={() => setShowHistory(!showHistory)}
-                                                        title="Ver historico"
+                                                        onClick={handleStartEditCaption}
+                                                        title="Editar legenda"
                                                     >
-                                                        <HugeiconsIcon icon={Clock01Icon} className="size-3" />
-                                                        <span className="text-[10px] ml-1">{generationHistory.length}</span>
+                                                        <HugeiconsIcon icon={Edit01Icon} className="size-3" />
                                                     </Button>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                {/* Feedback input for caption regeneration */}
-                                {showFeedbackFor === "caption" && !isEditingCaption && (
-                                    <div className="mb-3 p-3 border bg-muted/30 space-y-2 shrink-0">
-                                        <Label className="text-xs">O que voce quer mudar na legenda?</Label>
-                                        <Textarea
-                                            placeholder="Ex: Tom mais casual, adicionar emojis, mais curta..."
-                                            value={feedback}
-                                            onChange={(e) => setFeedback(e.target.value)}
-                                            rows={2}
-                                            className="rounded-none text-sm"
-                                        />
-                                        <div className="flex gap-2 items-center flex-wrap">
-                                            <Button
-                                                size="sm"
-                                                className="rounded-none gap-1"
-                                                onClick={() => showRegenerateConfirmation("caption")}
-                                                disabled={isRegeneratingCaption}
-                                            >
-                                                {isRegeneratingCaption ? (
-                                                    <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
-                                                ) : (
-                                                    <HugeiconsIcon icon={TextIcon} className="size-3" />
-                                                )}
-                                                Regenerar Legenda
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="rounded-none gap-1"
-                                                onClick={() => showRegenerateConfirmation("both")}
-                                                disabled={isRegeneratingCaption}
-                                            >
-                                                <HugeiconsIcon icon={SparklesIcon} className="size-3" />
-                                                Regenerar Tudo
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="rounded-none"
-                                                onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
-                                            >
-                                                Cancelar
-                                            </Button>
-                                            <span className="text-xs text-muted-foreground ml-auto">
-                                                1-2 creditos
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {/* Editable caption or display */}
-                                {isEditingCaption ? (
-                                    <div className="flex-1 flex flex-col min-h-0">
-                                        <Textarea
-                                            value={editedCaption}
-                                            onChange={(e) => setEditedCaption(e.target.value)}
-                                            className="flex-1 rounded-none text-sm min-h-[100px]"
-                                        />
-                                        <div className="flex gap-2 mt-2 shrink-0">
-                                            <Button
-                                                size="sm"
-                                                className="rounded-none gap-1"
-                                                onClick={handleSaveCaption}
-                                            >
-                                                <HugeiconsIcon icon={Tick01Icon} className="size-3" />
-                                                Salvar
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="rounded-none gap-1"
-                                                onClick={handleCancelEditCaption}
-                                            >
-                                                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-                                                Cancelar
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : isRegeneratingCaption ? (
-                                    <div className="flex-1 flex items-center justify-center">
-                                        <div className="text-center">
-                                            <HugeiconsIcon icon={Loading03Icon} className="size-6 animate-spin text-primary mx-auto mb-2" />
-                                            <p className="text-xs text-muted-foreground">Regenerando legenda...</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm whitespace-pre-wrap flex-1 overflow-y-auto">{generatedPostData.caption}</p>
-                                )}
-                                
-                                {/* Version History Panel */}
-                                {showHistory && generationHistory && generationHistory.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t shrink-0">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <p className="text-xs font-medium">Historico de versoes</p>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-5 px-1"
-                                                onClick={() => setShowHistory(false)}
-                                            >
-                                                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-                                            </Button>
-                                        </div>
-                                        <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                                            {generationHistory.map((version) => (
-                                                <div
-                                                    key={version._id}
-                                                    className="flex items-start gap-2 p-2 border bg-muted/20 hover:bg-muted/40 transition-colors"
-                                                >
-                                                    {/* Thumbnail */}
-                                                    <div className="size-10 shrink-0 bg-muted rounded-none overflow-hidden">
-                                                        {version.imageUrl ? (
-                                                            <img
-                                                                src={version.imageUrl}
-                                                                alt={`v${version.version}`}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <HugeiconsIcon icon={Image01Icon} className="size-4 opacity-30" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Info */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-1">
-                                                            <span className="text-xs font-medium">v{version.version}</span>
-                                                            <span className="text-[10px] text-muted-foreground">
-                                                                {version.action === "initial" && "Inicial"}
-                                                                {version.action === "regenerate_image" && "Imagem"}
-                                                                {version.action === "regenerate_caption" && "Legenda"}
-                                                                {version.action === "regenerate_both" && "Tudo"}
-                                                                {version.action === "edit_caption" && "Editado"}
-                                                                {version.action === "restore" && "Restaurado"}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-[10px] text-muted-foreground truncate">
-                                                            {version.caption.substring(0, 50)}...
-                                                        </p>
-                                                        {version.feedback && (
-                                                            <p className="text-[10px] text-muted-foreground italic truncate">
-                                                                &ldquo;{version.feedback}&rdquo;
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    {/* Restore button */}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="h-6 px-2 shrink-0"
-                                                        onClick={() => handleRestoreVersion(version.version)}
-                                                        title="Restaurar esta versao"
+                                                        className="h-6 px-2"
+                                                        onClick={() => setShowFeedbackFor(showFeedbackFor === "caption" ? null : "caption")}
+                                                        title="Regenerar legenda"
                                                     >
-                                                        <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-3" />
+                                                        <HugeiconsIcon icon={RefreshIcon} className="size-3" />
                                                     </Button>
-                                                </div>
-                                            ))}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 px-2"
+                                                        onClick={handleCopyCaption}
+                                                        title="Copiar legenda"
+                                                    >
+                                                        <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className="size-3" />
+                                                    </Button>
+                                                    {generationHistory && generationHistory.length > 0 && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2"
+                                                            onClick={() => setShowHistory(!showHistory)}
+                                                            title="Ver historico"
+                                                        >
+                                                            <HugeiconsIcon icon={Clock01Icon} className="size-3" />
+                                                            <span className="text-[10px] ml-1">{generationHistory.length}</span>
+                                                        </Button>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
-                                )}
+
+                                    {/* Feedback input for caption regeneration */}
+                                    {showFeedbackFor === "caption" && !isEditingCaption && (
+                                        <div className="mb-3 p-3 border bg-muted/30 space-y-2 shrink-0">
+                                            <Label className="text-xs">O que voce quer mudar na legenda?</Label>
+                                            <Textarea
+                                                placeholder="Ex: Tom mais casual, adicionar emojis, mais curta..."
+                                                value={feedback}
+                                                onChange={(e) => setFeedback(e.target.value)}
+                                                rows={2}
+                                                className="rounded-none text-sm"
+                                            />
+                                            <div className="flex gap-2 items-center flex-wrap">
+                                                <Button
+                                                    size="sm"
+                                                    className="rounded-none gap-1"
+                                                    onClick={() => showRegenerateConfirmation("caption")}
+                                                    disabled={isRegeneratingCaption}
+                                                >
+                                                    {isRegeneratingCaption ? (
+                                                        <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
+                                                    ) : (
+                                                        <HugeiconsIcon icon={TextIcon} className="size-3" />
+                                                    )}
+                                                    Regenerar Legenda
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="rounded-none gap-1"
+                                                    onClick={() => showRegenerateConfirmation("both")}
+                                                    disabled={isRegeneratingCaption}
+                                                >
+                                                    <HugeiconsIcon icon={SparklesIcon} className="size-3" />
+                                                    Regenerar Tudo
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="rounded-none"
+                                                    onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <span className="text-xs text-muted-foreground ml-auto">
+                                                    1-2 creditos
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Editable caption or display */}
+                                    {isEditingCaption ? (
+                                        <div className="flex-1 flex flex-col min-h-0">
+                                            <Textarea
+                                                value={editedCaption}
+                                                onChange={(e) => setEditedCaption(e.target.value)}
+                                                className="flex-1 rounded-none text-sm min-h-[120px]"
+                                            />
+                                            <div className="flex gap-2 mt-2 shrink-0">
+                                                <Button
+                                                    size="sm"
+                                                    className="rounded-none gap-1"
+                                                    onClick={handleSaveCaption}
+                                                >
+                                                    <HugeiconsIcon icon={Tick01Icon} className="size-3" />
+                                                    Salvar
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="rounded-none gap-1"
+                                                    onClick={handleCancelEditCaption}
+                                                >
+                                                    <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+                                                    Cancelar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : isRegeneratingCaption ? (
+                                        <div className="flex-1 flex items-center justify-center">
+                                            <div className="text-center">
+                                                <HugeiconsIcon icon={Loading03Icon} className="size-6 animate-spin text-primary mx-auto mb-2" />
+                                                <p className="text-xs text-muted-foreground">Regenerando legenda...</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-1 min-h-0 overflow-y-auto">
+                                            <p className="text-sm whitespace-pre-wrap">{generatedPostData.caption}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Version History Panel */}
+                                    {showHistory && generationHistory && generationHistory.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t shrink-0">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-xs font-medium">Historico de versoes</p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-5 px-1"
+                                                    onClick={() => setShowHistory(false)}
+                                                >
+                                                    <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+                                                </Button>
+                                            </div>
+                                            <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                                                {generationHistory.map((version) => (
+                                                    <div
+                                                        key={version._id}
+                                                        className="flex items-start gap-2 p-2 border bg-muted/20 hover:bg-muted/40 transition-colors"
+                                                    >
+                                                        {/* Thumbnail */}
+                                                        <div className="size-10 shrink-0 bg-muted rounded-none overflow-hidden">
+                                                            {version.imageUrl ? (
+                                                                <img
+                                                                    src={version.imageUrl}
+                                                                    alt={`v${version.version}`}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <HugeiconsIcon icon={Image01Icon} className="size-4 opacity-30" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {/* Info */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-xs font-medium">v{version.version}</span>
+                                                                <span className="text-[10px] text-muted-foreground">
+                                                                    {version.action === "initial" && "Inicial"}
+                                                                    {version.action === "regenerate_image" && "Imagem"}
+                                                                    {version.action === "regenerate_caption" && "Legenda"}
+                                                                    {version.action === "regenerate_both" && "Tudo"}
+                                                                    {version.action === "edit_caption" && "Editado"}
+                                                                    {version.action === "restore" && "Restaurado"}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-muted-foreground truncate">
+                                                                {version.caption.substring(0, 50)}...
+                                                            </p>
+                                                            {version.feedback && (
+                                                                <p className="text-[10px] text-muted-foreground italic truncate">
+                                                                    &ldquo;{version.feedback}&rdquo;
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        {/* Restore button */}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 shrink-0"
+                                                            onClick={() => handleRestoreVersion(version.version)}
+                                                            title="Restaurar esta versao"
+                                                        >
+                                                            <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-3" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ) : (

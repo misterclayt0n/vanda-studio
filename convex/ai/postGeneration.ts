@@ -47,26 +47,23 @@ export const generatePost = action({
             throw new Error("Project not found or access denied");
         }
 
-        // 5. Get brand analysis - required for generation
+        // 5. Get brand analysis - optional for generation (enhances context if available)
         const brandAnalysis = await ctx.runQuery(api.ai.analysisMutations.getLatestAnalysis, {
             projectId: args.projectId,
         });
 
-        if (!brandAnalysis || brandAnalysis.status !== "completed") {
-            throw new Error("Brand analysis required. Run brand analysis first.");
-        }
+        const hasBrandAnalysis = brandAnalysis?.status === "completed" &&
+            !!brandAnalysis.brandVoice &&
+            !!brandAnalysis.targetAudience &&
+            !!brandAnalysis.contentPillars;
 
-        if (!brandAnalysis.brandVoice || !brandAnalysis.targetAudience || !brandAnalysis.contentPillars) {
-            throw new Error("Incomplete brand analysis. Please run brand analysis again.");
-        }
-
-        // 6. Get analyzed posts - no longer required, but used if available
+        // 6. Get analyzed posts - optional, used for context if available
         const postAnalyses = await ctx.runQuery(api.ai.analysisMutations.listPostAnalyses, {
             projectId: args.projectId,
         });
 
         const analyzedPosts = postAnalyses?.filter((a) => a.hasAnalysis && a.analysisDetails) ?? [];
-        const hasLimitedContext = analyzedPosts.length < 3;
+        const hasLimitedContext = !hasBrandAnalysis || analyzedPosts.length < 3;
 
         // 7. Get source post IDs, captions, and image URLs (if any posts exist)
         const sourcePosts = await Promise.all(
@@ -96,17 +93,17 @@ export const generatePost = action({
             .filter((p) => p.imageUrl !== null)
             .map((p) => ({ url: p.imageUrl as string }));
 
-        // 8. Build context for generation
+        // 8. Build context for generation - brand analysis is optional
         const context = {
-            brandVoice: {
-                recommended: brandAnalysis.brandVoice.recommended,
-                tone: brandAnalysis.brandVoice.tone,
-            },
-            targetAudience: brandAnalysis.targetAudience.recommended,
-            contentPillars: brandAnalysis.contentPillars.map((p) => ({
+            brandVoice: hasBrandAnalysis ? {
+                recommended: brandAnalysis!.brandVoice!.recommended,
+                tone: brandAnalysis!.brandVoice!.tone,
+            } : undefined,
+            targetAudience: hasBrandAnalysis ? brandAnalysis!.targetAudience!.recommended : undefined,
+            contentPillars: hasBrandAnalysis ? brandAnalysis!.contentPillars!.map((p) => ({
                 name: p.name,
                 description: p.description,
-            })),
+            })) : undefined,
             analyzedPosts: sourcePosts.map((p) => ({
                 caption: p.caption,
                 strengths: p.strengths,
@@ -134,7 +131,7 @@ export const generatePost = action({
         // 10. Generate image for the post
         const imagePrompt = IMAGE_GENERATION_PROMPT({
             brandName: project.name,
-            visualStyle: brandAnalysis.visualDirection?.recommendedStyle ?? "Moderno e profissional",
+            visualStyle: hasBrandAnalysis ? (brandAnalysis!.visualDirection?.recommendedStyle ?? "Moderno e profissional") : "Moderno e profissional",
             caption: generated.caption,
             additionalContext: args.additionalContext,
             imageStyle: args.imageStyle as ImageStyleType | undefined,
@@ -160,7 +157,7 @@ export const generatePost = action({
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
-            brandAnalysisId: brandAnalysis._id,
+            brandAnalysisId: hasBrandAnalysis ? brandAnalysis!._id : undefined,
             sourcePostIds: sourcePosts.map((p) => p.postId),
             reasoning: generated.reasoning,
             model: MODELS.GPT_4_1,

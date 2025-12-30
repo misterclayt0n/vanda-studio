@@ -608,25 +608,26 @@ interface ContextProgressCardProps {
     } | null | undefined;
 }
 
-function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: ContextProgressCardProps) {
-    const hasStrategy = contextStatus?.hasStrategy ?? false;
-    const analyzedCount = contextStatus?.analyzedCount ?? 0;
-    const requiredPosts = contextStatus?.requiredPosts ?? 3;
-    const hasLimitedContext = contextStatus?.hasLimitedContext ?? true;
-    const progressPercent = Math.min((analyzedCount / requiredPosts) * 100, 100);
-
+function ContextProgressCard({ contextStatus, onCreateClick, quota }: ContextProgressCardProps) {
     const creditsRequired = 2;
     const hasEnoughCredits = (quota?.remaining ?? 0) >= creditsRequired;
-    const canCreate = isReady && hasEnoughCredits;
 
     return (
-        <div className="rounded-none border bg-card p-4 space-y-4">
+        <div className="rounded-none border bg-card p-4">
             <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Contexto para Geracao</h3>
-                <div title={!canCreate && !hasEnoughCredits ? "Creditos insuficientes" : undefined}>
+                <div>
+                    <h3 className="font-semibold text-sm">Gerar Conteudo</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {hasEnoughCredits 
+                            ? `${quota?.remaining ?? 0} creditos disponiveis`
+                            : "Creditos insuficientes"
+                        }
+                    </p>
+                </div>
+                <div title={!hasEnoughCredits ? "Creditos insuficientes" : undefined}>
                     <Button
                         onClick={onCreateClick}
-                        disabled={!canCreate}
+                        disabled={!hasEnoughCredits}
                         className="gap-2"
                         size="sm"
                     >
@@ -635,50 +636,6 @@ function ContextProgressCard({ contextStatus, isReady, onCreateClick, quota }: C
                     </Button>
                 </div>
             </div>
-
-            <div className="space-y-3">
-                {/* Strategy check */}
-                <div className="flex items-center gap-2 text-sm">
-                    {hasStrategy ? (
-                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4 text-green-500" />
-                    ) : (
-                        <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
-                    )}
-                    <span className={hasStrategy ? "text-foreground" : "text-muted-foreground"}>
-                        Analise de marca
-                    </span>
-                </div>
-
-                {/* Posts progress */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                        {analyzedCount >= requiredPosts ? (
-                            <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4 text-green-500" />
-                        ) : (
-                            <HugeiconsIcon icon={AlertDiamondIcon} className="size-4 text-yellow-500" />
-                        )}
-                        <span className={analyzedCount >= requiredPosts ? "text-foreground" : "text-yellow-600 dark:text-yellow-400"}>
-                            Posts analisados ({analyzedCount}/{requiredPosts})
-                        </span>
-                    </div>
-                    <Progress value={progressPercent} className="h-2" />
-                </div>
-            </div>
-
-            {!canCreate && hasEnoughCredits && !hasStrategy && (
-                <p className="text-xs text-muted-foreground">
-                    Execute a analise de marca na aba Estrategia.
-                </p>
-            )}
-
-            {canCreate && hasLimitedContext && (
-                <div className="flex items-start gap-2 p-2 rounded-none bg-yellow-500/10 border border-yellow-500/30 text-xs">
-                    <HugeiconsIcon icon={AlertDiamondIcon} className="size-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-yellow-600 dark:text-yellow-400">
-                        Poucos posts analisados. A geracao pode ser menos precisa. Analise mais posts para melhores resultados.
-                    </p>
-                </div>
-            )}
         </div>
     );
 }

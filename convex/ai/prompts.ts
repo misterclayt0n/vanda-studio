@@ -273,12 +273,12 @@ Sua legenda deve:
 IMPORTANTE: Responda APENAS com JSON válido seguindo exatamente o schema fornecido. Sem markdown, sem explicações fora do JSON. Escreva todo o conteúdo em português brasileiro.`;
 
 export interface PostGenerationContext {
-    brandVoice: {
+    brandVoice?: {
         recommended: string;
         tone: string[];
     };
-    targetAudience: string;
-    contentPillars: Array<{
+    targetAudience?: string;
+    contentPillars?: Array<{
         name: string;
         description: string;
     }>;
@@ -292,6 +292,7 @@ export interface PostGenerationContext {
 
 export const POST_GENERATION_USER_PROMPT = (context: PostGenerationContext) => {
     const hasAnalyzedPosts = context.analyzedPosts.length > 0;
+    const hasBrandContext = context.brandVoice && context.targetAudience && context.contentPillars;
 
     const postsSection = hasAnalyzedPosts
         ? `## Posts Analisados (referência de estilo)
@@ -304,20 +305,36 @@ Tom: ${p.toneAnalysis}
 `
     )
     .join("\n---\n")}`
-        : `## Nota
-Este perfil ainda não possui posts analisados. Baseie-se inteiramente nas diretrizes da marca (voz, tom, público e pilares de conteúdo) para criar uma legenda que estabeleça a identidade da marca.`;
+        : "";
 
-    return `Baseado no contexto da marca${hasAnalyzedPosts ? " e nos posts de sucesso analisados" : ""}, crie uma nova legenda para Instagram.
-
-## Marca
-- Voz: ${context.brandVoice.recommended}
-- Tom: ${context.brandVoice.tone.join(", ")}
+    const brandSection = hasBrandContext
+        ? `## Marca
+- Voz: ${context.brandVoice!.recommended}
+- Tom: ${context.brandVoice!.tone.join(", ")}
 - Público: ${context.targetAudience}
 
 ## Pilares de Conteúdo
-${context.contentPillars.map((p) => `- ${p.name}: ${p.description}`).join("\n")}
+${context.contentPillars!.map((p) => `- ${p.name}: ${p.description}`).join("\n")}`
+        : "";
+
+    const contextNote = !hasBrandContext && !hasAnalyzedPosts
+        ? `## Nota
+Nenhuma análise de marca ou posts foi encontrada. Crie uma legenda profissional e envolvente para Instagram baseada no contexto adicional fornecido.`
+        : !hasBrandContext
+            ? `## Nota
+A análise de marca não está disponível. Use os posts analisados como referência de estilo.`
+            : !hasAnalyzedPosts
+                ? `## Nota
+Nenhum post foi analisado. Baseie-se inteiramente nas diretrizes da marca.`
+                : "";
+
+    return `Crie uma nova legenda para Instagram${hasBrandContext ? " baseado no contexto da marca" : ""}${hasAnalyzedPosts ? " e nos posts de sucesso analisados" : ""}.
+
+${brandSection}
 
 ${postsSection}
+
+${contextNote}
 
 ${context.additionalContext ? `## Contexto Adicional do Usuário\n${context.additionalContext}` : ""}
 
