@@ -137,12 +137,6 @@ export const create = mutation({
             referenceText: v.optional(v.string()),
             referenceImageIds: v.optional(v.array(v.id("_storage"))),
         })),
-        // NEW: Selected creative angle
-        selectedAngle: v.optional(v.object({
-            hook: v.string(),
-            approach: v.string(),
-            whyItWorks: v.string(),
-        })),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -177,7 +171,6 @@ export const create = mutation({
             imagePrompt: args.imagePrompt,
             imageModel: args.imageModel,
             brief: args.brief,
-            selectedAngle: args.selectedAngle,
             status: "generated",
             createdAt: now,
             updatedAt: now,
@@ -185,7 +178,7 @@ export const create = mutation({
     },
 });
 
-// Update caption (for editing)
+// Update caption (for editing) - also saves to history
 export const updateCaption = mutation({
     args: {
         id: v.id("generated_posts"),
@@ -217,9 +210,91 @@ export const updateCaption = mutation({
             throw new Error("Not authorized");
         }
 
+        // Save to history before updating
+        const existingVersions = await ctx.db
+            .query("generation_history")
+            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+            .collect();
+
+        await ctx.db.insert("generation_history", {
+            generatedPostId: args.id,
+            version: existingVersions.length + 1,
+            caption: args.caption,
+            imageStorageId: post.imageStorageId,
+            imagePrompt: post.imagePrompt,
+            action: "edit_caption",
+            model: post.model,
+            imageModel: post.imageModel,
+            createdAt: Date.now(),
+        });
+
         await ctx.db.patch(args.id, {
             caption: args.caption,
             status: "edited",
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Update image (after regeneration)
+export const updateImage = mutation({
+    args: {
+        id: v.id("generated_posts"),
+        imageStorageId: v.id("_storage"),
+        imagePrompt: v.string(),
+        imageModel: v.optional(v.string()),
+        feedback: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const post = await ctx.db.get(args.id);
+        if (!post) {
+            throw new Error("Generated post not found");
+        }
+
+        // Verify user owns the project
+        const project = await ctx.db.get(post.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            throw new Error("Not authorized");
+        }
+
+        // Save to history before updating
+        const existingVersions = await ctx.db
+            .query("generation_history")
+            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+            .collect();
+
+        await ctx.db.insert("generation_history", {
+            generatedPostId: args.id,
+            version: existingVersions.length + 1,
+            caption: post.caption,
+            imageStorageId: args.imageStorageId,
+            imagePrompt: args.imagePrompt,
+            action: "regenerate_image",
+            feedback: args.feedback,
+            model: post.model,
+            imageModel: args.imageModel,
+            createdAt: Date.now(),
+        });
+
+        await ctx.db.patch(args.id, {
+            imageStorageId: args.imageStorageId,
+            imagePrompt: args.imagePrompt,
+            imageModel: args.imageModel,
+            status: "regenerated",
             updatedAt: Date.now(),
         });
     },

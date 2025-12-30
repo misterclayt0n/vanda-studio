@@ -174,41 +174,10 @@ export default defineSchema({
             referenceText: v.optional(v.string()),
             referenceImageIds: v.optional(v.array(v.id("_storage"))),
         })),
-        // NEW: Selected creative angle
-        selectedAngle: v.optional(v.object({
-            hook: v.string(),
-            approach: v.string(),
-            whyItWorks: v.string(),
-        })),
     }).index("by_project_id", ["projectId"])
       .index("by_created_at", ["createdAt"]),
 
-    // NEW: Creative angles (brainstormed options before generation)
-    creative_angles: defineTable({
-        projectId: v.id("projects"),
-        briefHash: v.string(), // Hash of the brief to retrieve later
-        angles: v.array(v.object({
-            id: v.string(),
-            hook: v.string(),
-            approach: v.string(),
-            whyItWorks: v.string(),
-            exampleOpener: v.string(),
-        })),
-        // The brief that generated these angles
-        brief: v.object({
-            postType: v.string(),
-            contentPillar: v.optional(v.string()),
-            customTopic: v.optional(v.string()),
-            toneOverride: v.optional(v.array(v.string())),
-            referenceText: v.optional(v.string()),
-            additionalContext: v.optional(v.string()),
-        }),
-        createdAt: v.number(),
-        expiresAt: v.number(), // TTL - angles expire after some time
-    }).index("by_project_id", ["projectId"])
-      .index("by_brief_hash", ["briefHash"]),
-
-    // NEW: Reference images uploaded by user for generation
+    // Reference images uploaded by user for generation
     reference_images: defineTable({
         projectId: v.id("projects"),
         storageId: v.id("_storage"),
@@ -224,6 +193,25 @@ export default defineSchema({
         })),
         createdAt: v.number(),
     }).index("by_project_id", ["projectId"]),
+
+    // Generation history - tracks all versions/iterations of a generated post
+    generation_history: defineTable({
+        generatedPostId: v.id("generated_posts"),
+        version: v.number(), // 1, 2, 3, etc.
+        // What was generated in this version
+        caption: v.string(),
+        imageStorageId: v.optional(v.id("_storage")),
+        imagePrompt: v.optional(v.string()),
+        // What triggered this version
+        action: v.string(), // "initial" | "regenerate_image" | "regenerate_caption" | "edit_caption" | "regenerate_both"
+        // User feedback that triggered regeneration (if any)
+        feedback: v.optional(v.string()), // e.g., "Make the image brighter", "Less formal tone"
+        // Metadata
+        model: v.optional(v.string()),
+        imageModel: v.optional(v.string()),
+        createdAt: v.number(),
+    }).index("by_generated_post_id", ["generatedPostId"])
+      .index("by_version", ["generatedPostId", "version"]),
 
     // Per-project conversation
     conversations: defineTable({

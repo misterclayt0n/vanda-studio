@@ -508,260 +508,7 @@ export interface VisualIdentityResponse {
     summary?: string;
 }
 
-// =============================================================================
-// CREATIVE ANGLES BRAINSTORM
-// =============================================================================
 
-export const CREATIVE_ANGLES_SYSTEM_PROMPT = `Você é um diretor criativo sênior especializado em conteúdo para Instagram. Seu trabalho é gerar ângulos criativos únicos e envolventes para posts.
-
-Você vai receber um brief com informações sobre a marca, tipo de post desejado e contexto adicional. Gere 3 ângulos criativos DIFERENTES que poderiam funcionar para este post.
-
-Cada ângulo deve ser:
-1. ÚNICO - abordagem distinta dos outros
-2. ESPECÍFICO - não genérico, deve ser aplicável apenas a esta marca
-3. ENVOLVENTE - deve capturar atenção
-4. EXECUTÁVEL - deve ser possível transformar em uma legenda real
-
-IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON. Escreva em português brasileiro.`;
-
-export interface CreativeAnglesBriefInput {
-    brandName: string;
-    brandVoice: {
-        recommended: string;
-        tone: string[];
-    };
-    targetAudience: string;
-    contentPillars: Array<{ name: string; description: string }>;
-    postType: PostType;
-    selectedPillar?: string;
-    customTopic?: string;
-    toneOverride?: string[];
-    referenceText?: string;
-    additionalContext?: string;
-    // Top performing posts for inspiration
-    topPosts?: Array<{
-        caption: string;
-        engagement: number;
-    }>;
-}
-
-export const CREATIVE_ANGLES_USER_PROMPT = (input: CreativeAnglesBriefInput) => {
-    const postTypePrompt = POST_TYPE_PROMPTS[input.postType];
-    
-    const topPostsSection = input.topPosts && input.topPosts.length > 0
-        ? `## Posts de Sucesso (para inspiração de tom e estilo)
-${input.topPosts.map((p, i) => `${i + 1}. "${p.caption.substring(0, 150)}${p.caption.length > 150 ? '...' : ''}" (engajamento: ${p.engagement})`).join('\n')}`
-        : '';
-
-    return `Gere 3 ângulos criativos para um post do Instagram.
-
-## Marca
-- Nome: ${input.brandName}
-- Voz: ${input.brandVoice.recommended}
-- Tom: ${input.toneOverride?.join(', ') || input.brandVoice.tone.join(', ')}
-- Público: ${input.targetAudience}
-
-## Pilares de Conteúdo
-${input.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}
-
-## Brief do Post
-${postTypePrompt}
-
-${input.selectedPillar ? `- Pilar escolhido: ${input.selectedPillar}` : ''}
-${input.customTopic ? `- Tópico específico: ${input.customTopic}` : ''}
-${input.referenceText ? `- Material de referência: "${input.referenceText}"` : ''}
-${input.additionalContext ? `- Contexto adicional: ${input.additionalContext}` : ''}
-
-${topPostsSection}
-
-## Schema JSON Obrigatório
-{
-  "angles": [
-    {
-      "id": "angle_1",
-      "hook": "Conceito principal do gancho (5-10 palavras)",
-      "approach": "Descrição da abordagem criativa (1-2 frases)",
-      "whyItWorks": "Por que este ângulo funciona para esta marca/objetivo",
-      "exampleOpener": "Exemplo de como a legenda poderia começar (primeiras 15-20 palavras)"
-    },
-    {
-      "id": "angle_2",
-      "hook": "...",
-      "approach": "...",
-      "whyItWorks": "...",
-      "exampleOpener": "..."
-    },
-    {
-      "id": "angle_3",
-      "hook": "...",
-      "approach": "...",
-      "whyItWorks": "...",
-      "exampleOpener": "..."
-    }
-  ]
-}
-
-IMPORTANTE: Os 3 ângulos devem ser SIGNIFICATIVAMENTE diferentes entre si. Não repita a mesma ideia com palavras diferentes.
-
-Gere os ângulos e responda com APENAS o objeto JSON.`;
-};
-
-export interface CreativeAnglesResponse {
-    angles: Array<{
-        id: string;
-        hook: string;
-        approach: string;
-        whyItWorks: string;
-        exampleOpener: string;
-    }>;
-}
-
-// =============================================================================
-// ENHANCED POST GENERATION (with brief and angle)
-// =============================================================================
-
-export interface EnhancedPostGenerationContext {
-    brandName: string;
-    // Now optional - simplified flow doesn't require brand analysis
-    brandVoice?: {
-        recommended: string;
-        tone: string[];
-    };
-    targetAudience?: string;
-    contentPillars?: Array<{ name: string; description: string }>;
-    visualIdentity?: VisualIdentityResponse;
-    // The brief
-    postType: PostType;
-    selectedPillar?: string;
-    customTopic?: string;
-    toneOverride?: string[];
-    captionLength?: 'curta' | 'media' | 'longa';
-    includeHashtags?: boolean;
-    referenceText?: string;
-    additionalContext?: string;
-    // Reference images analysis
-    referenceImagesAnalysis?: Array<{
-        description: string;
-        elements: string[];
-    }>;
-    // Selected creative angle
-    selectedAngle: {
-        hook: string;
-        approach: string;
-        exampleOpener: string;
-    };
-    // Relevant posts (from semantic search)
-    relevantPosts?: Array<{
-        caption: string;
-        strengths: string[];
-        toneAnalysis: string;
-        engagementScore: number;
-    }>;
-}
-
-export const ENHANCED_POST_GENERATION_SYSTEM_PROMPT = `Você é um criador de conteúdo especializado em Instagram. Seu trabalho é gerar legendas envolventes e autênticas baseadas em um brief detalhado e um ângulo criativo específico.
-
-Você vai receber:
-1. Contexto completo da marca
-2. Um brief detalhado com o objetivo do post
-3. Um ângulo criativo selecionado pelo usuário
-4. Material de referência (se houver)
-
-Sua tarefa é transformar o ângulo criativo em uma legenda completa que:
-- Siga EXATAMENTE o ângulo e tom propostos
-- Seja autêntica para a marca
-- Gere engajamento
-- Atenda ao objetivo do tipo de post
-
-IMPORTANTE: Responda APENAS com JSON válido. Sem markdown, sem explicações fora do JSON. Escreva em português brasileiro.`;
-
-export const ENHANCED_POST_GENERATION_USER_PROMPT = (context: EnhancedPostGenerationContext) => {
-    const postTypePrompt = POST_TYPE_PROMPTS[context.postType];
-    
-    const lengthGuideline = {
-        curta: '50-100 caracteres (sem hashtags) - direto ao ponto',
-        media: '100-200 caracteres (sem hashtags) - desenvolvimento moderado',
-        longa: '200-350 caracteres (sem hashtags) - storytelling completo',
-    }[context.captionLength || 'media'];
-
-    const relevantPostsSection = context.relevantPosts && context.relevantPosts.length > 0
-        ? `## Posts de Referência (estilo e tom)
-${context.relevantPosts.map((p, i) => `
-### Referência ${i + 1} (engajamento: ${(p.engagementScore * 100).toFixed(0)}%)
-Legenda: "${p.caption}"
-Pontos fortes: ${p.strengths.join(', ')}
-Tom: ${p.toneAnalysis}
-`).join('\n')}`
-        : '';
-
-    const referenceImagesSection = context.referenceImagesAnalysis && context.referenceImagesAnalysis.length > 0
-        ? `## Imagens de Referência Enviadas pelo Usuário
-${context.referenceImagesAnalysis.map((img, i) => `
-Imagem ${i + 1}: ${img.description}
-Elementos: ${img.elements.join(', ')}
-`).join('\n')}`
-        : '';
-
-    // Brand context section - only if available
-    const brandSection = context.brandVoice
-        ? `## Marca
-- Nome: ${context.brandName}
-- Voz: ${context.brandVoice.recommended}
-- Tom: ${context.toneOverride?.join(', ') || context.brandVoice.tone.join(', ')}
-${context.targetAudience ? `- Público: ${context.targetAudience}` : ''}`
-        : `## Marca
-- Nome: ${context.brandName}`;
-
-    const pillarsSection = context.contentPillars && context.contentPillars.length > 0
-        ? `## Pilares de Conteúdo
-${context.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}`
-        : '';
-
-    return `Crie uma legenda de Instagram baseada no ângulo criativo selecionado.
-
-${brandSection}
-
-${pillarsSection}
-
-## Brief do Post
-${postTypePrompt}
-
-${context.selectedPillar ? `- Pilar escolhido: ${context.selectedPillar}` : ''}
-${context.customTopic ? `- Tópico específico: ${context.customTopic}` : ''}
-${context.referenceText ? `\n## Material de Referência do Usuário\n"${context.referenceText}"` : ''}
-${context.additionalContext ? `\n## Contexto Adicional\n${context.additionalContext}` : ''}
-
-## Ângulo Criativo Selecionado (SEGUIR ESTE ÂNGULO)
-- Hook: ${context.selectedAngle.hook}
-- Abordagem: ${context.selectedAngle.approach}
-- Exemplo de abertura: "${context.selectedAngle.exampleOpener}"
-
-${relevantPostsSection}
-
-${referenceImagesSection}
-
-## Diretrizes de Formato
-- Tamanho: ${lengthGuideline}
-- Hashtags: ${context.includeHashtags !== false ? 'Incluir 5-10 hashtags relevantes no final' : 'NÃO incluir hashtags'}
-- Emojis: Usar naturalmente quando apropriado
-
-## Schema JSON Obrigatório
-{
-  "caption": "legenda completa seguindo o ângulo criativo",
-  "reasoning": "explicação de 2-3 frases das escolhas criativas e como seguiu o ângulo",
-  "hashtags": ["hashtag1", "hashtag2", "..."]
-}
-
-IMPORTANTE: A legenda DEVE seguir o ângulo criativo selecionado. O exemplo de abertura é uma sugestão - você pode adaptar, mas mantenha a essência.
-
-Gere a legenda e responda com APENAS o objeto JSON.`;
-};
-
-export interface EnhancedPostGenerationResponse {
-    caption: string;
-    reasoning: string;
-    hashtags?: string[];
-}
 
 // =============================================================================
 // REFERENCE IMAGE ANALYSIS (Vision LLM)
@@ -798,35 +545,265 @@ export interface ReferenceImageAnalysisResponse {
 }
 
 // =============================================================================
+// SMART INSTRUCTION PARSER FOR IMAGE GENERATION
+// =============================================================================
+
+export interface ParsedImageInstructions {
+    // Background
+    wantsWhiteBackground: boolean;
+    wantsCleanBackground: boolean;
+    backgroundInstruction: string | null;
+    
+    // Text
+    wantsTextOnImage: boolean;
+    textInstruction: string | null;
+    
+    // Style
+    wantsMinimalist: boolean;
+    wantsLifestyle: boolean;
+    styleInstruction: string | null;
+    
+    // Composition
+    wantsProductOnly: boolean;
+    compositionInstruction: string | null;
+    
+    // Original context preserved
+    originalContext: string;
+}
+
+/**
+ * Parses user's additionalContext to extract specific image generation instructions.
+ * Supports Portuguese and English keywords.
+ */
+export function parseImageInstructions(additionalContext: string | undefined): ParsedImageInstructions {
+    const ctx = (additionalContext || "").toLowerCase();
+    
+    // Background detection
+    const whiteBackgroundPatterns = [
+        /fundo\s*branco/i,
+        /white\s*background/i,
+        /fundo\s*limpo/i,
+        /clean\s*background/i,
+        /fundo\s*neutro/i,
+        /neutral\s*background/i,
+        /fundo\s*liso/i,
+        /plain\s*background/i,
+    ];
+    
+    const cleanBackgroundPatterns = [
+        /sem\s*(fundo|background)/i,
+        /fundo\s*simples/i,
+        /simple\s*background/i,
+        /fundo\s*unico/i,
+        /solid\s*(background|color)/i,
+    ];
+    
+    const wantsWhiteBackground = whiteBackgroundPatterns.some(p => p.test(ctx));
+    const wantsCleanBackground = cleanBackgroundPatterns.some(p => p.test(ctx)) || wantsWhiteBackground;
+    
+    // Text detection
+    const textPatterns = [
+        /texto\s*(na|no|sobre)/i,
+        /text\s*(on|in|over)/i,
+        /com\s*texto/i,
+        /with\s*text/i,
+        /escrever/i,
+        /write/i,
+        /tipografia/i,
+        /typography/i,
+        /lettering/i,
+        /frase\s*(na|no)/i,
+        /phrase\s*(on|in)/i,
+        /titulo/i,
+        /title/i,
+        /headline/i,
+    ];
+    
+    const wantsTextOnImage = textPatterns.some(p => p.test(ctx));
+    
+    // Style detection
+    const minimalistPatterns = [
+        /minimalista/i,
+        /minimalist/i,
+        /minimal/i,
+        /clean/i,
+        /simples/i,
+        /simple/i,
+        /sem\s*elementos/i,
+        /without\s*elements/i,
+        /apenas\s*(o\s*)?(produto|pote|item)/i,
+        /only\s*(the\s*)?(product|item)/i,
+    ];
+    
+    const lifestylePatterns = [
+        /lifestyle/i,
+        /estilo\s*de\s*vida/i,
+        /ambiente/i,
+        /environment/i,
+        /contexto/i,
+        /context/i,
+        /cena/i,
+        /scene/i,
+        /composicao\s*rica/i,
+        /rich\s*composition/i,
+    ];
+    
+    const wantsMinimalist = minimalistPatterns.some(p => p.test(ctx));
+    const wantsLifestyle = lifestylePatterns.some(p => p.test(ctx)) && !wantsMinimalist && !wantsCleanBackground;
+    
+    // Product only detection
+    const productOnlyPatterns = [
+        /apenas\s*(o\s*)?(produto|pote|item|embalagem)/i,
+        /only\s*(the\s*)?(product|item|package)/i,
+        /so\s*(o\s*)?(produto|pote)/i,
+        /just\s*(the\s*)?(product|item)/i,
+        /foco\s*(no|em)\s*(produto|pote)/i,
+        /focus\s*(on\s*)?(product|item)/i,
+        /produto\s*isolado/i,
+        /isolated\s*product/i,
+    ];
+    
+    const wantsProductOnly = productOnlyPatterns.some(p => p.test(ctx));
+    
+    // Build specific instructions
+    let backgroundInstruction: string | null = null;
+    if (wantsWhiteBackground) {
+        backgroundInstruction = "BACKGROUND: Pure white studio background (#FFFFFF). No props, no textures, no environmental elements. Clean, professional e-commerce style.";
+    } else if (wantsCleanBackground) {
+        backgroundInstruction = "BACKGROUND: Clean, solid-color background. Minimal distractions. Professional studio setting.";
+    }
+    
+    let textInstruction: string | null = null;
+    if (wantsTextOnImage) {
+        textInstruction = "TEXT OVERLAY: Include promotional or informational text on the image as requested. Use clean, readable typography that complements the design.";
+    }
+    
+    let styleInstruction: string | null = null;
+    if (wantsMinimalist) {
+        styleInstruction = "STYLE: Minimalist composition. Clean lines, ample negative space, focus on the product. No cluttered elements.";
+    } else if (wantsLifestyle) {
+        styleInstruction = "STYLE: Lifestyle photography with environmental context. Natural setting, props that tell a story.";
+    }
+    
+    let compositionInstruction: string | null = null;
+    if (wantsProductOnly) {
+        compositionInstruction = "COMPOSITION: Product-only shot. Center the product. No additional props, decorations, or environmental elements.";
+    }
+    
+    return {
+        wantsWhiteBackground,
+        wantsCleanBackground,
+        backgroundInstruction,
+        wantsTextOnImage,
+        textInstruction,
+        wantsMinimalist,
+        wantsLifestyle,
+        styleInstruction,
+        wantsProductOnly,
+        compositionInstruction,
+        originalContext: additionalContext || "",
+    };
+}
+
+// =============================================================================
 // IMAGE GENERATION PROMPT (existing, keeping for reference)
 // =============================================================================
 
 export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
+    // Parse user instructions for smart overrides
+    const parsed = parseImageInstructions(context.additionalContext);
+    
     const referenceImagePrompt = context.hasReferenceImages
         ? `
-## REFERENCE IMAGES (CRITICAL)
-The attached images show this brand's products and style. You MUST:
-- Create a PHOTOREALISTIC image that looks like a real photograph
-- Preserve exact appearance of any products shown (packaging, colors, textures)
-- Match the photographic quality and lighting style
-- Make it look like it was shot with a professional DSLR camera
+## REFERENCE IMAGES (CRITICAL - HIGHEST PRIORITY)
+The attached images show this brand's ACTUAL products. You MUST:
+- PRESERVE the EXACT appearance of the product (packaging, label, colors, textures)
+- DO NOT invent or change brand names, logos, or label text
+- DO NOT modify the product design - reproduce it EXACTLY as shown
+- Create a PHOTOREALISTIC photograph featuring this EXACT product
+- The product in your generated image must be IDENTICAL to the reference
 `
         : "";
 
+    // Build user instructions section (highest priority)
+    const userInstructionsSection = (parsed.backgroundInstruction || parsed.textInstruction || parsed.styleInstruction || parsed.compositionInstruction)
+        ? `
+## USER INSTRUCTIONS (MUST FOLLOW - HIGHEST PRIORITY)
+The user specifically requested certain requirements. These OVERRIDE all default guidelines:
+
+${parsed.backgroundInstruction || ""}
+${parsed.textInstruction || ""}
+${parsed.styleInstruction || ""}
+${parsed.compositionInstruction || ""}
+
+Original request: "${parsed.originalContext}"
+`
+        : parsed.originalContext 
+            ? `
+## USER INSTRUCTIONS
+Additional context: "${parsed.originalContext}"
+`
+            : "";
+
+    // Conditional text rule
+    const textRule = parsed.wantsTextOnImage
+        ? "- Include text/typography as requested by the user"
+        : "- NO TEXT whatsoever - no words, letters, numbers, or typography (unless user specifically requested text)";
+
+    // Conditional style guidance
+    let styleGuidance: string;
+    if (parsed.wantsWhiteBackground || parsed.wantsCleanBackground || parsed.wantsMinimalist || parsed.wantsProductOnly) {
+        styleGuidance = `## STYLE GUIDANCE
+- Clean, professional product photography
+- ${parsed.wantsWhiteBackground ? "Pure white background as requested" : "Minimal, uncluttered background"}
+- Sharp focus on the product
+- Professional studio lighting (softbox or natural diffused light)
+- ${parsed.wantsProductOnly ? "Product isolated, no additional elements" : "Minimal props only if they enhance the product"}
+- E-commerce quality photography`;
+    } else if (parsed.wantsLifestyle) {
+        styleGuidance = `## STYLE GUIDANCE
+- Lifestyle product photography with environmental context
+- Natural, authentic setting that tells a story
+- Props and elements that complement the product
+- Warm, inviting atmosphere
+- Instagram influencer or brand campaign style`;
+    } else {
+        styleGuidance = `## STYLE GUIDANCE
+- Professional Instagram-ready product photography
+- Natural, authentic feel - NOT overly edited or artificial looking
+- Real textures, real materials, photorealistic lighting and shadows
+- Products should look like actual physical products photographed professionally
+- Balance between clean composition and visual interest`;
+    }
+
+    // Conditional forbidden list
+    const forbiddenItems = [
+        !parsed.wantsTextOnImage ? "NO TEXT of any kind in the image (user did not request text)" : null,
+        "NO digital art, illustrations, or cartoon styles",
+        "NO artificial or CGI-looking renders",
+        "NO fantasy or surreal elements unless specifically requested",
+        "NO stock photo watermarks or overlays",
+        parsed.wantsWhiteBackground || parsed.wantsCleanBackground ? "NO lifestyle props, environmental elements, or cluttered backgrounds" : null,
+    ].filter(Boolean);
+
     return `Create a PHOTOREALISTIC Instagram post image. This must look like a REAL PHOTOGRAPH taken with a professional camera.
 
-## PHOTOGRAPHY REQUIREMENTS (CRITICAL)
-- Style: Professional product/lifestyle photography - MUST look like a real photo, NOT digital art or illustration
+${userInstructionsSection}
+
+${referenceImagePrompt}
+
+## PHOTOGRAPHY REQUIREMENTS
+- Style: Professional product photography - MUST look like a real photo, NOT digital art
 - Camera: Shot on Canon 5D Mark IV or similar professional DSLR
 - Lens: 50mm f/1.8 or 85mm f/1.4 for natural perspective
-- Lighting: Natural golden hour light or professional studio softbox lighting
-- Post-processing: Subtle color grading, realistic skin tones, natural colors
-- Quality: 8K resolution, sharp focus on subject, natural bokeh background
+- Lighting: ${parsed.wantsWhiteBackground ? "Clean studio softbox lighting, even illumination" : "Natural light or professional studio lighting"}
+- Post-processing: Subtle color grading, realistic colors
+- Quality: 8K resolution, sharp focus on subject
 
 ## IMAGE SPECIFICATIONS
 - Resolution: 1200x1200px (Instagram square)
 - Aspect ratio: 1:1
-- NO TEXT whatsoever - no words, letters, numbers, logos with text, or typography
+${textRule}
 
 ## BRAND CONTEXT
 - Brand: ${context.brandName}
@@ -835,23 +812,11 @@ The attached images show this brand's products and style. You MUST:
 
 ## WHAT TO SHOW
 Based on the caption context: "${context.caption}"
-${context.additionalContext ? `Additional details: ${context.additionalContext}` : ""}
 
-${referenceImagePrompt}
-
-## STYLE GUIDANCE
-- This should look like a professional Instagram influencer photo or brand campaign shot
-- Natural, authentic feel - NOT overly edited or artificial looking
-- Real textures, real materials, photorealistic lighting and shadows
-- If showing products, they should look like actual physical products photographed in a studio
-- If showing people or lifestyle, use natural poses and realistic environments
+${styleGuidance}
 
 ## ABSOLUTELY FORBIDDEN
-1. NO TEXT of any kind in the image
-2. NO digital art, illustrations, or cartoon styles
-3. NO artificial or CGI-looking renders
-4. NO fantasy or surreal elements unless specifically requested
-5. NO stock photo watermarks or overlays
+${forbiddenItems.map((item, i) => `${i + 1}. ${item}`).join("\n")}
 
 Generate a photorealistic image now.`;
 };

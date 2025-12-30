@@ -17,25 +17,28 @@ import {
     Tick01Icon,
     Copy01Icon,
     Download01Icon,
+    Edit01Icon,
+    Cancel01Icon,
+    Clock01Icon,
+    ArrowTurnBackwardIcon,
+    TextIcon,
 } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import type { PostType } from "@/convex/ai/prompts";
-
 import {
-    PostTypeSelector,
-    CreativeAnglesDisplay,
-} from "@/components/brief-builder";
-
-interface CreativeAngle {
-    id: string;
-    hook: string;
-    approach: string;
-    whyItWorks: string;
-    exampleOpener: string;
-}
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import type { PostType } from "@/convex/ai/prompts";
 
 interface GeneratedPost {
     id: Id<"generated_posts">;
@@ -57,29 +60,69 @@ export default function CreatePostPage() {
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Angles state
-    const [angles, setAngles] = useState<CreativeAngle[] | null>(null);
-    const [selectedAngle, setSelectedAngle] = useState<CreativeAngle | null>(null);
-    const [isLoadingAngles, setIsLoadingAngles] = useState(false);
-    const [anglesCached, setAnglesCached] = useState(false);
-
     // Generation state
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedPost, setGeneratedPost] = useState<GeneratedPost | null>(null);
-    const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    
+    // Regeneration state
+    const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
+    const [isRegeneratingCaption, setIsRegeneratingCaption] = useState(false);
+    const [feedback, setFeedback] = useState("");
+    const [showFeedbackFor, setShowFeedbackFor] = useState<"image" | "caption" | null>(null);
+    
+    // Caption editing state
+    const [isEditingCaption, setIsEditingCaption] = useState(false);
+    const [editedCaption, setEditedCaption] = useState("");
+    
+    // Version history state
+    const [showHistory, setShowHistory] = useState(false);
+    
+    // Confirmation dialog state
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        type: "image" | "caption" | "both";
+        credits: number;
+    }>({ open: false, type: "image", credits: 1 });
+
+    // Helper to show user-friendly error toasts
+    const showErrorToast = useCallback((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        
+        // Parse common error patterns and show friendly messages
+        if (message.includes("Saldo insuficiente") || message.includes("creditos")) {
+            toast.error("Creditos insuficientes", {
+                description: "Voce precisa de mais creditos para gerar um post.",
+            });
+        } else if (message.includes("Not authenticated")) {
+            toast.error("Sessao expirada", {
+                description: "Faca login novamente para continuar.",
+            });
+        } else if (message.includes("Project not found")) {
+            toast.error("Projeto nao encontrado", {
+                description: "Este projeto pode ter sido removido.",
+            });
+        } else {
+            toast.error("Erro", {
+                description: message.length > 100 ? "Ocorreu um erro inesperado. Tente novamente." : message,
+            });
+        }
+    }, []);
 
     // Queries
     const project = useQuery(api.projects.get, projectId ? { projectId } : "skip");
 
     // Actions
-    const brainstormAngles = useAction(api.ai.creativeAngles.brainstormAngles);
-    const generateWithBrief = useAction(api.ai.enhancedPostGeneration.generateWithBrief);
+    const generatePost = useAction(api.ai.enhancedPostGeneration.generatePost);
+    const regenerateImageAction = useAction(api.ai.regenerate.regenerateImage);
+    const regenerateCaptionAction = useAction(api.ai.regenerate.regenerateCaption);
     
     // Mutations for image upload
     const generateUploadUrl = useMutation(api.referenceImages.generateUploadUrl);
     const saveReferenceImage = useMutation(api.referenceImages.save);
     const removeReferenceImage = useMutation(api.referenceImages.remove);
+    const updateCaption = useMutation(api.generatedPosts.updateCaption);
+    const restoreVersion = useMutation(api.generationHistory.restoreVersion);
 
     // Handle file upload
     const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,13 +130,12 @@ export default function CreatePostPage() {
         if (!files || files.length === 0) return;
 
         setIsUploading(true);
-        setError(null);
 
         try {
             for (const file of Array.from(files)) {
                 if (!file.type.startsWith("image/")) continue;
                 if (file.size > 10 * 1024 * 1024) {
-                    setError("Imagem muito grande. Maximo 10MB.");
+                    toast.error("Imagem muito grande", { description: "Maximo 10MB por imagem." });
                     continue;
                 }
 
@@ -119,12 +161,12 @@ export default function CreatePostPage() {
             }
         } catch (err) {
             console.error("Upload failed:", err);
-            setError(err instanceof Error ? err.message : "Erro ao enviar imagem");
+            showErrorToast(err);
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
-    }, [generateUploadUrl, saveReferenceImage, projectId]);
+    }, [generateUploadUrl, saveReferenceImage, projectId, showErrorToast]);
 
     const handleRemoveImage = useCallback(async (imageId: Id<"reference_images">) => {
         try {
@@ -135,34 +177,12 @@ export default function CreatePostPage() {
         }
     }, [removeReferenceImage]);
 
-    const handleGenerateAngles = useCallback(async () => {
-        if (!postType) return;
-        setIsLoadingAngles(true);
-        setError(null);
-
-        try {
-            const result = await brainstormAngles({
-                projectId,
-                brief: { postType, additionalContext: additionalContext || undefined },
-            });
-            setAngles(result.angles);
-            setAnglesCached(result.cached);
-            setSelectedAngle(null);
-        } catch (err) {
-            console.error("Failed to generate angles:", err);
-            setError(err instanceof Error ? err.message : "Erro ao gerar angulos criativos");
-        } finally {
-            setIsLoadingAngles(false);
-        }
-    }, [postType, projectId, additionalContext, brainstormAngles]);
-
     const handleGenerate = async () => {
-        if (!postType || !selectedAngle) return;
+        if (!postType) return;
         setIsGenerating(true);
-        setError(null);
 
         try {
-            const result = await generateWithBrief({
+            const result = await generatePost({
                 projectId,
                 brief: {
                     postType,
@@ -170,21 +190,20 @@ export default function CreatePostPage() {
                     includeHashtags: true,
                     additionalContext: additionalContext || undefined,
                 },
-                selectedAngle,
             });
 
-            // Fetch the generated post to show in preview
-            const post = await fetch(`/api/generated-post/${result.generatedPostId}`).then(r => r.json()).catch(() => null);
-            
-            // For now just set basic info - image will be fetched via query
             setGeneratedPost({
                 id: result.generatedPostId,
                 caption: "",
                 imageUrl: null,
             });
+            
+            toast.success("Post gerado!", {
+                description: "Sua legenda e imagem estao prontas.",
+            });
         } catch (err) {
             console.error("Failed to generate post:", err);
-            setError(err instanceof Error ? err.message : "Erro ao gerar post");
+            showErrorToast(err);
         } finally {
             setIsGenerating(false);
         }
@@ -197,11 +216,138 @@ export default function CreatePostPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    // Show confirmation before regeneration
+    const showRegenerateConfirmation = (type: "image" | "caption" | "both") => {
+        const credits = type === "both" ? 2 : 1;
+        setConfirmDialog({ open: true, type, credits });
+    };
+
+    // Execute regeneration after confirmation
+    const handleConfirmedRegenerate = async () => {
+        const { type } = confirmDialog;
+        setConfirmDialog({ ...confirmDialog, open: false });
+        
+        if (type === "image") {
+            await executeRegenerateImage();
+        } else {
+            await executeRegenerateCaption(type === "both");
+        }
+    };
+
+    // Regeneration handlers
+    const executeRegenerateImage = async () => {
+        if (!generatedPost?.id) return;
+        setIsRegeneratingImage(true);
+        
+        try {
+            await regenerateImageAction({
+                generatedPostId: generatedPost.id,
+                feedback: feedback.trim() || undefined,
+            });
+            
+            toast.success("Imagem regenerada!", {
+                description: "Uma nova imagem foi gerada.",
+            });
+            setFeedback("");
+            setShowFeedbackFor(null);
+        } catch (err) {
+            console.error("Failed to regenerate image:", err);
+            showErrorToast(err);
+        } finally {
+            setIsRegeneratingImage(false);
+        }
+    };
+
+    const executeRegenerateCaption = async (alsoRegenerateImage = false) => {
+        if (!generatedPost?.id) return;
+        setIsRegeneratingCaption(true);
+        
+        try {
+            await regenerateCaptionAction({
+                generatedPostId: generatedPost.id,
+                feedback: feedback.trim() || undefined,
+                keepImage: !alsoRegenerateImage,
+            });
+            
+            toast.success("Legenda regenerada!", {
+                description: alsoRegenerateImage 
+                    ? "Nova legenda e imagem geradas." 
+                    : "Uma nova legenda foi gerada.",
+            });
+            setFeedback("");
+            setShowFeedbackFor(null);
+        } catch (err) {
+            console.error("Failed to regenerate caption:", err);
+            showErrorToast(err);
+        } finally {
+            setIsRegeneratingCaption(false);
+        }
+    };
+
+    // Caption editing handlers
+    const handleStartEditCaption = () => {
+        if (generatedPostData?.caption) {
+            setEditedCaption(generatedPostData.caption);
+            setIsEditingCaption(true);
+        }
+    };
+
+    const handleSaveCaption = async () => {
+        if (!generatedPost?.id || !editedCaption.trim()) return;
+        
+        try {
+            await updateCaption({
+                id: generatedPost.id,
+                caption: editedCaption.trim(),
+            });
+            
+            toast.success("Legenda salva!");
+            setIsEditingCaption(false);
+        } catch (err) {
+            console.error("Failed to save caption:", err);
+            showErrorToast(err);
+        }
+    };
+
+    const handleCancelEditCaption = () => {
+        setIsEditingCaption(false);
+        setEditedCaption("");
+    };
+
+    // Version history handlers
+    const handleRestoreVersion = async (version: number) => {
+        if (!generatedPost?.id) return;
+        
+        try {
+            await restoreVersion({
+                generatedPostId: generatedPost.id,
+                version,
+            });
+            
+            toast.success("Versao restaurada!", {
+                description: `Versao ${version} restaurada com sucesso.`,
+            });
+            setShowHistory(false);
+        } catch (err) {
+            console.error("Failed to restore version:", err);
+            showErrorToast(err);
+        }
+    };
+
     // Fetch generated post details
     const generatedPostData = useQuery(
         api.generatedPosts.get,
         generatedPost?.id ? { id: generatedPost.id } : "skip"
     );
+
+    // Fetch generation history
+    const generationHistory = useQuery(
+        api.generationHistory.getHistory,
+        generatedPost?.id ? { generatedPostId: generatedPost.id } : "skip"
+    );
+
+    // Check user credits
+    const userQuota = useQuery(api.billing.usage.checkQuota, {});
 
     if (project === undefined) {
         return (
@@ -239,7 +385,7 @@ export default function CreatePostPage() {
                 {!generatedPost ? (
                     <Button
                         onClick={handleGenerate}
-                        disabled={!selectedAngle || isGenerating}
+                        disabled={!postType || isGenerating}
                         className="gap-2"
                     >
                         {isGenerating ? (
@@ -258,7 +404,6 @@ export default function CreatePostPage() {
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => {
                             setGeneratedPost(null);
-                            setSelectedAngle(null);
                         }}>
                             Criar Outro
                         </Button>
@@ -269,18 +414,11 @@ export default function CreatePostPage() {
                 )}
             </div>
 
-            {/* Error */}
-            {error && (
-                <div className="p-3 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive mb-4">
-                    {error}
-                </div>
-            )}
-
             {/* Main Content - Two Columns */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
                 {/* Left Column - Brief */}
                 <div className="flex flex-col gap-4 min-h-0">
-                    <div className="rounded-none border bg-card p-4 space-y-4 shrink-0">
+                    <div className="rounded-none border bg-card p-4 space-y-4">
                         {/* Post Type - Compact */}
                         <div className="space-y-2">
                             <Label className="text-xs">Tipo de Post</Label>
@@ -306,12 +444,15 @@ export default function CreatePostPage() {
                         <div className="space-y-1">
                             <Label className="text-xs">O que voce quer comunicar?</Label>
                             <Textarea
-                                placeholder="Descreva o que voce quer no post..."
+                                placeholder="Descreva o que voce quer no post... Ex: Post sobre o dia do mel, fundo branco, texto na imagem"
                                 value={additionalContext}
                                 onChange={(e) => setAdditionalContext(e.target.value)}
-                                rows={2}
+                                rows={4}
                                 className="rounded-none text-sm"
                             />
+                            <p className="text-[10px] text-muted-foreground">
+                                Dica: Mencione &quot;fundo branco&quot;, &quot;texto na imagem&quot;, &quot;minimalista&quot; para customizar a imagem
+                            </p>
                         </div>
 
                         {/* Image Upload - Compact */}
@@ -338,7 +479,7 @@ export default function CreatePostPage() {
                                 ) : (
                                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                                         <HugeiconsIcon icon={Upload04Icon} className="size-4" />
-                                        Enviar imagens
+                                        Enviar imagens do produto
                                     </div>
                                 )}
                             </div>
@@ -359,38 +500,12 @@ export default function CreatePostPage() {
                             )}
                         </div>
 
-                        {/* Generate Button */}
-                        <Button
-                            onClick={handleGenerateAngles}
-                            disabled={!postType || isLoadingAngles}
-                            className="w-full gap-2"
-                            variant="outline"
-                            size="sm"
-                        >
-                            {isLoadingAngles ? (
-                                <>
-                                    <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
-                                    Gerando...
-                                </>
-                            ) : (
-                                <>
-                                    <HugeiconsIcon icon={SparklesIcon} className="size-3" />
-                                    {angles ? "Novos Angulos" : "Gerar Angulos"}
-                                </>
-                            )}
-                        </Button>
-                    </div>
-
-                    {/* Angles - Stretches to fill remaining space */}
-                    <div className="rounded-none border bg-card p-4 flex-1 min-h-0 overflow-y-auto flex flex-col">
-                        <CreativeAnglesDisplay
-                            angles={angles}
-                            selectedAngle={selectedAngle}
-                            isLoading={isLoadingAngles}
-                            onSelectAngle={setSelectedAngle}
-                            onRefresh={handleGenerateAngles}
-                            cached={anglesCached}
-                        />
+                        {/* Credits info */}
+                        <div className="pt-2 border-t">
+                            <p className="text-[10px] text-muted-foreground">
+                                Custo: 2 creditos (1 legenda + 1 imagem) | Saldo: {userQuota?.remaining ?? 0} creditos
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -407,15 +522,44 @@ export default function CreatePostPage() {
                             <p className="text-xs text-muted-foreground mt-1">Isso pode levar ate 30s</p>
                         </div>
                     ) : generatedPost && generatedPostData ? (
-                        <div className="flex-1 flex flex-col min-h-0">
-                            {/* Generated Image */}
-                            <div className="aspect-square rounded-none bg-muted/50 border mb-3 overflow-hidden">
-                                {generatedPostData.imageUrl ? (
-                                    <img
-                                        src={generatedPostData.imageUrl}
-                                        alt="Generated"
-                                        className="w-full h-full object-cover"
-                                    />
+                        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                            {/* Generated Image with regenerate overlay */}
+                            <div className="relative aspect-square rounded-none bg-muted/50 border mb-3 overflow-hidden group shrink-0">
+                                {isRegeneratingImage ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/80">
+                                        <HugeiconsIcon icon={Loading03Icon} className="size-8 animate-spin text-primary mb-2" />
+                                        <p className="text-xs text-muted-foreground">Regenerando imagem...</p>
+                                    </div>
+                                ) : generatedPostData.imageUrl ? (
+                                    <>
+                                        <img
+                                            src={generatedPostData.imageUrl}
+                                            alt="Generated"
+                                            className="w-full h-full object-cover"
+                                        />
+                                        {/* Hover overlay with actions */}
+                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="rounded-none"
+                                                onClick={() => setShowFeedbackFor(showFeedbackFor === "image" ? null : "image")}
+                                            >
+                                                <HugeiconsIcon icon={RefreshIcon} className="size-3 mr-1" />
+                                                Regenerar
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="rounded-none"
+                                                asChild
+                                            >
+                                                <a href={generatedPostData.imageUrl} download>
+                                                    <HugeiconsIcon icon={Download01Icon} className="size-3" />
+                                                </a>
+                                            </Button>
+                                        </div>
+                                    </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                                         <HugeiconsIcon icon={Image01Icon} className="size-8 opacity-30" />
@@ -423,60 +567,296 @@ export default function CreatePostPage() {
                                 )}
                             </div>
                             
-                            {/* Caption */}
-                            <div className="flex-1 min-h-0 overflow-y-auto">
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-muted-foreground">Legenda</p>
-                                    <div className="flex gap-1">
+                            {/* Feedback input for image regeneration */}
+                            {showFeedbackFor === "image" && (
+                                <div className="mb-3 p-3 border bg-muted/30 space-y-2 shrink-0">
+                                    <Label className="text-xs">O que voce quer mudar na imagem?</Label>
+                                    <Textarea
+                                        placeholder="Ex: Fundo branco, mais claro, foco no produto..."
+                                        value={feedback}
+                                        onChange={(e) => setFeedback(e.target.value)}
+                                        rows={2}
+                                        className="rounded-none text-sm"
+                                    />
+                                    <div className="flex gap-2 items-center">
+                                        <Button
+                                            size="sm"
+                                            className="rounded-none gap-1"
+                                            onClick={() => showRegenerateConfirmation("image")}
+                                            disabled={isRegeneratingImage}
+                                        >
+                                            {isRegeneratingImage ? (
+                                                <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
+                                            ) : (
+                                                <HugeiconsIcon icon={RefreshIcon} className="size-3" />
+                                            )}
+                                            Regenerar Imagem
+                                        </Button>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-6 px-2"
-                                            onClick={handleCopyCaption}
+                                            className="rounded-none"
+                                            onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
                                         >
-                                            <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className="size-3" />
+                                            Cancelar
                                         </Button>
-                                        {generatedPostData.imageUrl && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-6 px-2"
-                                                asChild
-                                            >
-                                                <a href={generatedPostData.imageUrl} download>
-                                                    <HugeiconsIcon icon={Download01Icon} className="size-3" />
-                                                </a>
-                                            </Button>
+                                        <span className="text-xs text-muted-foreground ml-auto">
+                                            1 credito
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Caption section */}
+                            <div className="flex-1 min-h-0 flex flex-col">
+                                <div className="flex items-center justify-between mb-2 shrink-0">
+                                    <p className="text-xs text-muted-foreground">Legenda</p>
+                                    <div className="flex gap-1">
+                                        {!isEditingCaption && (
+                                            <>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 px-2"
+                                                    onClick={handleStartEditCaption}
+                                                    title="Editar legenda"
+                                                >
+                                                    <HugeiconsIcon icon={Edit01Icon} className="size-3" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 px-2"
+                                                    onClick={() => setShowFeedbackFor(showFeedbackFor === "caption" ? null : "caption")}
+                                                    title="Regenerar legenda"
+                                                >
+                                                    <HugeiconsIcon icon={RefreshIcon} className="size-3" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 px-2"
+                                                    onClick={handleCopyCaption}
+                                                    title="Copiar legenda"
+                                                >
+                                                    <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className="size-3" />
+                                                </Button>
+                                                {generationHistory && generationHistory.length > 0 && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 px-2"
+                                                        onClick={() => setShowHistory(!showHistory)}
+                                                        title="Ver historico"
+                                                    >
+                                                        <HugeiconsIcon icon={Clock01Icon} className="size-3" />
+                                                        <span className="text-[10px] ml-1">{generationHistory.length}</span>
+                                                    </Button>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
-                                <p className="text-sm whitespace-pre-wrap">{generatedPostData.caption}</p>
-                            </div>
-                        </div>
-                    ) : selectedAngle ? (
-                        <div className="flex-1 flex flex-col">
-                            <div className="aspect-square rounded-none bg-muted/30 border border-dashed flex items-center justify-center mb-3">
-                                <div className="text-center text-muted-foreground">
-                                    <HugeiconsIcon icon={Image01Icon} className="size-8 mx-auto mb-1 opacity-30" />
-                                    <p className="text-xs">Imagem sera gerada</p>
-                                </div>
-                            </div>
-                            <div className="p-2 rounded-none bg-muted/30 border">
-                                <p className="text-xs text-muted-foreground mb-1">Angulo selecionado:</p>
-                                <p className="text-sm font-medium">{selectedAngle.hook}</p>
-                                <p className="text-xs text-muted-foreground mt-1 italic">"{selectedAngle.exampleOpener}"</p>
+                                
+                                {/* Feedback input for caption regeneration */}
+                                {showFeedbackFor === "caption" && !isEditingCaption && (
+                                    <div className="mb-3 p-3 border bg-muted/30 space-y-2 shrink-0">
+                                        <Label className="text-xs">O que voce quer mudar na legenda?</Label>
+                                        <Textarea
+                                            placeholder="Ex: Tom mais casual, adicionar emojis, mais curta..."
+                                            value={feedback}
+                                            onChange={(e) => setFeedback(e.target.value)}
+                                            rows={2}
+                                            className="rounded-none text-sm"
+                                        />
+                                        <div className="flex gap-2 items-center flex-wrap">
+                                            <Button
+                                                size="sm"
+                                                className="rounded-none gap-1"
+                                                onClick={() => showRegenerateConfirmation("caption")}
+                                                disabled={isRegeneratingCaption}
+                                            >
+                                                {isRegeneratingCaption ? (
+                                                    <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
+                                                ) : (
+                                                    <HugeiconsIcon icon={TextIcon} className="size-3" />
+                                                )}
+                                                Regenerar Legenda
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="rounded-none gap-1"
+                                                onClick={() => showRegenerateConfirmation("both")}
+                                                disabled={isRegeneratingCaption}
+                                            >
+                                                <HugeiconsIcon icon={SparklesIcon} className="size-3" />
+                                                Regenerar Tudo
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="rounded-none"
+                                                onClick={() => { setShowFeedbackFor(null); setFeedback(""); }}
+                                            >
+                                                Cancelar
+                                            </Button>
+                                            <span className="text-xs text-muted-foreground ml-auto">
+                                                1-2 creditos
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Editable caption or display */}
+                                {isEditingCaption ? (
+                                    <div className="flex-1 flex flex-col min-h-0">
+                                        <Textarea
+                                            value={editedCaption}
+                                            onChange={(e) => setEditedCaption(e.target.value)}
+                                            className="flex-1 rounded-none text-sm min-h-[100px]"
+                                        />
+                                        <div className="flex gap-2 mt-2 shrink-0">
+                                            <Button
+                                                size="sm"
+                                                className="rounded-none gap-1"
+                                                onClick={handleSaveCaption}
+                                            >
+                                                <HugeiconsIcon icon={Tick01Icon} className="size-3" />
+                                                Salvar
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="rounded-none gap-1"
+                                                onClick={handleCancelEditCaption}
+                                            >
+                                                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : isRegeneratingCaption ? (
+                                    <div className="flex-1 flex items-center justify-center">
+                                        <div className="text-center">
+                                            <HugeiconsIcon icon={Loading03Icon} className="size-6 animate-spin text-primary mx-auto mb-2" />
+                                            <p className="text-xs text-muted-foreground">Regenerando legenda...</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm whitespace-pre-wrap flex-1 overflow-y-auto">{generatedPostData.caption}</p>
+                                )}
+                                
+                                {/* Version History Panel */}
+                                {showHistory && generationHistory && generationHistory.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t shrink-0">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-xs font-medium">Historico de versoes</p>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-5 px-1"
+                                                onClick={() => setShowHistory(false)}
+                                            >
+                                                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+                                            </Button>
+                                        </div>
+                                        <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                                            {generationHistory.map((version) => (
+                                                <div
+                                                    key={version._id}
+                                                    className="flex items-start gap-2 p-2 border bg-muted/20 hover:bg-muted/40 transition-colors"
+                                                >
+                                                    {/* Thumbnail */}
+                                                    <div className="size-10 shrink-0 bg-muted rounded-none overflow-hidden">
+                                                        {version.imageUrl ? (
+                                                            <img
+                                                                src={version.imageUrl}
+                                                                alt={`v${version.version}`}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <HugeiconsIcon icon={Image01Icon} className="size-4 opacity-30" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-xs font-medium">v{version.version}</span>
+                                                            <span className="text-[10px] text-muted-foreground">
+                                                                {version.action === "initial" && "Inicial"}
+                                                                {version.action === "regenerate_image" && "Imagem"}
+                                                                {version.action === "regenerate_caption" && "Legenda"}
+                                                                {version.action === "regenerate_both" && "Tudo"}
+                                                                {version.action === "edit_caption" && "Editado"}
+                                                                {version.action === "restore" && "Restaurado"}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] text-muted-foreground truncate">
+                                                            {version.caption.substring(0, 50)}...
+                                                        </p>
+                                                        {version.feedback && (
+                                                            <p className="text-[10px] text-muted-foreground italic truncate">
+                                                                &ldquo;{version.feedback}&rdquo;
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    {/* Restore button */}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 px-2 shrink-0"
+                                                        onClick={() => handleRestoreVersion(version.version)}
+                                                        title="Restaurar esta versao"
+                                                    >
+                                                        <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-3" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
                         <div className="flex-1 flex items-center justify-center">
                             <div className="text-center text-muted-foreground">
                                 <HugeiconsIcon icon={SparklesIcon} className="size-8 mx-auto mb-2 opacity-30" />
-                                <p className="text-xs">Selecione um angulo criativo</p>
+                                <p className="text-xs">Selecione o tipo de post e descreva o que voce quer</p>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Confirmation Dialog for Regeneration */}
+            <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar regeneracao</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.type === "image" && "Voce esta prestes a regenerar a imagem."}
+                            {confirmDialog.type === "caption" && "Voce esta prestes a regenerar a legenda."}
+                            {confirmDialog.type === "both" && "Voce esta prestes a regenerar a legenda e a imagem."}
+                            <br /><br />
+                            <span className="font-medium">Custo:</span> {confirmDialog.credits} credito{confirmDialog.credits > 1 ? "s" : ""}
+                            <br />
+                            <span className="font-medium">Creditos restantes:</span> {userQuota?.remaining ?? 0}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={handleConfirmedRegenerate}
+                            disabled={(userQuota?.remaining ?? 0) < confirmDialog.credits}
+                        >
+                            Confirmar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

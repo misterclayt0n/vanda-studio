@@ -6,11 +6,9 @@ import { api } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
 import {
-    ENHANCED_POST_GENERATION_SYSTEM_PROMPT,
-    ENHANCED_POST_GENERATION_USER_PROMPT,
-    EnhancedPostGenerationResponse,
     IMAGE_GENERATION_PROMPT,
     PostType,
+    POST_TYPE_PROMPTS,
 } from "./prompts";
 
 // Brief input type
@@ -29,21 +27,11 @@ const briefValidator = v.object({
     referenceText: v.optional(v.string()),
 });
 
-// Creative angle type
-const angleValidator = v.object({
-    id: v.string(),
-    hook: v.string(),
-    approach: v.string(),
-    whyItWorks: v.string(),
-    exampleOpener: v.string(),
-});
-
-// Simplified post generation - no brand analysis required
-export const generateWithBrief = action({
+// Simplified post generation - no creative angles required
+export const generatePost = action({
     args: {
         projectId: v.id("projects"),
         brief: briefValidator,
-        selectedAngle: angleValidator,
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -83,52 +71,50 @@ export const generateWithBrief = action({
         });
 
         // 7. Build context for caption generation
-        const enhancedContext = {
-            brandName: project.name,
-            // Use brand analysis if available
-            brandVoice: brandAnalysis?.brandVoice ? {
-                recommended: brandAnalysis.brandVoice.recommended,
-                tone: brandAnalysis.brandVoice.tone,
-            } : undefined,
-            targetAudience: brandAnalysis?.targetAudience?.recommended,
-            contentPillars: brandAnalysis?.contentPillars?.map((p) => ({
-                name: p.name,
-                description: p.description,
-            })),
-            visualIdentity: brandAnalysis?.visualIdentity ? {
-                colorPalette: brandAnalysis.visualIdentity.colorPalette,
-                layoutPatterns: brandAnalysis.visualIdentity.layoutPatterns,
-                photographyStyle: brandAnalysis.visualIdentity.photographyStyle,
-                graphicElements: brandAnalysis.visualIdentity.graphicElements,
-                filterTreatment: brandAnalysis.visualIdentity.filterTreatment,
-                dominantColors: brandAnalysis.visualIdentity.dominantColors ?? [],
-                consistencyScore: brandAnalysis.visualIdentity.consistencyScore ?? 0,
-            } : undefined,
-            // Brief
-            postType: args.brief.postType as PostType,
-            selectedPillar: args.brief.contentPillar,
-            customTopic: args.brief.customTopic,
-            toneOverride: args.brief.toneOverride,
-            captionLength: args.brief.captionLength as "curta" | "media" | "longa" | undefined,
-            includeHashtags: args.brief.includeHashtags,
-            referenceText: args.brief.referenceText,
-            additionalContext: args.brief.additionalContext,
-            // Selected angle
-            selectedAngle: {
-                hook: args.selectedAngle.hook,
-                approach: args.selectedAngle.approach,
-                exampleOpener: args.selectedAngle.exampleOpener,
-            },
-            // No relevant posts for now - simplified flow
-            relevantPosts: [],
-        };
+        const postTypePrompt = POST_TYPE_PROMPTS[args.brief.postType as PostType] || POST_TYPE_PROMPTS.conteudo_profissional;
+        
+        const lengthGuideline = {
+            curta: '50-100 caracteres (sem hashtags) - direto ao ponto',
+            media: '100-200 caracteres (sem hashtags) - desenvolvimento moderado',
+            longa: '200-350 caracteres (sem hashtags) - storytelling completo',
+        }[args.brief.captionLength || 'media'];
+
+        // Build caption generation prompt
+        const captionPrompt = `Crie uma legenda de Instagram para a marca "${project.name}".
+
+## Contexto da Marca
+${brandAnalysis?.brandVoice ? `- Voz da marca: ${brandAnalysis.brandVoice.recommended}` : ''}
+${brandAnalysis?.brandVoice?.tone ? `- Tom: ${args.brief.toneOverride?.join(', ') || brandAnalysis.brandVoice.tone.join(', ')}` : ''}
+${brandAnalysis?.targetAudience?.recommended ? `- Público-alvo: ${brandAnalysis.targetAudience.recommended}` : ''}
+${brandAnalysis?.businessCategory ? `- Categoria: ${brandAnalysis.businessCategory}` : ''}
+
+## Tipo de Post
+${postTypePrompt}
+
+## Instrucoes do Usuario
+${args.brief.additionalContext || 'Criar um post envolvente para Instagram'}
+
+${args.brief.referenceText ? `## Material de Referencia\n"${args.brief.referenceText}"` : ''}
+
+## Diretrizes de Formato
+- Tamanho: ${lengthGuideline}
+- Hashtags: ${args.brief.includeHashtags !== false ? 'Incluir 5-10 hashtags relevantes no final' : 'NAO incluir hashtags'}
+- Emojis: Usar naturalmente quando apropriado
+- Linguagem: Portugues brasileiro
+
+## Formato de Resposta (JSON)
+{
+  "caption": "legenda completa com emojis e hashtags",
+  "reasoning": "explicacao breve das escolhas criativas"
+}
+
+IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
 
         // 8. Generate caption
-        const prompt = ENHANCED_POST_GENERATION_USER_PROMPT(enhancedContext);
         const response = await callLLM(
             [
-                { role: "system", content: ENHANCED_POST_GENERATION_SYSTEM_PROMPT },
-                { role: "user", content: prompt },
+                { role: "system", content: "Voce e um especialista em conteudo para Instagram. Crie legendas envolventes e autenticticas. Responda apenas com JSON valido." },
+                { role: "user", content: captionPrompt },
             ],
             {
                 model: MODELS.GPT_4_1,
@@ -137,7 +123,7 @@ export const generateWithBrief = action({
             }
         );
 
-        const generated = parseJSONResponse<EnhancedPostGenerationResponse>(response.content);
+        const generated = parseJSONResponse<{ caption: string; reasoning: string }>(response.content);
 
         // 9. Collect reference images for image generation
         const referenceImageUrls: Array<{ url: string }> = [];
@@ -190,11 +176,6 @@ export const generateWithBrief = action({
                 includeHashtags: args.brief.includeHashtags,
                 additionalContext: args.brief.additionalContext,
                 referenceText: args.brief.referenceText,
-            },
-            selectedAngle: {
-                hook: args.selectedAngle.hook,
-                approach: args.selectedAngle.approach,
-                whyItWorks: args.selectedAngle.whyItWorks,
             },
         });
 
