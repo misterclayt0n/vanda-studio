@@ -231,7 +231,6 @@ export function BriefBuilderDialog({
                     referenceText: referenceText || undefined,
                 },
                 selectedAngle,
-                imageStyle,
             });
             
             onSuccess?.();

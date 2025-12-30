@@ -622,12 +622,13 @@ export interface CreativeAnglesResponse {
 
 export interface EnhancedPostGenerationContext {
     brandName: string;
-    brandVoice: {
+    // Now optional - simplified flow doesn't require brand analysis
+    brandVoice?: {
         recommended: string;
         tone: string[];
     };
-    targetAudience: string;
-    contentPillars: Array<{ name: string; description: string }>;
+    targetAudience?: string;
+    contentPillars?: Array<{ name: string; description: string }>;
     visualIdentity?: VisualIdentityResponse;
     // The brief
     postType: PostType;
@@ -701,16 +702,26 @@ Elementos: ${img.elements.join(', ')}
 `).join('\n')}`
         : '';
 
-    return `Crie uma legenda de Instagram baseada no ângulo criativo selecionado.
-
-## Marca
+    // Brand context section - only if available
+    const brandSection = context.brandVoice
+        ? `## Marca
 - Nome: ${context.brandName}
 - Voz: ${context.brandVoice.recommended}
 - Tom: ${context.toneOverride?.join(', ') || context.brandVoice.tone.join(', ')}
-- Público: ${context.targetAudience}
+${context.targetAudience ? `- Público: ${context.targetAudience}` : ''}`
+        : `## Marca
+- Nome: ${context.brandName}`;
 
-## Pilares de Conteúdo
-${context.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}
+    const pillarsSection = context.contentPillars && context.contentPillars.length > 0
+        ? `## Pilares de Conteúdo
+${context.contentPillars.map(p => `- ${p.name}: ${p.description}`).join('\n')}`
+        : '';
+
+    return `Crie uma legenda de Instagram baseada no ângulo criativo selecionado.
+
+${brandSection}
+
+${pillarsSection}
 
 ## Brief do Post
 ${postTypePrompt}
@@ -791,88 +802,57 @@ export interface ReferenceImageAnalysisResponse {
 // =============================================================================
 
 export const IMAGE_GENERATION_PROMPT = (context: ImageGenerationContext) => {
-    const styleSpec = context.imageStyle
-        ? IMAGE_STYLE_SPECS[context.imageStyle]
-        : IMAGE_STYLE_SPECS.realistic;
-
-    // Build structured spec as JSON
-    const imageSpec: ImageGenerationSpec = {
-        project_constraints: {
-            resolution: "1200x1200px",
-            aspect_ratio: "1:1 (Instagram square)",
-            output_quality: "High quality, 8K resolution rendering",
-            text_overlay: "ABSOLUTELY NO TEXT - no words, letters, numbers, typography, or written content of any kind. Pure visual image only."
-        },
-        camera_and_style: {
-            visual_aesthetic: styleSpec.visual_aesthetic || "Professional photography",
-            perspective: styleSpec.perspective || "Eye-level, natural composition",
-            post_processing: styleSpec.post_processing || {
-                color_grading: "Natural, balanced",
-                depth_of_field: "Shallow bokeh",
-                lighting_style: "Soft natural light"
-            }
-        },
-        subject_details: {
-            main_subject: `Content for ${context.businessCategory || "brand"}: ${context.brandName}`,
-            product_focus: context.businessCategory ? `Products/services related to ${context.businessCategory}` : undefined,
-            brand_elements: context.hasReferenceImages ? "Match visual identity from reference images" : undefined
-        },
-        environment: {
-            setting: context.postType === "promocao" 
-                ? "Clean, product-focused setting that highlights the offering"
-                : context.postType === "engajamento"
-                ? "Warm, relatable environment that creates emotional connection"
-                : "Professional, authoritative setting",
-            mood: context.postType === "promocao"
-                ? "Aspirational, desirable, premium feel"
-                : context.postType === "engajamento"
-                ? "Warm, authentic, inviting"
-                : "Confident, trustworthy, expert",
-            time_of_day: "Golden hour or well-lit studio"
-        },
-        lighting: {
-            technique: "Professional studio/natural hybrid lighting",
-            characteristics: "Soft shadows, highlight on main subject, balanced exposure"
-        }
-    };
-
     const referenceImagePrompt = context.hasReferenceImages
         ? `
 ## REFERENCE IMAGES (CRITICAL)
-The attached images are previous posts from this brand. You MUST:
-- Maintain visual consistency with the brand's established style
-- Preserve exact appearance of products (packaging, logos, colors)
-- Replicate the photographic style and composition
-- If there's a specific product (jar, package, etc), include it with IDENTICAL appearance
+The attached images show this brand's products and style. You MUST:
+- Create a PHOTOREALISTIC image that looks like a real photograph
+- Preserve exact appearance of any products shown (packaging, colors, textures)
+- Match the photographic quality and lighting style
+- Make it look like it was shot with a professional DSLR camera
 `
         : "";
 
-    return `Generate an Instagram post image using the following structured specification:
+    return `Create a PHOTOREALISTIC Instagram post image. This must look like a REAL PHOTOGRAPH taken with a professional camera.
 
-## IMAGE SPECIFICATION (JSON)
-${JSON.stringify(imageSpec, null, 2)}
+## PHOTOGRAPHY REQUIREMENTS (CRITICAL)
+- Style: Professional product/lifestyle photography - MUST look like a real photo, NOT digital art or illustration
+- Camera: Shot on Canon 5D Mark IV or similar professional DSLR
+- Lens: 50mm f/1.8 or 85mm f/1.4 for natural perspective
+- Lighting: Natural golden hour light or professional studio softbox lighting
+- Post-processing: Subtle color grading, realistic skin tones, natural colors
+- Quality: 8K resolution, sharp focus on subject, natural bokeh background
+
+## IMAGE SPECIFICATIONS
+- Resolution: 1200x1200px (Instagram square)
+- Aspect ratio: 1:1
+- NO TEXT whatsoever - no words, letters, numbers, logos with text, or typography
 
 ## BRAND CONTEXT
 - Brand: ${context.brandName}
 - Business Category: ${context.businessCategory || "Not specified"}
-- Post Type: ${context.postType || "General"}
+- Post Type: ${context.postType || "General content"}
 
-## POST CAPTION (for context - DO NOT include this text in the image)
-"${context.caption}"
-
-${context.additionalContext ? `## ADDITIONAL CONTEXT\n${context.additionalContext}` : ""}
+## WHAT TO SHOW
+Based on the caption context: "${context.caption}"
+${context.additionalContext ? `Additional details: ${context.additionalContext}` : ""}
 
 ${referenceImagePrompt}
 
-## CRITICAL REQUIREMENTS - READ CAREFULLY
-1. **ABSOLUTELY NO TEXT IN THE IMAGE** - This is the most important rule. Do not include any words, letters, numbers, or typography of any kind. The image must be purely visual with zero text overlays, captions, or written content.
-2. If you need to represent the brand name, use only the logo/visual symbol, never text
-3. Focus on creating a powerful visual composition that tells the story without words
-4. The caption will be added separately by Instagram - the image should complement it visually, not duplicate it
-5. Create a clean, scroll-stopping visual that looks professional on Instagram feed
-6. ${context.hasReferenceImages ? "MAINTAIN visual consistency with reference images - preserve product appearance exactly" : "Create a fresh, professional visual"}
-7. Prefer showing products, lifestyle scenes, or abstract brand-related imagery over any text elements
+## STYLE GUIDANCE
+- This should look like a professional Instagram influencer photo or brand campaign shot
+- Natural, authentic feel - NOT overly edited or artificial looking
+- Real textures, real materials, photorealistic lighting and shadows
+- If showing products, they should look like actual physical products photographed in a studio
+- If showing people or lifestyle, use natural poses and realistic environments
 
-Generate the image now.`;
+## ABSOLUTELY FORBIDDEN
+1. NO TEXT of any kind in the image
+2. NO digital art, illustrations, or cartoon styles
+3. NO artificial or CGI-looking renders
+4. NO fantasy or surreal elements unless specifically requested
+5. NO stock photo watermarks or overlays
+
+Generate a photorealistic image now.`;
 };
 

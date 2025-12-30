@@ -10,7 +10,6 @@ import {
     ENHANCED_POST_GENERATION_USER_PROMPT,
     EnhancedPostGenerationResponse,
     IMAGE_GENERATION_PROMPT,
-    ImageStyleType,
     PostType,
 } from "./prompts";
 
@@ -39,18 +38,12 @@ const angleValidator = v.object({
     exampleOpener: v.string(),
 });
 
-// Enhanced post generation with full brief and creative angle
+// Simplified post generation - no brand analysis required
 export const generateWithBrief = action({
     args: {
         projectId: v.id("projects"),
         brief: briefValidator,
         selectedAngle: angleValidator,
-        imageStyle: v.optional(v.union(
-            v.literal("realistic"),
-            v.literal("illustrative"),
-            v.literal("minimalist"),
-            v.literal("artistic")
-        )),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -79,75 +72,30 @@ export const generateWithBrief = action({
             throw new Error("Project not found or access denied");
         }
 
-        // 5. Get brand analysis - required
+        // 5. Get brand analysis (optional - for enhanced context if available)
         const brandAnalysis = await ctx.runQuery(api.ai.analysisMutations.getLatestAnalysis, {
             projectId: args.projectId,
         });
 
-        if (!brandAnalysis || brandAnalysis.status !== "completed") {
-            throw new Error("Analise de marca necessaria. Execute a analise primeiro.");
-        }
-
-        if (!brandAnalysis.brandVoice || !brandAnalysis.targetAudience || !brandAnalysis.contentPillars) {
-            throw new Error("Analise de marca incompleta. Execute novamente.");
-        }
-
-        // 6. Get analyzed posts for reference (optional)
-        const postAnalyses = await ctx.runQuery(api.ai.analysisMutations.listPostAnalyses, {
-            projectId: args.projectId,
-        });
-
-        const analyzedPosts = postAnalyses?.filter((a) => a.hasAnalysis && a.analysisDetails) ?? [];
-
-        // Get source post details
-        const sourcePosts = await Promise.all(
-            analyzedPosts.slice(0, 5).map(async (analysis) => {
-                const post = await ctx.runQuery(api.instagramPosts.get, { postId: analysis.postId });
-
-                let imageUrl: string | null = null;
-                if (post?.mediaStorageId) {
-                    imageUrl = await ctx.storage.getUrl(post.mediaStorageId);
-                } else if (post?.mediaUrl) {
-                    imageUrl = post.mediaUrl;
-                }
-
-                return {
-                    postId: analysis.postId,
-                    caption: post?.caption || analysis.currentCaption || "",
-                    strengths: analysis.analysisDetails?.strengths ?? [],
-                    toneAnalysis: analysis.analysisDetails?.toneAnalysis ?? "",
-                    engagementScore: post?.engagementScore ?? 0.5,
-                    imageUrl,
-                };
-            })
-        );
-
-        // 7. Get reference images analysis (if any)
+        // 6. Get user-uploaded reference images
         const referenceImages = await ctx.runQuery(api.referenceImages.listByProject, {
             projectId: args.projectId,
         });
 
-        const referenceImagesAnalysis = referenceImages
-            .filter((img) => img.analysis)
-            .map((img) => ({
-                description: img.analysis!.description,
-                elements: img.analysis!.elements,
-            }));
-
-        // 8. Build enhanced context
+        // 7. Build context for caption generation
         const enhancedContext = {
             brandName: project.name,
-            brandVoice: {
+            // Use brand analysis if available
+            brandVoice: brandAnalysis?.brandVoice ? {
                 recommended: brandAnalysis.brandVoice.recommended,
                 tone: brandAnalysis.brandVoice.tone,
-            },
-            targetAudience: brandAnalysis.targetAudience.recommended,
-            contentPillars: brandAnalysis.contentPillars.map((p) => ({
+            } : undefined,
+            targetAudience: brandAnalysis?.targetAudience?.recommended,
+            contentPillars: brandAnalysis?.contentPillars?.map((p) => ({
                 name: p.name,
                 description: p.description,
             })),
-            // Ensure visualIdentity conforms to the expected type
-            visualIdentity: brandAnalysis.visualIdentity ? {
+            visualIdentity: brandAnalysis?.visualIdentity ? {
                 colorPalette: brandAnalysis.visualIdentity.colorPalette,
                 layoutPatterns: brandAnalysis.visualIdentity.layoutPatterns,
                 photographyStyle: brandAnalysis.visualIdentity.photographyStyle,
@@ -165,24 +113,17 @@ export const generateWithBrief = action({
             includeHashtags: args.brief.includeHashtags,
             referenceText: args.brief.referenceText,
             additionalContext: args.brief.additionalContext,
-            // Reference images
-            referenceImagesAnalysis: referenceImagesAnalysis.length > 0 ? referenceImagesAnalysis : undefined,
             // Selected angle
             selectedAngle: {
                 hook: args.selectedAngle.hook,
                 approach: args.selectedAngle.approach,
                 exampleOpener: args.selectedAngle.exampleOpener,
             },
-            // Relevant posts
-            relevantPosts: sourcePosts.slice(0, 3).map((p) => ({
-                caption: p.caption,
-                strengths: p.strengths,
-                toneAnalysis: p.toneAnalysis,
-                engagementScore: p.engagementScore,
-            })),
+            // No relevant posts for now - simplified flow
+            relevantPosts: [],
         };
 
-        // 9. Generate caption with enhanced prompt
+        // 8. Generate caption
         const prompt = ENHANCED_POST_GENERATION_USER_PROMPT(enhancedContext);
         const response = await callLLM(
             [
@@ -198,19 +139,22 @@ export const generateWithBrief = action({
 
         const generated = parseJSONResponse<EnhancedPostGenerationResponse>(response.content);
 
-        // 10. Generate image
-        const referenceImageUrls = sourcePosts
-            .filter((p) => p.imageUrl !== null)
-            .map((p) => ({ url: p.imageUrl as string }));
+        // 9. Collect reference images for image generation
+        const referenceImageUrls: Array<{ url: string }> = [];
+        for (const img of referenceImages) {
+            if (img.url) {
+                referenceImageUrls.push({ url: img.url });
+            }
+        }
 
+        // 10. Generate image
         const imagePrompt = IMAGE_GENERATION_PROMPT({
             brandName: project.name,
-            visualStyle: brandAnalysis.visualDirection?.recommendedStyle ?? "Moderno e profissional",
+            visualStyle: brandAnalysis?.visualDirection?.recommendedStyle ?? "Moderno e profissional",
             caption: generated.caption,
             additionalContext: args.brief.additionalContext,
-            imageStyle: args.imageStyle as ImageStyleType | undefined,
             hasReferenceImages: referenceImageUrls.length > 0,
-            businessCategory: brandAnalysis.businessCategory,
+            businessCategory: brandAnalysis?.businessCategory,
             postType: args.brief.postType as PostType,
         });
 
@@ -227,12 +171,11 @@ export const generateWithBrief = action({
             console.error("Image generation failed:", imageError);
         }
 
-        // 11. Store generated post with full brief and angle
+        // 11. Store generated post
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
-            brandAnalysisId: brandAnalysis._id,
-            sourcePostIds: sourcePosts.map((p) => p.postId),
+            brandAnalysisId: brandAnalysis?._id,
             reasoning: generated.reasoning,
             model: MODELS.GPT_4_1,
             imageStorageId,

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-// Get a single generated post
+// Get a single generated post with resolved image URL
 export const get = query({
     args: {
         id: v.id("generated_posts"),
@@ -32,7 +32,16 @@ export const get = query({
             return null;
         }
 
-        return post;
+        // Resolve image URL if available
+        let imageUrl: string | null = null;
+        if (post.imageStorageId) {
+            imageUrl = await ctx.storage.getUrl(post.imageStorageId);
+        }
+
+        return {
+            ...post,
+            imageUrl,
+        };
     },
 });
 
@@ -109,8 +118,8 @@ export const create = mutation({
     args: {
         projectId: v.id("projects"),
         caption: v.string(),
-        brandAnalysisId: v.id("brand_analysis"),
-        sourcePostIds: v.array(v.id("instagram_posts")),
+        brandAnalysisId: v.optional(v.id("brand_analysis")),
+        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
         reasoning: v.optional(v.string()),
         model: v.optional(v.string()),
         imageStorageId: v.optional(v.id("_storage")),
@@ -160,8 +169,8 @@ export const create = mutation({
         return await ctx.db.insert("generated_posts", {
             projectId: args.projectId,
             caption: args.caption,
-            brandAnalysisId: args.brandAnalysisId,
-            sourcePostIds: args.sourcePostIds,
+            brandAnalysisId: args.brandAnalysisId ?? undefined,
+            sourcePostIds: args.sourcePostIds ?? [],
             reasoning: args.reasoning,
             model: args.model,
             imageStorageId: args.imageStorageId,

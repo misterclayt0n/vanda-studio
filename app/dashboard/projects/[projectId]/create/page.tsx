@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -10,13 +10,13 @@ import {
     ArrowLeft01Icon,
     Loading03Icon,
     SparklesIcon,
-    Tick01Icon,
-    Camera01Icon,
-    PaintBrush01Icon,
-    Minimize01Icon,
-    PaintBoardIcon,
     RefreshIcon,
     Image01Icon,
+    Upload04Icon,
+    Delete01Icon,
+    Tick01Icon,
+    Copy01Icon,
+    Download01Icon,
 } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,9 +26,6 @@ import type { PostType } from "@/convex/ai/prompts";
 
 import {
     PostTypeSelector,
-    PillarSelector,
-    ToneSelector,
-    CaptionOptions,
     CreativeAnglesDisplay,
 } from "@/components/brief-builder";
 
@@ -40,6 +37,12 @@ interface CreativeAngle {
     exampleOpener: string;
 }
 
+interface GeneratedPost {
+    id: Id<"generated_posts">;
+    caption: string;
+    imageUrl: string | null;
+}
+
 export default function CreatePostPage() {
     const params = useParams<{ projectId: string }>();
     const router = useRouter();
@@ -47,16 +50,12 @@ export default function CreatePostPage() {
 
     // Brief state
     const [postType, setPostType] = useState<PostType | null>(null);
-    const [selectedPillar, setSelectedPillar] = useState<string | null>(null);
-    const [customTopic, setCustomTopic] = useState("");
-    const [selectedTones, setSelectedTones] = useState<string[]>([]);
-    const [referenceText, setReferenceText] = useState("");
     const [additionalContext, setAdditionalContext] = useState("");
-
-    // Options state
-    const [captionLength, setCaptionLength] = useState<"curta" | "media" | "longa">("media");
-    const [includeHashtags, setIncludeHashtags] = useState(true);
-    const [imageStyle, setImageStyle] = useState<"realistic" | "illustrative" | "minimalist" | "artistic">("realistic");
+    
+    // Image upload state
+    const [uploadedImages, setUploadedImages] = useState<Array<{ id: Id<"reference_images">; url: string; filename: string }>>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Angles state
     const [angles, setAngles] = useState<CreativeAngle[] | null>(null);
@@ -66,43 +65,86 @@ export default function CreatePostPage() {
 
     // Generation state
     const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedCaption, setGeneratedCaption] = useState<string | null>(null);
-    const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+    const [generatedPost, setGeneratedPost] = useState<GeneratedPost | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     // Queries
     const project = useQuery(api.projects.get, projectId ? { projectId } : "skip");
-    const brandAnalysis = useQuery(api.ai.analysisMutations.getLatestAnalysis, projectId ? { projectId } : "skip");
 
     // Actions
     const brainstormAngles = useAction(api.ai.creativeAngles.brainstormAngles);
     const generateWithBrief = useAction(api.ai.enhancedPostGeneration.generateWithBrief);
+    
+    // Mutations for image upload
+    const generateUploadUrl = useMutation(api.referenceImages.generateUploadUrl);
+    const saveReferenceImage = useMutation(api.referenceImages.save);
+    const removeReferenceImage = useMutation(api.referenceImages.remove);
 
-    // Derived data
-    const contentPillars = brandAnalysis?.contentPillars ?? [];
-    const brandTones = brandAnalysis?.brandVoice?.tone ?? [];
-    const isReady = brandAnalysis?.status === "completed";
+    // Handle file upload
+    const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
-    // Generate creative angles
+        setIsUploading(true);
+        setError(null);
+
+        try {
+            for (const file of Array.from(files)) {
+                if (!file.type.startsWith("image/")) continue;
+                if (file.size > 10 * 1024 * 1024) {
+                    setError("Imagem muito grande. Maximo 10MB.");
+                    continue;
+                }
+
+                const uploadUrl = await generateUploadUrl();
+                const result = await fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": file.type },
+                    body: file,
+                });
+
+                if (!result.ok) throw new Error("Falha ao enviar imagem");
+
+                const { storageId } = await result.json();
+                const imageId = await saveReferenceImage({
+                    projectId,
+                    storageId,
+                    filename: file.name,
+                    mimeType: file.type,
+                });
+
+                const previewUrl = URL.createObjectURL(file);
+                setUploadedImages((prev) => [...prev, { id: imageId, url: previewUrl, filename: file.name }]);
+            }
+        } catch (err) {
+            console.error("Upload failed:", err);
+            setError(err instanceof Error ? err.message : "Erro ao enviar imagem");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    }, [generateUploadUrl, saveReferenceImage, projectId]);
+
+    const handleRemoveImage = useCallback(async (imageId: Id<"reference_images">) => {
+        try {
+            await removeReferenceImage({ id: imageId });
+            setUploadedImages((prev) => prev.filter((img) => img.id !== imageId));
+        } catch (err) {
+            console.error("Failed to remove image:", err);
+        }
+    }, [removeReferenceImage]);
+
     const handleGenerateAngles = useCallback(async () => {
         if (!postType) return;
-
         setIsLoadingAngles(true);
         setError(null);
 
         try {
             const result = await brainstormAngles({
                 projectId,
-                brief: {
-                    postType,
-                    contentPillar: selectedPillar ?? undefined,
-                    customTopic: customTopic || undefined,
-                    toneOverride: selectedTones.length > 0 ? selectedTones : undefined,
-                    referenceText: referenceText || undefined,
-                    additionalContext: additionalContext || undefined,
-                },
+                brief: { postType, additionalContext: additionalContext || undefined },
             });
-
             setAngles(result.angles);
             setAnglesCached(result.cached);
             setSelectedAngle(null);
@@ -112,21 +154,10 @@ export default function CreatePostPage() {
         } finally {
             setIsLoadingAngles(false);
         }
-    }, [
-        postType,
-        projectId,
-        selectedPillar,
-        customTopic,
-        selectedTones,
-        referenceText,
-        additionalContext,
-        brainstormAngles,
-    ]);
+    }, [postType, projectId, additionalContext, brainstormAngles]);
 
-    // Generate the post
     const handleGenerate = async () => {
         if (!postType || !selectedAngle) return;
-
         setIsGenerating(true);
         setError(null);
 
@@ -135,20 +166,22 @@ export default function CreatePostPage() {
                 projectId,
                 brief: {
                     postType,
-                    contentPillar: selectedPillar ?? undefined,
-                    customTopic: customTopic || undefined,
-                    toneOverride: selectedTones.length > 0 ? selectedTones : undefined,
-                    captionLength,
-                    includeHashtags,
+                    captionLength: "media",
+                    includeHashtags: true,
                     additionalContext: additionalContext || undefined,
-                    referenceText: referenceText || undefined,
                 },
                 selectedAngle,
-                imageStyle,
             });
 
-            // Redirect to the project page after success
-            router.push(`/dashboard/projects/${projectId}?tab=generated`);
+            // Fetch the generated post to show in preview
+            const post = await fetch(`/api/generated-post/${result.generatedPostId}`).then(r => r.json()).catch(() => null);
+            
+            // For now just set basic info - image will be fetched via query
+            setGeneratedPost({
+                id: result.generatedPostId,
+                caption: "",
+                imageUrl: null,
+            });
         } catch (err) {
             console.error("Failed to generate post:", err);
             setError(err instanceof Error ? err.message : "Erro ao gerar post");
@@ -157,16 +190,27 @@ export default function CreatePostPage() {
         }
     };
 
-    // Loading state
-    if (project === undefined || brandAnalysis === undefined) {
+    const handleCopyCaption = async () => {
+        if (!generatedPostData?.caption) return;
+        await navigator.clipboard.writeText(generatedPostData.caption);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    // Fetch generated post details
+    const generatedPostData = useQuery(
+        api.generatedPosts.get,
+        generatedPost?.id ? { id: generatedPost.id } : "skip"
+    );
+
+    if (project === undefined) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="flex items-center justify-center h-[calc(100vh-120px)]">
                 <HugeiconsIcon icon={Loading03Icon} className="size-8 animate-spin text-muted-foreground" />
             </div>
         );
     }
 
-    // Project not found
     if (!project) {
         return (
             <div className="space-y-4">
@@ -179,196 +223,166 @@ export default function CreatePostPage() {
         );
     }
 
-    // Brand analysis required
-    if (!isReady) {
-        return (
-            <div className="space-y-4">
-                <Button variant="ghost" onClick={() => router.back()}>
-                    <HugeiconsIcon icon={ArrowLeft01Icon} className="mr-2 size-4" />
-                    Voltar
-                </Button>
-                <div className="rounded-none border bg-card p-8 text-center">
-                    <p className="text-lg font-medium mb-2">Analise de Marca Necessaria</p>
-                    <p className="text-muted-foreground mb-4">
-                        Execute a analise de marca na aba Estrategia antes de criar posts.
-                    </p>
-                    <Button onClick={() => router.push(`/dashboard/projects/${projectId}`)}>
-                        Ir para o Projeto
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-6">
+        <div className="h-[calc(100vh-120px)] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
                     <Button variant="ghost" size="sm" onClick={() => router.back()}>
                         <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
                     </Button>
                     <div>
                         <h1 className="text-lg font-semibold">Criar Novo Post</h1>
-                        <p className="text-sm text-muted-foreground">{project.name}</p>
+                        <p className="text-xs text-muted-foreground">{project.name}</p>
                     </div>
                 </div>
-                <Button
-                    onClick={handleGenerate}
-                    disabled={!selectedAngle || isGenerating}
-                    className="gap-2"
-                >
-                    {isGenerating ? (
-                        <>
-                            <HugeiconsIcon icon={Loading03Icon} className="size-4 animate-spin" />
-                            Gerando...
-                        </>
-                    ) : (
-                        <>
-                            <HugeiconsIcon icon={SparklesIcon} className="size-4" />
-                            Gerar Post
-                        </>
-                    )}
-                </Button>
+                {!generatedPost ? (
+                    <Button
+                        onClick={handleGenerate}
+                        disabled={!selectedAngle || isGenerating}
+                        className="gap-2"
+                    >
+                        {isGenerating ? (
+                            <>
+                                <HugeiconsIcon icon={Loading03Icon} className="size-4 animate-spin" />
+                                Gerando...
+                            </>
+                        ) : (
+                            <>
+                                <HugeiconsIcon icon={SparklesIcon} className="size-4" />
+                                Gerar Post
+                            </>
+                        )}
+                    </Button>
+                ) : (
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => {
+                            setGeneratedPost(null);
+                            setSelectedAngle(null);
+                        }}>
+                            Criar Outro
+                        </Button>
+                        <Button onClick={() => router.push(`/dashboard/projects/${projectId}?tab=generated`)}>
+                            Ver Todos os Posts
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Error */}
             {error && (
-                <div className="p-4 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                <div className="p-3 rounded-none bg-destructive/10 border border-destructive/30 text-sm text-destructive mb-4">
                     {error}
                 </div>
             )}
 
-            {/* Two Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column - Brief Builder */}
-                <div className="space-y-6">
-                    <div className="rounded-none border bg-card p-6 space-y-6">
-                        <h2 className="font-medium">Brief do Post</h2>
-
-                        {/* Post Type */}
-                        <PostTypeSelector value={postType} onChange={setPostType} />
-
-                        {/* Content Pillar */}
-                        {contentPillars.length > 0 && (
-                            <PillarSelector
-                                pillars={contentPillars}
-                                selectedPillar={selectedPillar}
-                                customTopic={customTopic}
-                                onPillarChange={setSelectedPillar}
-                                onCustomTopicChange={setCustomTopic}
-                            />
-                        )}
-
-                        {/* Tone Override */}
-                        <ToneSelector
-                            availableTones={brandTones}
-                            selectedTones={selectedTones}
-                            onChange={setSelectedTones}
-                        />
-
-                        {/* Reference Text */}
+            {/* Main Content - Two Columns */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+                {/* Left Column - Brief */}
+                <div className="flex flex-col gap-4 min-h-0">
+                    <div className="rounded-none border bg-card p-4 space-y-4 shrink-0">
+                        {/* Post Type - Compact */}
                         <div className="space-y-2">
-                            <Label>Texto de Referencia (opcional)</Label>
-                            <Textarea
-                                placeholder="Cole aqui um texto, promocao, informacao de produto..."
-                                value={referenceText}
-                                onChange={(e) => setReferenceText(e.target.value)}
-                                rows={3}
-                                className="rounded-none"
-                            />
+                            <Label className="text-xs">Tipo de Post</Label>
+                            <div className="flex gap-2">
+                                {(["promocao", "conteudo_profissional", "engajamento"] as PostType[]).map((type) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setPostType(type)}
+                                        className={cn(
+                                            "flex-1 px-3 py-2 text-xs rounded-none border transition-all",
+                                            postType === type
+                                                ? "border-primary bg-primary/10 text-primary"
+                                                : "border-border hover:border-primary/50"
+                                        )}
+                                    >
+                                        {type === "promocao" ? "Promocao" : type === "conteudo_profissional" ? "Conteudo" : "Engajamento"}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Additional Context */}
-                        <div className="space-y-2">
-                            <Label>Contexto Adicional (opcional)</Label>
+                        {/* Context */}
+                        <div className="space-y-1">
+                            <Label className="text-xs">O que voce quer comunicar?</Label>
                             <Textarea
-                                placeholder="Informacoes extras, data comemorativa, lancamento..."
+                                placeholder="Descreva o que voce quer no post..."
                                 value={additionalContext}
                                 onChange={(e) => setAdditionalContext(e.target.value)}
                                 rows={2}
-                                className="rounded-none"
+                                className="rounded-none text-sm"
                             />
                         </div>
 
-                        {/* Generate Angles Button */}
+                        {/* Image Upload - Compact */}
+                        <div className="space-y-1">
+                            <Label className="text-xs">Imagens de Referencia (opcional)</Label>
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className={cn(
+                                    "border border-dashed rounded-none p-3 text-center cursor-pointer transition-colors",
+                                    isUploading ? "border-primary/50 bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"
+                                )}
+                            >
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleFileUpload}
+                                    disabled={isUploading}
+                                />
+                                {isUploading ? (
+                                    <HugeiconsIcon icon={Loading03Icon} className="size-5 animate-spin text-primary mx-auto" />
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                        <HugeiconsIcon icon={Upload04Icon} className="size-4" />
+                                        Enviar imagens
+                                    </div>
+                                )}
+                            </div>
+                            {uploadedImages.length > 0 && (
+                                <div className="flex gap-1 mt-2">
+                                    {uploadedImages.map((img) => (
+                                        <div key={img.id} className="relative group size-12">
+                                            <img src={img.url} alt="" className="w-full h-full object-cover rounded-none border" />
+                                            <button
+                                                onClick={() => handleRemoveImage(img.id)}
+                                                className="absolute -top-1 -right-1 p-0.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100"
+                                            >
+                                                <HugeiconsIcon icon={Delete01Icon} className="size-2.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Generate Button */}
                         <Button
                             onClick={handleGenerateAngles}
                             disabled={!postType || isLoadingAngles}
                             className="w-full gap-2"
                             variant="outline"
+                            size="sm"
                         >
                             {isLoadingAngles ? (
                                 <>
-                                    <HugeiconsIcon icon={Loading03Icon} className="size-4 animate-spin" />
-                                    Gerando angulos...
-                                </>
-                            ) : angles ? (
-                                <>
-                                    <HugeiconsIcon icon={RefreshIcon} className="size-4" />
-                                    Gerar Novos Angulos
+                                    <HugeiconsIcon icon={Loading03Icon} className="size-3 animate-spin" />
+                                    Gerando...
                                 </>
                             ) : (
                                 <>
-                                    <HugeiconsIcon icon={SparklesIcon} className="size-4" />
-                                    Gerar Angulos Criativos
+                                    <HugeiconsIcon icon={SparklesIcon} className="size-3" />
+                                    {angles ? "Novos Angulos" : "Gerar Angulos"}
                                 </>
                             )}
                         </Button>
                     </div>
 
-                    {/* Caption Options */}
-                    <div className="rounded-none border bg-card p-6 space-y-4">
-                        <h2 className="font-medium">Opcoes da Legenda</h2>
-                        <CaptionOptions
-                            captionLength={captionLength}
-                            includeHashtags={includeHashtags}
-                            onLengthChange={setCaptionLength}
-                            onHashtagsChange={setIncludeHashtags}
-                        />
-                    </div>
-
-                    {/* Image Style */}
-                    <div className="rounded-none border bg-card p-6 space-y-4">
-                        <h2 className="font-medium">Estilo da Imagem</h2>
-                        <div className="grid grid-cols-2 gap-3">
-                            {[
-                                { value: "realistic" as const, label: "Realista", icon: Camera01Icon, desc: "Foto profissional" },
-                                { value: "illustrative" as const, label: "Ilustrativo", icon: PaintBoardIcon, desc: "Arte digital" },
-                                { value: "minimalist" as const, label: "Minimalista", icon: Minimize01Icon, desc: "Clean e simples" },
-                                { value: "artistic" as const, label: "Artistico", icon: PaintBrush01Icon, desc: "Criativo e ousado" },
-                            ].map((style) => (
-                                <button
-                                    key={style.value}
-                                    type="button"
-                                    onClick={() => setImageStyle(style.value)}
-                                    className={cn(
-                                        "flex items-center gap-3 p-3 rounded-none border text-left transition-all",
-                                        imageStyle === style.value
-                                            ? "border-primary bg-primary/10 ring-1 ring-primary"
-                                            : "border-border hover:border-primary/50 hover:bg-muted/50"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "flex h-9 w-9 items-center justify-center rounded-none",
-                                        imageStyle === style.value ? "bg-primary text-primary-foreground" : "bg-muted"
-                                    )}>
-                                        <HugeiconsIcon icon={style.icon} className="size-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium">{style.label}</p>
-                                        <p className="text-xs text-muted-foreground">{style.desc}</p>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Column - Angles & Preview */}
-                <div className="space-y-6">
-                    {/* Creative Angles */}
-                    <div className="rounded-none border bg-card p-6">
+                    {/* Angles - Stretches to fill remaining space */}
+                    <div className="rounded-none border bg-card p-4 flex-1 min-h-0 overflow-y-auto flex flex-col">
                         <CreativeAnglesDisplay
                             angles={angles}
                             selectedAngle={selectedAngle}
@@ -378,54 +392,89 @@ export default function CreatePostPage() {
                             cached={anglesCached}
                         />
                     </div>
+                </div>
 
-                    {/* Preview Placeholder */}
-                    <div className="rounded-none border bg-card p-6">
-                        <h2 className="font-medium mb-4">Preview</h2>
-                        {selectedAngle ? (
-                            <div className="space-y-4">
-                                {/* Mock Instagram Post Preview */}
-                                <div className="aspect-square rounded-none bg-muted/50 border flex items-center justify-center">
-                                    <div className="text-center text-muted-foreground">
-                                        <HugeiconsIcon icon={Image01Icon} className="size-12 mx-auto mb-2 opacity-30" />
-                                        <p className="text-sm">Imagem sera gerada</p>
-                                        <p className="text-xs">Estilo: {imageStyle}</p>
+                {/* Right Column - Preview/Result */}
+                <div className="rounded-none border bg-card p-4 flex flex-col min-h-0">
+                    <h2 className="font-medium text-sm mb-3">
+                        {generatedPost ? "Post Gerado" : "Preview"}
+                    </h2>
+                    
+                    {isGenerating ? (
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                            <HugeiconsIcon icon={Loading03Icon} className="size-10 animate-spin text-primary mb-3" />
+                            <p className="text-sm text-muted-foreground">Gerando post...</p>
+                            <p className="text-xs text-muted-foreground mt-1">Isso pode levar ate 30s</p>
+                        </div>
+                    ) : generatedPost && generatedPostData ? (
+                        <div className="flex-1 flex flex-col min-h-0">
+                            {/* Generated Image */}
+                            <div className="aspect-square rounded-none bg-muted/50 border mb-3 overflow-hidden">
+                                {generatedPostData.imageUrl ? (
+                                    <img
+                                        src={generatedPostData.imageUrl}
+                                        alt="Generated"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                        <HugeiconsIcon icon={Image01Icon} className="size-8 opacity-30" />
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Caption */}
+                            <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-muted-foreground">Legenda</p>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 px-2"
+                                            onClick={handleCopyCaption}
+                                        >
+                                            <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className="size-3" />
+                                        </Button>
+                                        {generatedPostData.imageUrl && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2"
+                                                asChild
+                                            >
+                                                <a href={generatedPostData.imageUrl} download>
+                                                    <HugeiconsIcon icon={Download01Icon} className="size-3" />
+                                                </a>
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
-
-                                {/* Caption Preview */}
-                                <div className="space-y-2">
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                                        Legenda prevista
-                                    </p>
-                                    <div className="p-3 rounded-none bg-muted/30 border">
-                                        <p className="text-sm italic text-muted-foreground">
-                                            &quot;{selectedAngle.exampleOpener}&quot;
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-2">
-                                            Abordagem: {selectedAngle.approach}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Summary */}
-                                <div className="p-3 rounded-none bg-primary/5 border border-primary/20">
-                                    <p className="text-xs font-medium text-primary mb-1">Angulo selecionado</p>
-                                    <p className="text-sm">{selectedAngle.hook}</p>
+                                <p className="text-sm whitespace-pre-wrap">{generatedPostData.caption}</p>
+                            </div>
+                        </div>
+                    ) : selectedAngle ? (
+                        <div className="flex-1 flex flex-col">
+                            <div className="aspect-square rounded-none bg-muted/30 border border-dashed flex items-center justify-center mb-3">
+                                <div className="text-center text-muted-foreground">
+                                    <HugeiconsIcon icon={Image01Icon} className="size-8 mx-auto mb-1 opacity-30" />
+                                    <p className="text-xs">Imagem sera gerada</p>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="aspect-[4/5] rounded-none bg-muted/30 border border-dashed flex items-center justify-center">
-                                <div className="text-center text-muted-foreground p-4">
-                                    <HugeiconsIcon icon={SparklesIcon} className="size-10 mx-auto mb-3 opacity-30" />
-                                    <p className="text-sm font-medium">Selecione um angulo criativo</p>
-                                    <p className="text-xs mt-1">
-                                        Gere angulos a partir do brief para ver o preview
-                                    </p>
-                                </div>
+                            <div className="p-2 rounded-none bg-muted/30 border">
+                                <p className="text-xs text-muted-foreground mb-1">Angulo selecionado:</p>
+                                <p className="text-sm font-medium">{selectedAngle.hook}</p>
+                                <p className="text-xs text-muted-foreground mt-1 italic">"{selectedAngle.exampleOpener}"</p>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center text-muted-foreground">
+                                <HugeiconsIcon icon={SparklesIcon} className="size-8 mx-auto mb-2 opacity-30" />
+                                <p className="text-xs">Selecione um angulo criativo</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

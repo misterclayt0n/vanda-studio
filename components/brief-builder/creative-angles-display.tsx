@@ -40,11 +40,11 @@ export function CreativeAnglesDisplay({
 
     if (isLoading) {
         return (
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
+            <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between shrink-0 mb-3">
                     <label className="text-sm font-medium">Angulos Criativos</label>
                 </div>
-                <div className="flex flex-col items-center justify-center py-12 border rounded-none bg-muted/30">
+                <div className="flex-1 flex flex-col items-center justify-center border rounded-none bg-muted/30">
                     <HugeiconsIcon
                         icon={Loading03Icon}
                         className="size-8 animate-spin text-primary mb-3"
@@ -62,11 +62,11 @@ export function CreativeAnglesDisplay({
 
     if (!angles || angles.length === 0) {
         return (
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
+            <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between shrink-0 mb-3">
                     <label className="text-sm font-medium">Angulos Criativos</label>
                 </div>
-                <div className="flex flex-col items-center justify-center py-12 border rounded-none bg-muted/30 border-dashed">
+                <div className="flex-1 flex flex-col items-center justify-center border rounded-none bg-muted/30 border-dashed">
                     <HugeiconsIcon
                         icon={Idea01Icon}
                         className="size-8 text-muted-foreground/50 mb-3"
@@ -80,8 +80,8 @@ export function CreativeAnglesDisplay({
     }
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between shrink-0 mb-3">
                 <div className="flex items-center gap-2">
                     <label className="text-sm font-medium">Angulos Criativos</label>
                     {cached && (
@@ -101,7 +101,7 @@ export function CreativeAnglesDisplay({
                 </Button>
             </div>
 
-            <div className="space-y-3">
+            <div className="flex-1 overflow-y-auto space-y-3">
                 {angles.map((angle) => {
                     const isSelected = selectedAngle?.id === angle.id;
                     const isExpanded = expandedId === angle.id;

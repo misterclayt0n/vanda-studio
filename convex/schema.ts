@@ -145,9 +145,9 @@ export default defineSchema({
         caption: v.string(),
         // Legacy field - kept for backwards compatibility
         additionalContext: v.optional(v.string()),
-        // Context references
-        brandAnalysisId: v.id("brand_analysis"),
-        sourcePostIds: v.array(v.id("instagram_posts")), // Posts used as context
+        // Context references (now optional - simplified flow)
+        brandAnalysisId: v.optional(v.id("brand_analysis")),
+        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))), // Posts used as context
         // AI reasoning
         reasoning: v.optional(v.string()),
         // Generated image
