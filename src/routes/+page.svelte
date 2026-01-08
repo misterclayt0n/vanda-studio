@@ -95,20 +95,7 @@
 						</p>
 					{/if}
 				</div>
-
-				<!-- Debug Info -->
-				<div class="rounded-none border border-border bg-muted/30 p-4">
-					<p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-						Debug Info
-					</p>
-					<ul class="mt-2 space-y-1 text-xs text-muted-foreground">
-						<li>Framework: SvelteKit</li>
-						<li>Auth: Clerk (svelte-clerk)</li>
-						<li>Database: Convex (convex-svelte)</li>
-						<li>Styling: Tailwind CSS v4</li>
-					</ul>
 				</div>
-			</div>
 		</SignedIn>
 	</main>
 </div>
