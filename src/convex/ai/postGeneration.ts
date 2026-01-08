@@ -1,0 +1,214 @@
+"use node";
+
+import { v } from "convex/values";
+import { action } from "../_generated/server";
+import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
+import {
+    POST_GENERATION_SYSTEM_PROMPT,
+    POST_GENERATION_USER_PROMPT,
+    IMAGE_GENERATION_PROMPT,
+} from "./prompts";
+import type { PostGenerationResponse, ImageStyleType } from "./prompts";
+
+// Generate a new post based on brand context and analyzed posts
+export const generatePost = action({
+    args: {
+        projectId: v.id("projects"),
+        additionalContext: v.optional(v.string()),
+        imageStyle: v.optional(v.union(
+            v.literal("realistic"),
+            v.literal("illustrative"),
+            v.literal("minimalist"),
+            v.literal("artistic")
+        )),
+    },
+    handler: async (ctx, args): Promise<{ success: boolean; generatedPostId: Id<"generated_posts">; hasLimitedContext?: boolean }> => {
+        // 1. Check authentication
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        // 2. Ensure subscription exists
+        await ctx.runMutation(api.billing.usage.ensureSubscription, {});
+
+        // 3. Check quota (need 2 prompts: 1 for caption, 1 for image)
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || quota.remaining < 2) {
+            throw new Error(`Saldo insuficiente. Voce precisa de 2 creditos para gerar um post (legenda + imagem). Creditos restantes: ${quota?.remaining ?? 0}`);
+        }
+
+        // 4. Get project data
+        const project = await ctx.runQuery(api.projects.get, { projectId: args.projectId });
+        if (!project) {
+            throw new Error("Project not found or access denied");
+        }
+
+        // 5. Get brand analysis - optional for generation (enhances context if available)
+        const brandAnalysis = await ctx.runQuery(api.ai.analysisMutations.getLatestAnalysis, {
+            projectId: args.projectId,
+        });
+
+        const hasBrandAnalysis = brandAnalysis?.status === "completed" &&
+            !!brandAnalysis.brandVoice &&
+            !!brandAnalysis.targetAudience &&
+            !!brandAnalysis.contentPillars;
+
+        // 6. Get analyzed posts - optional, used for context if available
+        const postAnalyses = await ctx.runQuery(api.ai.analysisMutations.listPostAnalyses, {
+            projectId: args.projectId,
+        });
+
+        const analyzedPosts = postAnalyses?.filter((a) => a.hasAnalysis && a.analysisDetails) ?? [];
+        const hasLimitedContext = !hasBrandAnalysis || analyzedPosts.length < 3;
+
+        // 7. Get source post IDs, captions, and image URLs (if any posts exist)
+        const sourcePosts = await Promise.all(
+            analyzedPosts.slice(0, 5).map(async (analysis) => {
+                const post = await ctx.runQuery(api.instagramPosts.get, { postId: analysis.postId });
+
+                // Get image URL from storage if available
+                let imageUrl: string | null = null;
+                if (post?.mediaStorageId) {
+                    imageUrl = await ctx.storage.getUrl(post.mediaStorageId);
+                } else if (post?.mediaUrl) {
+                    imageUrl = post.mediaUrl;
+                }
+
+                return {
+                    postId: analysis.postId,
+                    caption: post?.caption || analysis.currentCaption || "",
+                    strengths: analysis.analysisDetails?.strengths ?? [],
+                    toneAnalysis: analysis.analysisDetails?.toneAnalysis ?? "",
+                    imageUrl,
+                };
+            })
+        );
+
+        // Collect reference images from analyzed posts (filter out nulls)
+        const referenceImages = sourcePosts
+            .filter((p) => p.imageUrl !== null)
+            .map((p) => ({ url: p.imageUrl as string }));
+
+        // 8. Build context for generation - brand analysis is optional
+        const context = {
+            brandVoice: hasBrandAnalysis ? {
+                recommended: brandAnalysis!.brandVoice!.recommended,
+                tone: brandAnalysis!.brandVoice!.tone,
+            } : undefined,
+            targetAudience: hasBrandAnalysis ? brandAnalysis!.targetAudience!.recommended : undefined,
+            contentPillars: hasBrandAnalysis ? brandAnalysis!.contentPillars!.map((p) => ({
+                name: p.name,
+                description: p.description,
+            })) : undefined,
+            analyzedPosts: sourcePosts.map((p) => ({
+                caption: p.caption,
+                strengths: p.strengths,
+                toneAnalysis: p.toneAnalysis,
+            })),
+            additionalContext: args.additionalContext,
+        };
+
+        // 9. Call LLM - Using GPT-4.1 for high-quality caption generation
+        const prompt = POST_GENERATION_USER_PROMPT(context);
+        const response = await callLLM(
+            [
+                { role: "system", content: POST_GENERATION_SYSTEM_PROMPT },
+                { role: "user", content: prompt },
+            ],
+            {
+                model: MODELS.GPT_4_1,
+                temperature: 0.8,
+                maxTokens: 1024
+            }
+        );
+
+        const generated = parseJSONResponse<PostGenerationResponse>(response.content);
+
+        // 10. Generate image for the post
+        const imagePrompt = IMAGE_GENERATION_PROMPT({
+            brandName: project.name,
+            visualStyle: hasBrandAnalysis ? (brandAnalysis!.visualDirection?.recommendedStyle ?? "Moderno e profissional") : "Moderno e profissional",
+            caption: generated.caption,
+            additionalContext: args.additionalContext,
+            imageStyle: args.imageStyle as ImageStyleType | undefined,
+            hasReferenceImages: referenceImages.length > 0,
+        });
+
+        let imageStorageId: Id<"_storage"> | undefined;
+        try {
+            const imageResult = await generateImage(imagePrompt, {
+                referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+            });
+
+            // Convert base64 to blob and store in Convex
+            const binaryData = Uint8Array.from(atob(imageResult.imageBase64), c => c.charCodeAt(0));
+            const blob = new Blob([binaryData], { type: imageResult.mimeType });
+            imageStorageId = await ctx.storage.store(blob);
+        } catch (imageError) {
+            // Log but don't fail the whole generation if image fails
+            console.error("Image generation failed:", imageError);
+        }
+
+        // 11. Store generated post
+        const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
+            projectId: args.projectId,
+            caption: generated.caption,
+            brandAnalysisId: hasBrandAnalysis ? brandAnalysis!._id : undefined,
+            sourcePostIds: sourcePosts.map((p) => p.postId),
+            reasoning: generated.reasoning,
+            model: MODELS.GPT_4_1,
+            imageStorageId,
+            imagePrompt: imageStorageId ? imagePrompt : undefined,
+            imageModel: imageStorageId ? MODELS.GEMINI_3_PRO_IMAGE : undefined,
+            // Store additional context in brief
+            brief: args.additionalContext ? {
+                postType: "conteudo_profissional",
+                additionalContext: args.additionalContext,
+            } : undefined,
+        });
+
+        // 12. Consume prompt (2 prompts: 1 for caption, 1 for image)
+        await ctx.runMutation(api.billing.usage.consumePrompt, { count: imageStorageId ? 2 : 1 });
+
+        return { success: true, generatedPostId, hasLimitedContext };
+    },
+});
+
+// Regenerate an existing post
+export const regeneratePost = action({
+    args: {
+        generatedPostId: v.id("generated_posts"),
+        additionalContext: v.optional(v.string()),
+    },
+    handler: async (ctx, args): Promise<{ success: boolean }> => {
+        // 1. Check authentication
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        // 2. Ensure subscription exists
+        await ctx.runMutation(api.billing.usage.ensureSubscription, {});
+
+        // 3. Check quota
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || !quota.hasQuota) {
+            throw new Error("No prompts remaining. Please upgrade your plan.");
+        }
+
+        // 4. Get the existing generated post to get project context
+        const existingPost = await ctx.runQuery(api.generatedPosts.listByProject, {
+            projectId: args.generatedPostId as unknown as Id<"projects">, // Will fail, need to add a get query
+        });
+
+        // For now, we'll get the data via the mutation which has access to the post
+        // This is a simplified regeneration that just generates a new caption
+
+        // Get the generated post first (need to add a get query)
+        // For now, throw an error until we add the proper query
+        throw new Error("Regeneration not yet implemented. Please create a new post.");
+    },
+});
