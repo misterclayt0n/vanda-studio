@@ -22,7 +22,7 @@
 	};
 </script>
 
-<div class={cn("flex items-center gap-2", className)}>
+<div class={cn("flex items-center gap-1", className)}>
 	<!-- V Logo SVG -->
 	<svg 
 		class={cn(sizes[size], "shrink-0")} 
