@@ -94,9 +94,6 @@ What's your non-negotiable morning ritual?
 							placeholder="Describe the post you want to create. Be specific about the topic, message, and any key points you want to include..."
 							class="min-h-[140px] resize-none bg-background"
 						/>
-						<p class="text-xs text-muted-foreground">
-							Tip: Include details about your brand voice, target audience, and call-to-action
-						</p>
 					</div>
 
 					<Separator />
