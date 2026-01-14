@@ -10,3 +10,30 @@ Topics include: services and layers, data modeling, error handling, configuratio
 **Effect Source Reference:** `~/.local/share/effect-solutions/effect`
 Search here for real implementations when docs aren't enough.
 <!-- effect-solutions:end -->
+
+## Version Control (Jujutsu)
+
+This project uses Jujutsu (jj), not git. **Never push to upstream.**
+
+### Commit Format
+```
+<context>: <message>
+```
+Examples: `renderer: optimize text cache`, `editor: fix theme transition`
+
+Keep messages lowercase, no periods.
+
+### Workflow
+```bash
+jj status                    # check changes
+jj describe -m "ctx: msg"    # set commit message
+jj new                       # create new commit
+jj log                       # view history
+```
+
+### Rules
+- **Every completed TODO = one commit**
+- **Never commit code that doesn't compile** - always run `cargo check` first
+- **Never push to upstream**
+- **Ask before rebasing**
+
