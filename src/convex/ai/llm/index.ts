@@ -34,8 +34,26 @@ export type { AiError } from "./errors";
 export { OpenRouterApiKey, SiteUrl } from "./config";
 
 // Models
-export { MODELS, DEFAULT_MODEL } from "./models";
-export type { ModelName } from "./models";
+export {
+    MODELS,
+    DEFAULT_MODEL,
+    IMAGE_MODELS,
+    DEFAULT_IMAGE_MODEL,
+    IMAGE_MODEL_INFO,
+} from "./models";
+export type { ModelName, ImageModelName } from "./models";
+
+// Types (aspect ratio, resolution, dimensions)
+export {
+    ASPECT_RATIOS,
+    ASPECT_RATIO_LIST,
+    RESOLUTIONS,
+    RESOLUTION_LIST,
+    calculateDimensions,
+    formatDimensions,
+    getSizeString,
+} from "./types";
+export type { AspectRatio, Resolution, Dimensions } from "./types";
 
 // Runtime
 export {

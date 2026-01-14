@@ -1,0 +1,64 @@
+<script lang="ts">
+	import { cn } from "$lib/utils";
+
+	// Resolution definitions (mirroring backend)
+	const RESOLUTIONS = {
+		standard: {
+			label: "Standard",
+			description: "1K resolution",
+		},
+		high: {
+			label: "High",
+			description: "2K resolution",
+		},
+		ultra: {
+			label: "Ultra",
+			description: "4K resolution",
+		},
+	} as const;
+
+	type Resolution = keyof typeof RESOLUTIONS;
+
+	const RESOLUTION_LIST: Resolution[] = ["standard", "high", "ultra"];
+
+	interface Props {
+		value: Resolution;
+		onchange: (resolution: Resolution) => void;
+		class?: string;
+	}
+
+	let { value, onchange, class: className }: Props = $props();
+</script>
+
+<div class={cn("flex gap-2", className)}>
+	{#each RESOLUTION_LIST as resolution (resolution)}
+		{@const info = RESOLUTIONS[resolution]}
+		<button
+			type="button"
+			class={cn(
+				"flex flex-1 flex-col items-center gap-0.5 rounded-none border px-3 py-2 transition-all",
+				value === resolution
+					? "border-primary bg-primary/10"
+					: "border-border bg-background hover:bg-muted/50"
+			)}
+			onclick={() => onchange(resolution)}
+		>
+			<span
+				class={cn(
+					"text-sm font-medium",
+					value === resolution ? "text-primary" : "text-foreground"
+				)}
+			>
+				{info.label}
+			</span>
+			<span
+				class={cn(
+					"text-xs",
+					value === resolution ? "text-primary/70" : "text-muted-foreground"
+				)}
+			>
+				{info.description}
+			</span>
+		</button>
+	{/each}
+</div>

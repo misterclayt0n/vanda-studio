@@ -1,5 +1,7 @@
 import { Context, Effect, Layer } from "effect";
-import { MODELS } from "../models";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
+import { DEFAULT_IMAGE_MODEL } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
 import {
     type AiError,
@@ -8,12 +10,12 @@ import {
     ProviderError,
     RateLimitError,
 } from "../errors";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+import {
+    type AspectRatio,
+    type Resolution,
+    calculateDimensions,
+    formatDimensions,
+} from "../types";
 
 // ============================================================================
 // Types
@@ -28,11 +30,14 @@ export interface ImageGenerationParams {
     prompt: string;
     referenceImages?: ReferenceImage[];
     model?: string;
+    aspectRatio?: AspectRatio;
+    resolution?: Resolution;
 }
 
 export interface ImageGenerationResponse {
     imageBase64: string;
     mimeType: string;
+    dimensions?: { width: number; height: number };
 }
 
 // ============================================================================
@@ -43,7 +48,7 @@ export class ImageGeneration extends Context.Tag("ImageGeneration")<
     ImageGeneration,
     {
         /**
-         * Generate an image using Gemini 3 Pro Image model
+         * Generate an image using an image generation model via OpenRouter
          */
         readonly generateImage: (
             params: ImageGenerationParams
@@ -219,6 +224,41 @@ function parseDataUrl(url: string): ImageGenerationResponse | null {
     return null;
 }
 
+/**
+ * Map errors from AI SDK to our domain errors
+ */
+function mapAiSdkError(error: unknown): AiError {
+    // Handle fetch/network errors
+    if (error instanceof TypeError && String(error).includes("fetch")) {
+        return new NetworkError({ cause: error });
+    }
+
+    // Handle AI SDK specific errors
+    if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        // Rate limit errors
+        if (message.includes("rate limit") || message.includes("429")) {
+            return new RateLimitError({});
+        }
+
+        // Provider/API errors (check for HTTP status codes in message)
+        const statusMatch = error.message.match(/(\d{3})/);
+        if (statusMatch && statusMatch[1]) {
+            const status = parseInt(statusMatch[1], 10);
+            if (status >= 400) {
+                return new ProviderError({ status, message: error.message });
+            }
+        }
+
+        // Image generation specific error
+        return new ImageGenerationError({ reason: error.message });
+    }
+
+    // Fallback for unknown errors
+    return new NetworkError({ cause: error });
+}
+
 // ============================================================================
 // Implementation
 // ============================================================================
@@ -229,18 +269,35 @@ export const ImageGenerationLive = Layer.effect(
         const apiKey = yield* OpenRouterApiKey;
         const siteUrl = yield* SiteUrl;
 
+        const openrouter = createOpenRouter({
+            apiKey,
+            headers: {
+                "HTTP-Referer": siteUrl,
+                "X-Title": "Vanda Studio",
+            },
+        });
+
         return {
             generateImage: (params) =>
                 Effect.tryPromise({
                     try: async () => {
-                        const model = params.model ?? MODELS.GEMINI_3_PRO_IMAGE;
+                        const model = params.model ?? DEFAULT_IMAGE_MODEL;
+
+                        // Calculate dimensions from aspect ratio and resolution
+                        const aspectRatio = params.aspectRatio ?? "1:1";
+                        const resolution = params.resolution ?? "standard";
+                        const dimensions = calculateDimensions(aspectRatio, resolution);
+                        const sizeString = formatDimensions(dimensions);
+
+                        console.log(`[IMAGE] Generating with model: ${model}`);
+                        console.log(`[IMAGE] Size: ${sizeString} (${aspectRatio}, ${resolution})`);
 
                         // Build multimodal content array
-                        const contentParts: Array<{
-                            type: string;
-                            text?: string;
-                            image_url?: { url: string };
-                        }> = [];
+                        type ContentPart =
+                            | { type: "text"; text: string }
+                            | { type: "image"; image: string };
+
+                        const contentParts: ContentPart[] = [];
 
                         // Add reference images first
                         if (params.referenceImages && params.referenceImages.length > 0) {
@@ -251,8 +308,8 @@ export const ImageGenerationLive = Layer.effect(
                                 const base64Data = await fetchImageAsBase64(img.url);
                                 if (base64Data) {
                                     contentParts.push({
-                                        type: "image_url",
-                                        image_url: { url: base64Data },
+                                        type: "image",
+                                        image: base64Data,
                                     });
                                     successCount++;
                                 }
@@ -265,77 +322,67 @@ export const ImageGenerationLive = Layer.effect(
                             }
                         }
 
-                        // Add the text prompt
+                        // Add the text prompt with size instructions
+                        const promptWithSize = `Generate an image at ${sizeString} resolution (${aspectRatio} aspect ratio): ${params.prompt}`;
                         contentParts.push({
                             type: "text",
-                            text: `Generate an image: ${params.prompt}`,
+                            text: promptWithSize,
                         });
 
-                        const response = await fetch(OPENROUTER_API_URL, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${apiKey}`,
-                                "HTTP-Referer": siteUrl,
-                                "X-Title": "Vanda Studio",
-                            },
-                            body: JSON.stringify({
-                                model,
-                                messages: [
-                                    {
-                                        role: "user",
-                                        content: contentParts,
-                                    },
-                                ],
+                        // Use generateText with extraBody for image modalities
+                        const result = await generateText({
+                            model: openrouter.chat(model, {
+                                extraBody: {
+                                    modalities: ["image", "text"],
+                                },
                             }),
+                            messages: [
+                                {
+                                    role: "user",
+                                    content: contentParts,
+                                },
+                            ],
                         });
 
-                        if (!response.ok) {
-                            const errorText = await response.text();
+                        // Parse the response - check providerMetadata and response body
+                        let imageResult: ImageGenerationResponse | null = null;
 
-                            if (response.status === 429) {
-                                throw new RateLimitError({});
-                            }
-
-                            throw new ProviderError({
-                                status: response.status,
-                                message: errorText,
-                            });
+                        // Try to parse from the raw response if available
+                        if (result.response?.body) {
+                            imageResult = parseImageFromResponse(result.response.body);
                         }
 
-                        const data = await response.json();
-                        const imageResult = parseImageFromResponse(data);
+                        // Check providerMetadata for images
+                        if (!imageResult && result.providerMetadata) {
+                            const metadata = result.providerMetadata as Record<string, unknown>;
+                            // Check openrouter specific metadata
+                            if (metadata.openrouter && typeof metadata.openrouter === "object") {
+                                const orMeta = metadata.openrouter as Record<string, unknown>;
+                                if (orMeta.images && Array.isArray(orMeta.images)) {
+                                    imageResult = parseImageValue(orMeta.images[0]);
+                                }
+                            }
+                        }
+
+                        // Try to extract from text if it's a data URL
+                        if (!imageResult && result.text?.startsWith("data:image")) {
+                            imageResult = parseDataUrl(result.text);
+                        }
 
                         if (!imageResult) {
+                            console.error("[IMAGE] Failed to parse image from response");
+                            console.error("[IMAGE] Response text:", result.text?.substring(0, 200));
                             throw new ImageGenerationError({
-                                reason: "O modelo não retornou uma imagem válida",
+                                reason: "O modelo nao retornou uma imagem valida",
                             });
                         }
 
-                        return imageResult;
+                        return {
+                            ...imageResult,
+                            dimensions,
+                        };
                     },
-                    catch: (error) => {
-                        // Pass through our custom errors
-                        if (
-                            error instanceof RateLimitError ||
-                            error instanceof ProviderError ||
-                            error instanceof ImageGenerationError
-                        ) {
-                            return error;
-                        }
-
-                        // Handle network errors
-                        if (error instanceof TypeError && String(error).includes("fetch")) {
-                            return new NetworkError({ cause: error });
-                        }
-
-                        // Generic error
-                        if (error instanceof Error) {
-                            return new ImageGenerationError({ reason: error.message });
-                        }
-
-                        return new NetworkError({ cause: error });
-                    },
+                    catch: mapAiSdkError,
                 }),
         };
     })
