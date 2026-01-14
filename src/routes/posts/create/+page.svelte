@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector } from "$lib/components/studio";
+	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
-	import { useConvexClient } from "convex-svelte";
+	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import Logo from "$lib/components/Logo.svelte";
@@ -36,15 +36,70 @@
 	let hasGenerated = $state(false);
 	let error = $state<string | null>(null);
 
-	// Generated content
+	// Studio settings (declared early for derived state references)
+	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
+	let aspectRatio = $state<AspectRatio>("1:1");
+	let resolution = $state<Resolution>("standard");
+
+	// Progressive loading state
+	let generatedPostId = $state<Id<"generated_posts"> | null>(null);
+
+	// Subscriptions using "skip" pattern for conditional queries
+	const postQuery = useQuery(
+		api.generatedPosts.get, 
+		() => generatedPostId ? { id: generatedPostId } : "skip"
+	);
+
+	const imagesQuery = useQuery(
+		api.generatedImages.listByPost,
+		() => generatedPostId ? { generatedPostId } : "skip"
+	);
+
+	// Derived states from subscriptions
+	let postData = $derived(postQuery.data);
+	let imagesData = $derived(imagesQuery.data ?? []);
+
+	// Progressive loading states (cast to handle missing fields before schema update)
+	let isGeneratingCaption = $derived(postData?.status === "generating_caption");
+	let isGeneratingImages = $derived(postData?.status === "generating_images");
+	let isCompleted = $derived(postData?.status === "generated");
+	let subscriptionCaption = $derived(postData?.caption ?? "");
+	let pendingModels = $derived((postData as any)?.pendingImageModels ?? []);
+	let totalModels = $derived((postData as any)?.totalImageModels ?? selectedModels.length);
+	let hasAnyImage = $derived(imagesData.length > 0);
+	let hasCaption = $derived(subscriptionCaption.length > 0);
+
+	// Generated content (updated from subscriptions)
 	let generatedCaption = $state("");
 	let generatedImages = $state<GeneratedImage[]>([]);
 	let selectedImageIndex = $state(0);
 
-	// Studio settings
-	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
-	let aspectRatio = $state<AspectRatio>("1:1");
-	let resolution = $state<Resolution>("standard");
+	// Sync subscription data to state
+	$effect(() => {
+		if (subscriptionCaption) {
+			generatedCaption = subscriptionCaption;
+		}
+	});
+
+	$effect(() => {
+		if (imagesData.length > 0) {
+			generatedImages = imagesData.map(img => ({
+				storageId: img.storageId,
+				model: img.model,
+				url: img.url,
+				prompt: img.prompt,
+				width: img.width,
+				height: img.height,
+			}));
+		}
+	});
+
+	// Track when generation is complete
+	$effect(() => {
+		if (isCompleted && generatedPostId) {
+			isGenerating = false;
+		}
+	});
 	
 	// Reference images state
 	let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
@@ -85,29 +140,74 @@
 		return `${prompt}\n\nTom: ${toneText}`;
 	}
 
-	// Real generation function
+	// Upload a file to Convex storage
+	async function uploadFileToStorage(file: File): Promise<Id<"_storage">> {
+		// Get upload URL from Convex
+		const uploadUrl = await client.mutation(api.referenceImages.generateUploadUrl, {});
+		
+		// Upload the file
+		const response = await fetch(uploadUrl, {
+			method: "POST",
+			headers: { "Content-Type": file.type },
+			body: file,
+		});
+		
+		if (!response.ok) {
+			throw new Error("Falha ao fazer upload da imagem");
+		}
+		
+		const { storageId } = await response.json();
+		return storageId as Id<"_storage">;
+	}
+
+	// Real generation function with progressive loading
 	async function handleGenerate() {
 		if (!prompt.trim()) return;
 		
 		isGenerating = true;
 		error = null;
+		hasGenerated = false;
+		generatedPostId = null; // Reset to stop previous subscriptions
+		generatedCaption = "";
+		generatedImages = [];
+		selectedImageIndex = 0;
 		
 		try {
+			// Upload reference images to Convex storage first
+			let imageStorageIds: Id<"_storage">[] = [];
+			
+			if (referenceImages.length > 0) {
+				console.log(`Uploading ${referenceImages.length} reference images...`);
+				
+				const uploadPromises = referenceImages.map(img => uploadFileToStorage(img.file));
+				imageStorageIds = await Promise.all(uploadPromises);
+				
+				console.log(`Uploaded ${imageStorageIds.length} images successfully`);
+			}
+
+			// Build attachments object if we have reference images
+			const attachments = imageStorageIds.length > 0 
+				? { imageStorageIds } 
+				: undefined;
+
+			// Call action - it will return generatedPostId
+			// The action runs in the background, subscriptions will update UI progressively
 			const result = await client.action(api.ai.chat.generate, {
 				message: buildFullPrompt(),
 				imageModels: selectedModels,
 				aspectRatio,
 				resolution,
+				...(attachments && { attachments }),
 			});
 
-			generatedCaption = result.caption;
-			generatedImages = result.images;
-			selectedImageIndex = 0;
+			// Set ID to start subscriptions (this triggers reactive updates)
+			generatedPostId = result.generatedPostId;
 			hasGenerated = true;
+			
+			// Note: isGenerating will be set to false by the $effect when isCompleted becomes true
 		} catch (err) {
 			console.error("Generation failed:", err);
 			error = err instanceof Error ? err.message : "Erro ao gerar conteudo";
-		} finally {
 			isGenerating = false;
 		}
 	}
@@ -436,7 +536,7 @@
 						</Button>
 					</div>
 				</div>
-			{:else if !hasGenerated && !isGenerating}
+			{:else if !hasGenerated && !isGenerating && !generatedPostId}
 				<!-- Estado Vazio -->
 				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
 					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-dashed border-border bg-background">
@@ -451,8 +551,8 @@
 						</p>
 					</div>
 				</div>
-			{:else if isGenerating}
-				<!-- Estado de Carregamento -->
+			{:else if isGenerating && !generatedPostId}
+				<!-- Initial loading - uploading references, waiting for action -->
 				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
 					<div class="flex h-16 w-16 items-center justify-center rounded-none border border-border bg-background">
 						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -461,33 +561,52 @@
 						</svg>
 					</div>
 					<div class="text-center">
-						<h3 class="text-lg font-medium">Gerando seu post</h3>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Criando legenda e {selectedModels.length} imagem{selectedModels.length > 1 ? 's' : ''}...
-						</p>
+						<h3 class="text-lg font-medium">Iniciando geracao</h3>
 						<p class="mt-2 text-xs text-muted-foreground">
-							Isso pode levar alguns segundos
+							Preparando arquivos...
 						</p>
 					</div>
 				</div>
-			{:else}
-				<!-- Conteudo Gerado -->
+			{:else if generatedPostId && isGeneratingCaption}
+				<!-- Caption loading -->
+				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+					<div class="flex h-16 w-16 items-center justify-center rounded-none border border-border bg-background">
+						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+					</div>
+					<div class="text-center">
+						<h3 class="text-lg font-medium">Gerando legenda</h3>
+						<p class="mt-2 text-xs text-muted-foreground">
+							Criando uma legenda perfeita para seu post...
+						</p>
+					</div>
+				</div>
+			{:else if generatedPostId && hasCaption}
+				<!-- Conteudo Gerado (progressivo) -->
 				<div class="flex flex-1 overflow-hidden">
 					<!-- Secao das Imagens -->
 					<div class="flex flex-1 flex-col border-r border-border">
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<div class="flex items-center gap-2">
 								<h3 class="text-sm font-medium">Imagens Geradas</h3>
-								{#if selectedImage}
-									<Badge variant="secondary">{selectedImage.width}x{selectedImage.height}</Badge>
-								{/if}
-								{#if generatedImages.length > 1}
-									<Badge variant="outline">{generatedImages.length} modelos</Badge>
+								{#if !hasAnyImage && (isGeneratingImages || pendingModels.length > 0)}
+									<Badge variant="secondary">Gerando...</Badge>
+								{:else if hasAnyImage}
+									{#if selectedImage}
+										<Badge variant="secondary">{selectedImage.width}x{selectedImage.height}</Badge>
+									{/if}
+									{#if pendingModels.length > 0}
+										<Badge variant="outline">{generatedImages.length}/{totalModels}</Badge>
+									{:else if generatedImages.length > 1}
+										<Badge variant="outline">{generatedImages.length} modelos</Badge>
+									{/if}
 								{/if}
 							</div>
 							<div class="flex items-center gap-2">
-								<Button variant="outline" size="sm" onclick={handleRegenerate} disabled={isGenerating}>
-									{#if isGenerating}
+								<Button variant="outline" size="sm" onclick={handleRegenerate} disabled={isGenerating || pendingModels.length > 0}>
+									{#if isGenerating || pendingModels.length > 0}
 										<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -512,12 +631,21 @@
 						
 						<!-- Image grid / preview area -->
 						<div class="flex flex-1 flex-col overflow-auto bg-muted/50">
-							{#if generatedImages.length === 0}
-								<!-- No images generated -->
+							{#if !hasAnyImage && (isGeneratingImages || pendingModels.length > 0)}
+								<!-- No images yet - show all skeletons in a grid -->
+								<div class="flex flex-1 items-center justify-center p-8">
+									<div class="grid grid-cols-2 gap-4 max-w-[600px] w-full">
+										{#each selectedModels as model}
+											<ImageSkeleton {model} {aspectRatio} />
+										{/each}
+									</div>
+								</div>
+							{:else if generatedImages.length === 0 && !isGeneratingImages && pendingModels.length === 0}
+								<!-- No images generated (completed but empty) -->
 								<div class="flex flex-1 items-center justify-center p-8">
 									<p class="text-sm text-muted-foreground">Nenhuma imagem foi gerada</p>
 								</div>
-							{:else if generatedImages.length === 1}
+							{:else if generatedImages.length === 1 && pendingModels.length === 0}
 								<!-- Single image - full size -->
 								<div class="flex flex-1 items-center justify-center p-8">
 									<div class="relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
@@ -535,32 +663,39 @@
 									</div>
 								</div>
 							{:else}
-								<!-- Multiple images - grid with selection -->
+								<!-- Multiple images or some pending - grid with selection -->
 								<div class="flex flex-1 flex-col">
 									<!-- Main selected image -->
 									<div class="flex flex-1 items-center justify-center p-6">
-										<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
-											{#if selectedImage?.url}
-												<img 
-													src={selectedImage.url} 
-													alt="Post gerado selecionado" 
-													class="h-full w-full object-cover"
-												/>
-											{:else}
-												<div class="flex h-full w-full items-center justify-center bg-muted">
-													<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
+										{#if selectedImage}
+											<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+												{#if selectedImage?.url}
+													<img 
+														src={selectedImage.url} 
+														alt="Post gerado selecionado" 
+														class="h-full w-full object-cover"
+													/>
+												{:else}
+													<div class="flex h-full w-full items-center justify-center bg-muted">
+														<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
+													</div>
+												{/if}
+												<!-- Model badge overlay -->
+												<div class="absolute bottom-2 left-2">
+													<Badge variant="secondary" class="bg-background/90 backdrop-blur-sm">
+														{modelDisplayNames[selectedImage?.model ?? ""] ?? selectedImage?.model}
+													</Badge>
 												</div>
-											{/if}
-											<!-- Model badge overlay -->
-											<div class="absolute bottom-2 left-2">
-												<Badge variant="secondary" class="bg-background/90 backdrop-blur-sm">
-													{modelDisplayNames[selectedImage?.model ?? ""] ?? selectedImage?.model}
-												</Badge>
 											</div>
-										</div>
+										{:else}
+											<!-- No image selected yet, show first skeleton large -->
+											<div class="w-full max-w-[400px]">
+												<ImageSkeleton model={pendingModels[0]} {aspectRatio} />
+											</div>
+										{/if}
 									</div>
 									
-									<!-- Thumbnail strip -->
+									<!-- Thumbnail strip with images and skeletons for pending -->
 									<div class="shrink-0 border-t border-border bg-background p-4">
 										<div class="flex justify-center gap-3">
 											{#each generatedImages as image, index}
@@ -587,6 +722,10 @@
 														{modelDisplayNames[image.model] ?? image.model.split("/").pop()}
 													</div>
 												</button>
+											{/each}
+											<!-- Skeletons for pending models -->
+											{#each pendingModels as model}
+												<ImageSkeleton {model} size="thumbnail" />
 											{/each}
 										</div>
 									</div>

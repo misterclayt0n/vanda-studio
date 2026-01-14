@@ -77,9 +77,12 @@ export default defineSchema({
         model: v.optional(v.string()),
         imageModel: v.optional(v.string()),
         // Status
-        status: v.string(), // "generated" | "edited" | "regenerated"
+        status: v.string(), // "generating_caption" | "generating_images" | "generated" | "edited" | "regenerated"
         createdAt: v.number(),
         updatedAt: v.number(),
+        // Progressive loading fields
+        pendingImageModels: v.optional(v.array(v.string())), // Models still generating
+        totalImageModels: v.optional(v.number()), // Total models requested
 
         // Full brief that was used for generation
         brief: v.optional(v.object({

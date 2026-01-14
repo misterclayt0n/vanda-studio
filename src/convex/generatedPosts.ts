@@ -127,7 +127,10 @@ export const create = mutation({
         imageStorageId: v.optional(v.id("_storage")),
         imagePrompt: v.optional(v.string()),
         imageModel: v.optional(v.string()),
-        status: v.optional(v.string()), // "generated" | "in_progress"
+        status: v.optional(v.string()), // "generating_caption" | "generating_images" | "generated" | "in_progress"
+        // Progressive loading fields
+        pendingImageModels: v.optional(v.array(v.string())),
+        totalImageModels: v.optional(v.number()),
         // Full brief used for generation
         brief: v.optional(v.object({
             postType: v.string(),
@@ -175,6 +178,8 @@ export const create = mutation({
             ...(args.imagePrompt && { imagePrompt: args.imagePrompt }),
             ...(args.imageModel && { imageModel: args.imageModel }),
             ...(args.brief && { brief: args.brief }),
+            ...(args.pendingImageModels && { pendingImageModels: args.pendingImageModels }),
+            ...(args.totalImageModels !== undefined && { totalImageModels: args.totalImageModels }),
             status: args.status ?? "generated",
             createdAt: now,
             updatedAt: now,
@@ -192,6 +197,9 @@ export const updateFromChat = mutation({
         model: v.optional(v.string()),
         imageModel: v.optional(v.string()),
         status: v.optional(v.string()),
+        // Progressive loading fields
+        pendingImageModels: v.optional(v.array(v.string())),
+        totalImageModels: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -229,6 +237,31 @@ export const updateFromChat = mutation({
             ...(args.model && { model: args.model }),
             ...(args.imageModel && { imageModel: args.imageModel }),
             ...(args.status && { status: args.status }),
+            ...(args.pendingImageModels !== undefined && { pendingImageModels: args.pendingImageModels }),
+            ...(args.totalImageModels !== undefined && { totalImageModels: args.totalImageModels }),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Remove a model from pending list (called when image generation completes)
+export const removeFromPending = mutation({
+    args: {
+        id: v.id("generated_posts"),
+        model: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const post = await ctx.db.get(args.id);
+        if (!post) return;
+        
+        const pending = post.pendingImageModels?.filter(m => m !== args.model) ?? [];
+        await ctx.db.patch(args.id, { 
+            pendingImageModels: pending,
             updatedAt: Date.now(),
         });
     },

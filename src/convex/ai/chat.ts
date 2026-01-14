@@ -115,6 +115,8 @@ type GeneratedImageResult = {
 /**
  * Start a new post generation conversation
  * Creates the post and generates initial caption + images (one per model)
+ * Uses progressive updates - caption and images update DB as they complete,
+ * allowing frontend to show results progressively via subscriptions.
  */
 export const generate = action({
     args: {
@@ -128,8 +130,6 @@ export const generate = action({
     handler: async (ctx, args): Promise<{
         success: boolean;
         generatedPostId: Id<"generated_posts">;
-        caption: string;
-        images: GeneratedImageResult[];
     }> => {
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
@@ -153,11 +153,13 @@ export const generate = action({
         const resolution = (args.resolution ?? "standard") as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 4. Create the generated_post record
+        // 4. Create the generated_post record with progressive state
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             ...(args.projectId && { projectId: args.projectId }),
-            caption: "", // Will be updated after generation
-            status: "in_progress",
+            caption: "", // Will be updated after caption generation
+            status: "generating_caption",
+            pendingImageModels: imageModels,
+            totalImageModels: imageModels.length,
         });
 
         // 5. Save user message
@@ -173,20 +175,32 @@ export const generate = action({
         const referenceText = buildReferenceText(args.attachments);
 
         // 7. Generate caption
+        console.log(`[GENERATE] Generating caption...`);
         const captionResult = await generateCaption({
             conversationHistory: [],
             userMessage: args.message,
             ...(referenceText && { referenceText }),
         });
 
-        // 8. Collect reference images
+        // 8. Update post with caption, change status to "generating_images"
+        // This triggers subscription update so frontend shows caption immediately
+        await ctx.runMutation(api.generatedPosts.updateFromChat, {
+            id: generatedPostId,
+            caption: captionResult.caption,
+            model: MODELS.GPT_4_1,
+            status: "generating_images",
+        });
+        console.log(`[GENERATE] Caption saved, starting image generation...`);
+
+        // 9. Collect reference images
         const referenceImageUrls = await collectReferenceImageUrls(ctx, args.attachments);
 
-        // 9. Generate images in parallel (one per model)
+        // 10. Generate images in parallel (one per model)
+        // Each image saves to DB when done, removing from pendingImageModels
         console.log(`[GENERATE] Starting parallel image generation for ${imageModels.length} models`);
 
-        const imageResults = await Promise.all(
-            imageModels.map(async (model): Promise<GeneratedImageResult | null> => {
+        await Promise.all(
+            imageModels.map(async (model) => {
                 try {
                     console.log(`[GENERATE] Generating image with model: ${model}`);
 
@@ -206,7 +220,7 @@ export const generate = action({
                     const blob = new Blob([binaryData], { type: imageResult.mimeType });
                     const storageId = await ctx.storage.store(blob);
 
-                    // Save to generated_images table
+                    // Save to generated_images table (triggers subscription update)
                     await ctx.runMutation(api.generatedImages.create, {
                         generatedPostId,
                         storageId,
@@ -218,45 +232,42 @@ export const generate = action({
                         height: imageResult.dimensions?.height ?? dimensions.height,
                     });
 
-                    // Get URL for response
-                    const url = await ctx.storage.getUrl(storageId);
+                    // Remove from pending models (triggers subscription update)
+                    await ctx.runMutation(api.generatedPosts.removeFromPending, {
+                        id: generatedPostId,
+                        model,
+                    });
 
                     console.log(`[GENERATE] Successfully generated image with ${model}`);
-
-                    return {
-                        storageId,
-                        model,
-                        url,
-                        prompt: imageResult.prompt,
-                        width: imageResult.dimensions?.width ?? dimensions.width,
-                        height: imageResult.dimensions?.height ?? dimensions.height,
-                    };
                 } catch (err) {
                     console.error(`[GENERATE] Image generation failed for ${model}:`, err);
-                    return null;
+                    // Still remove from pending on failure so UI doesn't hang
+                    await ctx.runMutation(api.generatedPosts.removeFromPending, {
+                        id: generatedPostId,
+                        model,
+                    });
                 }
             })
         );
 
-        // Filter out failed generations
-        const successfulImages = imageResults.filter(
-            (img): img is GeneratedImageResult => img !== null
-        );
+        // 11. Get all successful images for final state
+        const allImages = await ctx.runQuery(api.generatedImages.listByPost, {
+            generatedPostId,
+        });
+        const primaryImage = allImages[0];
+        const imageCount = allImages.length;
 
-        // 10. Update generated_post with results
-        const primaryImage = successfulImages[0];
+        // 12. Mark as completed with final state
         await ctx.runMutation(api.generatedPosts.updateFromChat, {
             id: generatedPostId,
-            caption: captionResult.caption,
             ...(primaryImage && { imageStorageId: primaryImage.storageId }),
             ...(primaryImage && { imagePrompt: primaryImage.prompt }),
-            model: MODELS.GPT_4_1,
             ...(primaryImage && { imageModel: primaryImage.model }),
             status: "generated",
+            pendingImageModels: [], // Clear pending
         });
 
-        // 11. Save assistant message with snapshot
-        const imageCount = successfulImages.length;
+        // 13. Save assistant message with snapshot
         const assistantContent = imageCount > 0
             ? `${captionResult.explanation}\n\nGerei a legenda e ${imageCount} imagem(ns) com sucesso!`
             : `${captionResult.explanation}\n\n(As imagens nao puderam ser geradas, mas a legenda esta pronta)`;
@@ -278,8 +289,6 @@ export const generate = action({
         return {
             success: true,
             generatedPostId,
-            caption: captionResult.caption,
-            images: successfulImages,
         };
     },
 });

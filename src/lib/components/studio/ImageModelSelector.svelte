@@ -52,7 +52,7 @@
 		},
 	];
 
-	const DEFAULT_MODEL = IMAGE_MODELS.NANO_BANANA_PRO;
+	const DEFAULT_MODEL = IMAGE_MODELS.SEEDREAM_4_5;
 
 	interface Props {
 		selected: string[];
