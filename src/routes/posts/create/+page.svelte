@@ -123,15 +123,18 @@ What's your non-negotiable morning ritual?
 						<Label class="text-sm font-medium">Platform</Label>
 						<div class="grid grid-cols-3 gap-2">
 							{#each [
-								{ id: "instagram", label: "Instagram" },
-								{ id: "twitter", label: "Twitter/X" },
-								{ id: "linkedin", label: "LinkedIn" }
+								{ id: "instagram", label: "Instagram", enabled: true },
+								{ id: "twitter", label: "Twitter/X", enabled: false },
+								{ id: "linkedin", label: "LinkedIn", enabled: false }
 							] as platformOption}
 								<button
 									class="h-9 rounded-none border px-3 text-sm transition-colors {platform === platformOption.id 
 										? 'border-primary bg-primary/10 text-primary' 
-										: 'border-border bg-background hover:bg-muted'}"
-									onclick={() => platform = platformOption.id}
+										: platformOption.enabled 
+											? 'border-border bg-background hover:bg-muted'
+											: 'border-border bg-muted/50 text-muted-foreground cursor-not-allowed'}"
+									onclick={() => platformOption.enabled && (platform = platformOption.id)}
+									disabled={!platformOption.enabled}
 								>
 									{platformOption.label}
 								</button>
