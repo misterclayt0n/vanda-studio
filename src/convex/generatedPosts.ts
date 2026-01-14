@@ -118,14 +118,13 @@ export const create = mutation({
     args: {
         projectId: v.id("projects"),
         caption: v.string(),
-        brandAnalysisId: v.optional(v.id("brand_analysis")),
         sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
         reasoning: v.optional(v.string()),
         model: v.optional(v.string()),
         imageStorageId: v.optional(v.id("_storage")),
         imagePrompt: v.optional(v.string()),
         imageModel: v.optional(v.string()),
-        // NEW: Full brief used for generation
+        // Full brief used for generation
         brief: v.optional(v.object({
             postType: v.string(),
             contentPillar: v.optional(v.string()),
@@ -163,7 +162,6 @@ export const create = mutation({
         return await ctx.db.insert("generated_posts", {
             projectId: args.projectId,
             caption: args.caption,
-            brandAnalysisId: args.brandAnalysisId ?? undefined,
             sourcePostIds: args.sourcePostIds ?? [],
             reasoning: args.reasoning,
             model: args.model,
@@ -327,52 +325,6 @@ export const updateRegenerated = mutation({
     },
 });
 
-// Check if context is ready for generation
-export const checkContextReady = query({
-    args: {
-        projectId: v.id("projects"),
-    },
-    handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return { hasStrategy: false, analyzedCount: 0, isReady: true, requiredPosts: 3, hasLimitedContext: true };
-        }
-
-        // Check brand analysis (optional, for context enrichment)
-        const brandAnalyses = await ctx.db
-            .query("brand_analysis")
-            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
-            .order("desc")
-            .take(1);
-
-        const latestAnalysis = brandAnalyses[0];
-        const hasStrategy = latestAnalysis?.status === "completed" &&
-            !!latestAnalysis.brandVoice &&
-            !!latestAnalysis.targetAudience &&
-            !!latestAnalysis.contentPillars;
-
-        // Check post analyses (optional, for context enrichment)
-        const postAnalyses = await ctx.db
-            .query("post_analysis")
-            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
-            .collect();
-
-        const analyzedCount = postAnalyses.filter((a) => a.hasAnalysis).length;
-        const requiredPosts = 3;
-        // Always ready - brand analysis and posts are optional context
-        const isReady = true;
-        const hasLimitedContext = !hasStrategy || analyzedCount < requiredPosts;
-
-        return {
-            hasStrategy,
-            analyzedCount,
-            isReady,
-            requiredPosts,
-            hasLimitedContext,
-        };
-    },
-});
-
 // Delete a generated post
 export const remove = mutation({
     args: {
@@ -402,6 +354,16 @@ export const remove = mutation({
 
         if (!user || project.userId !== user._id) {
             throw new Error("Not authorized");
+        }
+
+        // Delete associated history
+        const history = await ctx.db
+            .query("generation_history")
+            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+            .collect();
+        
+        for (const h of history) {
+            await ctx.db.delete(h._id);
         }
 
         await ctx.db.delete(args.id);

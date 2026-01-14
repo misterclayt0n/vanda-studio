@@ -5,10 +5,7 @@ import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
-import {
-    IMAGE_GENERATION_PROMPT,
-    POST_TYPE_PROMPTS,
-} from "./prompts";
+import { IMAGE_GENERATION_PROMPT, POST_TYPE_PROMPTS } from "./prompts";
 import type { PostType } from "./prompts";
 
 // Brief input type
@@ -27,7 +24,7 @@ const briefValidator = v.object({
     referenceText: v.optional(v.string()),
 });
 
-// Simplified post generation - no creative angles required
+// Simplified post generation - no brand analysis required
 export const generatePost = action({
     args: {
         projectId: v.id("projects"),
@@ -60,17 +57,12 @@ export const generatePost = action({
             throw new Error("Project not found or access denied");
         }
 
-        // 5. Get brand analysis (optional - for enhanced context if available)
-        const brandAnalysis = await ctx.runQuery(api.ai.analysisMutations.getLatestAnalysis, {
-            projectId: args.projectId,
-        });
-
-        // 6. Get user-uploaded reference images
+        // 5. Get user-uploaded reference images
         const referenceImages = await ctx.runQuery(api.referenceImages.listByProject, {
             projectId: args.projectId,
         });
 
-        // 7. Build context for caption generation
+        // 6. Build context for caption generation
         const postTypePrompt = POST_TYPE_PROMPTS[args.brief.postType as PostType] || POST_TYPE_PROMPTS.conteudo_profissional;
         
         const lengthGuideline = {
@@ -83,10 +75,9 @@ export const generatePost = action({
         const captionPrompt = `Crie uma legenda de Instagram para a marca "${project.name}".
 
 ## Contexto da Marca
-${brandAnalysis?.brandVoice ? `- Voz da marca: ${brandAnalysis.brandVoice.recommended}` : ''}
-${brandAnalysis?.brandVoice?.tone ? `- Tom: ${args.brief.toneOverride?.join(', ') || brandAnalysis.brandVoice.tone.join(', ')}` : ''}
-${brandAnalysis?.targetAudience?.recommended ? `- Público-alvo: ${brandAnalysis.targetAudience.recommended}` : ''}
-${brandAnalysis?.businessCategory ? `- Categoria: ${brandAnalysis.businessCategory}` : ''}
+- Nome: ${project.name}
+${project.bio ? `- Bio: ${project.bio}` : ''}
+${project.instagramHandle ? `- Handle: @${project.instagramHandle}` : ''}
 
 ## Tipo de Post
 ${postTypePrompt}
@@ -101,6 +92,7 @@ ${args.brief.referenceText ? `## Material de Referencia\n"${args.brief.reference
 - Hashtags: ${args.brief.includeHashtags !== false ? 'Incluir 5-10 hashtags relevantes no final' : 'NAO incluir hashtags'}
 - Emojis: Usar naturalmente quando apropriado
 - Linguagem: Portugues brasileiro
+${args.brief.toneOverride?.length ? `- Tom: ${args.brief.toneOverride.join(', ')}` : ''}
 
 ## Formato de Resposta (JSON)
 {
@@ -110,7 +102,7 @@ ${args.brief.referenceText ? `## Material de Referencia\n"${args.brief.reference
 
 IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
 
-        // 8. Generate caption
+        // 7. Generate caption
         const response = await callLLM(
             [
                 { role: "system", content: "Voce e um especialista em conteudo para Instagram. Crie legendas envolventes e autenticticas. Responda apenas com JSON valido." },
@@ -125,7 +117,7 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
 
         const generated = parseJSONResponse<{ caption: string; reasoning: string }>(response.content);
 
-        // 9. Collect reference images for image generation
+        // 8. Collect reference images for image generation
         const referenceImageUrls: Array<{ url: string }> = [];
         for (const img of referenceImages) {
             if (img.url) {
@@ -133,14 +125,13 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
             }
         }
 
-        // 10. Generate image
+        // 9. Generate image
         const imagePrompt = IMAGE_GENERATION_PROMPT({
             brandName: project.name,
-            visualStyle: brandAnalysis?.visualDirection?.recommendedStyle ?? "Moderno e profissional",
+            visualStyle: "Moderno e profissional",
             caption: generated.caption,
             additionalContext: args.brief.additionalContext,
             hasReferenceImages: referenceImageUrls.length > 0,
-            businessCategory: brandAnalysis?.businessCategory,
             postType: args.brief.postType as PostType,
         });
 
@@ -157,11 +148,10 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
             console.error("Image generation failed:", imageError);
         }
 
-        // 11. Store generated post
+        // 10. Store generated post
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
-            brandAnalysisId: brandAnalysis?._id,
             reasoning: generated.reasoning,
             model: MODELS.GPT_4_1,
             imageStorageId,
@@ -179,7 +169,7 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
             },
         });
 
-        // 12. Consume prompts
+        // 11. Consume prompts
         await ctx.runMutation(api.billing.usage.consumePrompt, { count: imageStorageId ? 2 : 1 });
 
         return { success: true, generatedPostId };

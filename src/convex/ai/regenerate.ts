@@ -205,10 +205,6 @@ Incorpore este feedback na nova legenda.
         }
 
         // 8. Save to history and update post
-        const existingVersions = await ctx.runQuery(api.generationHistory.getHistory, {
-            generatedPostId: args.generatedPostId,
-        });
-
         await ctx.runMutation(api.generationHistory.saveVersion, {
             generatedPostId: args.generatedPostId,
             caption: generated.caption,

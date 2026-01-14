@@ -8,17 +8,12 @@
  * @module
  */
 
-import type * as ai_analysis from "../ai/analysis.js";
-import type * as ai_analysisMutations from "../ai/analysisMutations.js";
 import type * as ai_enhancedPostGeneration from "../ai/enhancedPostGeneration.js";
 import type * as ai_llm from "../ai/llm.js";
-import type * as ai_postAnalysis from "../ai/postAnalysis.js";
-import type * as ai_postGeneration from "../ai/postGeneration.js";
 import type * as ai_prompts from "../ai/prompts.js";
 import type * as ai_regenerate from "../ai/regenerate.js";
 import type * as billing_usage from "../billing/usage.js";
-import type * as demo from "../demo.js";
-import type * as demoUsage from "../demoUsage.js";
+import type * as cleanup from "../cleanup.js";
 import type * as files from "../files.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as generationHistory from "../generationHistory.js";
@@ -35,17 +30,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "ai/analysis": typeof ai_analysis;
-  "ai/analysisMutations": typeof ai_analysisMutations;
   "ai/enhancedPostGeneration": typeof ai_enhancedPostGeneration;
   "ai/llm": typeof ai_llm;
-  "ai/postAnalysis": typeof ai_postAnalysis;
-  "ai/postGeneration": typeof ai_postGeneration;
   "ai/prompts": typeof ai_prompts;
   "ai/regenerate": typeof ai_regenerate;
   "billing/usage": typeof billing_usage;
-  demo: typeof demo;
-  demoUsage: typeof demoUsage;
+  cleanup: typeof cleanup;
   files: typeof files;
   generatedPosts: typeof generatedPosts;
   generationHistory: typeof generationHistory;

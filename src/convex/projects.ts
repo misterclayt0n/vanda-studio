@@ -186,15 +186,29 @@ export const remove = mutation({
             throw new Error("Not authorized to delete this project");
         }
 
-        const cleanupTables = ["instagram_posts", "brand_analysis", "content_calendar", "assets"] as const;
-        for (const table of cleanupTables) {
-            const docs = await ctx.db
-                .query(table)
-                .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
-                .collect();
-            for (const doc of docs) {
-                await ctx.db.delete(doc._id);
-            }
+        // Clean up related data when deleting a project
+        const instagramPosts = await ctx.db
+            .query("instagram_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of instagramPosts) {
+            await ctx.db.delete(doc._id);
+        }
+
+        const generatedPosts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of generatedPosts) {
+            await ctx.db.delete(doc._id);
+        }
+
+        const referenceImages = await ctx.db
+            .query("reference_images")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of referenceImages) {
+            await ctx.db.delete(doc._id);
         }
 
         await ctx.db.delete(args.projectId);

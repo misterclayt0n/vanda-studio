@@ -43,10 +43,6 @@ export default defineSchema({
             url: v.string(),
             storageId: v.optional(v.id("_storage")),
         }))),
-        // Analysis fields (can be filled later)
-        analysis: v.optional(v.any()),
-        // Embedding for semantic search (1536 dimensions for text-embedding-3-small)
-        captionEmbedding: v.optional(v.array(v.float64())),
         // Engagement score (normalized 0-1) for weighting
         engagementScore: v.optional(v.float64()),
     }).index("by_project_id", ["projectId"]),
@@ -62,92 +58,16 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_user_id", ["userId"]),
 
-    // AI brand analysis results
-    brand_analysis: defineTable({
-        projectId: v.id("projects"),
-        status: v.string(), // "pending" | "processing" | "completed" | "failed"
-        brandVoice: v.optional(v.object({
-            current: v.string(),
-            recommended: v.string(),
-            reasoning: v.string(),
-            tone: v.array(v.string()),
-        })),
-        contentPillars: v.optional(v.array(v.object({
-            name: v.string(),
-            description: v.string(),
-            reasoning: v.string(),
-        }))),
-        visualDirection: v.optional(v.object({
-            currentStyle: v.string(),
-            recommendedStyle: v.string(),
-            reasoning: v.string(),
-        })),
-        targetAudience: v.optional(v.object({
-            current: v.string(),
-            recommended: v.string(),
-            reasoning: v.string(),
-        })),
-        // NEW: Visual Identity extracted from actual images using vision LLM
-        visualIdentity: v.optional(v.object({
-            colorPalette: v.array(v.string()),        // Hex codes
-            layoutPatterns: v.array(v.string()),     // "centered", "grid", "split"
-            photographyStyle: v.string(),            // "product-focused", "lifestyle"
-            graphicElements: v.array(v.string()),    // "logo overlay", "borders", "icons"
-            filterTreatment: v.string(),             // "warm", "cool", "high-contrast"
-            dominantColors: v.optional(v.array(v.string())), // Most used colors
-            consistencyScore: v.optional(v.number()), // How consistent is visual style
-        })),
-        // NEW: Business category confirmed/extracted
-        businessCategory: v.optional(v.string()),
-        productOrService: v.optional(v.string()),
-        overallScore: v.optional(v.number()),
-        strategySummary: v.optional(v.string()),
-        errorMessage: v.optional(v.string()),
-        createdAt: v.number(),
-    }).index("by_project_id", ["projectId"]),
-
-    // Per-post AI feedback - used to build context for generation
-    post_analysis: defineTable({
-        projectId: v.id("projects"),
-        analysisId: v.optional(v.id("brand_analysis")), // Optional - can analyze without brand analysis
-        postId: v.id("instagram_posts"),
-        currentCaption: v.optional(v.string()),
-
-        // Analysis fields (from "Analisar" action) - used for context building
-        hasAnalysis: v.optional(v.boolean()),
-        score: v.optional(v.number()), // 0-100
-        analysisDetails: v.optional(v.object({
-            strengths: v.array(v.string()),
-            weaknesses: v.array(v.string()),
-            engagementPrediction: v.string(),
-            hashtagAnalysis: v.string(),
-            toneAnalysis: v.string(),
-        })),
-        reasoning: v.optional(v.string()),
-
-        // Legacy fields (kept for backwards compatibility with existing data)
-        suggestedCaption: v.optional(v.string()),
-        improvements: v.optional(v.array(v.object({
-            type: v.string(),
-            issue: v.string(),
-            suggestion: v.string(),
-        }))),
-        hasReimagination: v.optional(v.boolean()),
-
-        createdAt: v.number(),
-    }).index("by_analysis_id", ["analysisId"])
-      .index("by_post_id", ["postId"])
-      .index("by_project_id", ["projectId"]),
-
     // AI-generated posts
     generated_posts: defineTable({
         projectId: v.id("projects"),
         caption: v.string(),
-        // Legacy field - kept for backwards compatibility
+        // Legacy fields - kept for backwards compatibility with existing data
         additionalContext: v.optional(v.string()),
-        // Context references (now optional - simplified flow)
-        brandAnalysisId: v.optional(v.id("brand_analysis")),
-        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))), // Posts used as context
+        brandAnalysisId: v.optional(v.string()), // Legacy - no longer used
+        selectedAngle: v.optional(v.any()), // Legacy - no longer used
+        // Source posts used as context (optional)
+        sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
         // AI reasoning
         reasoning: v.optional(v.string()),
         // Generated image
@@ -161,7 +81,7 @@ export default defineSchema({
         createdAt: v.number(),
         updatedAt: v.number(),
 
-        // NEW: Full brief that was used for generation
+        // Full brief that was used for generation
         brief: v.optional(v.object({
             postType: v.string(), // "promocao" | "conteudo_profissional" | "engajamento"
             contentPillar: v.optional(v.string()), // Selected pillar name
@@ -212,45 +132,4 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_generated_post_id", ["generatedPostId"])
       .index("by_version", ["generatedPostId", "version"]),
-
-    // Per-project conversation
-    conversations: defineTable({
-        projectId: v.id("projects"),
-        userId: v.id("users"),
-        createdAt: v.number(),
-    }).index("by_project_id", ["projectId"])
-      .index("by_user_id", ["userId"]),
-
-    // Chat messages
-    conversation_messages: defineTable({
-        conversationId: v.id("conversations"),
-        role: v.string(), // "user" | "assistant"
-        content: v.string(),
-        createdAt: v.number(),
-    }).index("by_conversation_id", ["conversationId"]),
-
-    content_calendar: defineTable({
-        projectId: v.id("projects"),
-        date: v.string(), // ISO date
-        status: v.string(), // PLANNED, DRAFTED, APPROVED, POSTED
-        caption: v.string(),
-        mediaUrl: v.optional(v.string()),
-        prompt: v.optional(v.string()),
-        createdAt: v.number(),
-    }).index("by_project_id", ["projectId"]),
-
-    assets: defineTable({
-        projectId: v.id("projects"),
-        type: v.string(), // IMAGE, COLOR_PALETTE, BRAND_KIT
-        url: v.string(),
-        metadata: v.optional(v.any()),
-        createdAt: v.number(),
-    }).index("by_project_id", ["projectId"]),
-
-    // Demo usage tracking for rate limiting anonymous users
-    demo_usage: defineTable({
-        fingerprint: v.string(), // Browser fingerprint or device ID
-        usedAt: v.number(),
-        instagramHandle: v.string(),
-    }).index("by_fingerprint", ["fingerprint"]),
 });
