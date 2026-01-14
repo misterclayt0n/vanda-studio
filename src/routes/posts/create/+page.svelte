@@ -5,6 +5,8 @@
 	// Mock state for UI demonstration
 	let prompt = $state("");
 	let tone = $state("professional");
+	let customTone = $state("");
+	let useCustomTone = $state(false);
 	let platform = $state("instagram");
 	let isGenerating = $state(false);
 	let hasGenerated = $state(false);
@@ -105,14 +107,23 @@ What's your non-negotiable morning ritual?
 						<div class="grid grid-cols-2 gap-2">
 							{#each ["professional", "casual", "inspiring", "humorous", "educational", "promotional"] as toneOption}
 								<button
-									class="h-9 rounded-none border px-3 text-sm transition-colors {tone === toneOption 
+									class="h-9 rounded-none border px-3 text-sm transition-colors {!useCustomTone && tone === toneOption 
 										? 'border-primary bg-primary/10 text-primary' 
 										: 'border-border bg-background hover:bg-muted'}"
-									onclick={() => tone = toneOption}
+									onclick={() => { tone = toneOption; useCustomTone = false; }}
 								>
 									{toneOption.charAt(0).toUpperCase() + toneOption.slice(1)}
 								</button>
 							{/each}
+						</div>
+						<div class="relative">
+							<Input
+								type="text"
+								bind:value={customTone}
+								placeholder="Or describe your own tone..."
+								class="bg-background {useCustomTone ? 'border-primary ring-1 ring-primary' : ''}"
+								onfocus={() => useCustomTone = true}
+							/>
 						</div>
 					</div>
 
