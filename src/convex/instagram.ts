@@ -556,3 +556,143 @@ function sanitizeLikeCount(count: number | undefined): number | undefined {
     }
     return count;
 }
+
+// ============================================================================
+// Fetch Single Post
+// ============================================================================
+
+type FetchedInstagramPost = {
+    instagramId: string;
+    caption?: string;
+    imageUrls: string[];
+    permalink: string;
+    ownerUsername?: string;
+};
+
+/**
+ * Fetch a single Instagram post by URL
+ * Used in chat to get post data as reference for generation
+ */
+export const fetchPost = action({
+    args: {
+        postUrl: v.string(),
+    },
+    handler: async (ctx, args): Promise<FetchedInstagramPost> => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Voce precisa estar autenticado");
+        }
+
+        const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
+        if (!token) {
+            throw new Error("Token Apify nao configurado");
+        }
+
+        const client = new ApifyClient({ token });
+        const normalizedUrl = normalizePostUrl(args.postUrl);
+        const actorId = process.env.APIFY_INSTAGRAM_ACTOR_ID ?? DEFAULT_ACTOR_ID;
+
+        const run = await client.actor(actorId).call({
+            directUrls: [normalizedUrl],
+            resultsType: "posts",
+            resultsLimit: 1,
+        });
+
+        if (!run.defaultDatasetId) {
+            throw new Error("Apify nao retornou dados");
+        }
+
+        const { items } = await client.dataset(run.defaultDatasetId).listItems({ clean: true });
+        const datasetItems = (items as RawInstagramItem[]) ?? [];
+
+        if (datasetItems.length === 0) {
+            throw new Error("Post nao encontrado");
+        }
+
+        const item = datasetItems[0];
+        if (!item) {
+            throw new Error("Post nao encontrado");
+        }
+
+        // Extract image URLs
+        const imageUrls: string[] = [];
+
+        // Main display image
+        const mainImageUrl = coalesce<string>(
+            item.displayUrl,
+            item.imageUrl,
+            item.thumbnailUrl,
+        );
+        if (mainImageUrl) {
+            imageUrls.push(mainImageUrl);
+        }
+
+        // Carousel images
+        const carouselImages = extractCarouselImages(item);
+        for (const img of carouselImages) {
+            if (!imageUrls.includes(img.url)) {
+                imageUrls.push(img.url);
+            }
+        }
+
+        const instagramId = coalesce<string>(
+            item.id,
+            item.postId,
+            item.instagramId,
+            item.shortCode,
+        ) ?? `post_${Date.now()}`;
+
+        const permalink = coalesce<string>(
+            item.permalink,
+            item.url,
+            item.link,
+            item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : undefined,
+        ) ?? normalizedUrl;
+
+        const caption = coalesce<string>(item.caption, item.description, item.title);
+        const ownerUsername = coalesce<string>(
+            item.ownerUsername,
+            item.owner?.username,
+            item.ownerObject?.username,
+        );
+
+        return {
+            instagramId,
+            ...(caption && { caption }),
+            imageUrls,
+            permalink,
+            ...(ownerUsername && { ownerUsername }),
+        };
+    },
+});
+
+/**
+ * Normalize an Instagram post URL to the canonical format
+ */
+function normalizePostUrl(rawUrl: string): string {
+    const trimmed = rawUrl.trim();
+
+    // If it's just a shortcode, build the URL
+    if (!trimmed.startsWith("http")) {
+        // Could be a shortcode like "CxYz123" or "p/CxYz123"
+        const shortcode = trimmed.replace(/^p\//, "").split(/[/?]/)[0];
+        return shortcode ? `https://www.instagram.com/p/${shortcode}/` : trimmed;
+    }
+
+    try {
+        const url = new URL(trimmed);
+        // Handle /p/, /reel/, /tv/ formats
+        const pathParts = url.pathname.split("/").filter(Boolean);
+        const typeIndex = pathParts.findIndex(p => ["p", "reel", "tv"].includes(p));
+
+        if (typeIndex !== -1 && pathParts[typeIndex + 1]) {
+            const type = pathParts[typeIndex];
+            const shortcode = pathParts[typeIndex + 1];
+            return `https://www.instagram.com/${type}/${shortcode}/`;
+        }
+
+        return trimmed;
+    } catch {
+        return trimmed;
+    }
+}
