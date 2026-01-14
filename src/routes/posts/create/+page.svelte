@@ -162,24 +162,6 @@ What's your non-negotiable morning ritual?
 						/>
 					</div>
 
-					<Separator />
-
-					<!-- Section: Image Style -->
-					<div class="space-y-3">
-						<div class="flex items-center justify-between">
-							<Label class="text-sm font-medium">Image Style</Label>
-							<Badge variant="outline">Optional</Badge>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							{#each ["photography", "illustration", "minimal", "bold"] as style}
-								<button
-									class="h-9 rounded-none border border-border bg-background px-3 text-sm hover:bg-muted"
-								>
-									{style.charAt(0).toUpperCase() + style.slice(1)}
-								</button>
-							{/each}
-						</div>
-					</div>
 				</div>
 			</div>
 
