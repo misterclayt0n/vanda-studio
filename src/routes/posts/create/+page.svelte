@@ -2,28 +2,52 @@
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
+	import { useConvexClient } from "convex-svelte";
+	import { api } from "../../../convex/_generated/api.js";
+	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import Logo from "$lib/components/Logo.svelte";
 
 	// Type definitions for studio settings
 	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
 	type Resolution = "standard" | "high" | "ultra";
 
-	// Estado mock para demonstração da UI
+	// Generated image type from backend
+	type GeneratedImage = {
+		storageId: Id<"_storage">;
+		model: string;
+		url: string | null;
+		prompt: string;
+		width: number;
+		height: number;
+	};
+
+	// Convex client
+	const client = useConvexClient();
+
+	// Form state
 	let prompt = $state("");
 	let tone = $state("profissional");
 	let customTone = $state("");
 	let useCustomTone = $state(false);
 	let platform = $state("instagram");
+	
+	// Generation state
 	let isGenerating = $state(false);
 	let hasGenerated = $state(false);
+	let error = $state<string | null>(null);
 
-	// Estado para configurações de imagem (Studio)
+	// Generated content
+	let generatedCaption = $state("");
+	let generatedImages = $state<GeneratedImage[]>([]);
+	let selectedImageIndex = $state(0);
+
+	// Studio settings
 	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	
-	// Estado para imagens de referência
-	let referenceImages = $state<Array<{ id: string; url: string; name: string }>>([]);
+	// Reference images state
+	let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
 	let fileInputEl: HTMLInputElement;
 
 	function handleFileSelect(event: Event) {
@@ -36,11 +60,12 @@
 			referenceImages = [...referenceImages, {
 				id: crypto.randomUUID(),
 				url,
-				name: file.name
+				name: file.name,
+				file
 			}];
 		});
 		
-		// Limpar input para permitir selecionar o mesmo arquivo novamente
+		// Clear input to allow selecting the same file again
 		input.value = "";
 	}
 
@@ -52,47 +77,76 @@
 		referenceImages = referenceImages.filter(img => img.id !== id);
 	}
 
-	// Conteúdo mock gerado
-	const mockCaption = `Eleve sua rotina matinal com intenção e propósito.
-
-Todo dia de sucesso começa com um momento de clareza. Reserve um tempo para respirar, refletir e definir suas metas antes que o mundo exija sua atenção.
-
-Qual é o seu ritual matinal inegociável?
-
-#RotinaDaManha #Produtividade #Mindfulness #MentalidadeDeSucesso #HabitosDiarios`;
-
-	const mockImageUrl = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop";
-
-	// Função mock de geração
-	function handleGenerate() {
-		isGenerating = true;
-		// Simular delay da API
-		setTimeout(() => {
-			isGenerating = false;
-			hasGenerated = true;
-		}, 2000);
+	// Build the full prompt with tone
+	function buildFullPrompt(): string {
+		const toneText = useCustomTone && customTone.trim() 
+			? customTone.trim() 
+			: toneLabels[tone];
+		return `${prompt}\n\nTom: ${toneText}`;
 	}
 
-	function handleRegenerate() {
+	// Real generation function
+	async function handleGenerate() {
+		if (!prompt.trim()) return;
+		
 		isGenerating = true;
-		setTimeout(() => {
+		error = null;
+		
+		try {
+			const result = await client.action(api.ai.chat.generate, {
+				message: buildFullPrompt(),
+				imageModels: selectedModels,
+				aspectRatio,
+				resolution,
+			});
+
+			generatedCaption = result.caption;
+			generatedImages = result.images;
+			selectedImageIndex = 0;
+			hasGenerated = true;
+		} catch (err) {
+			console.error("Generation failed:", err);
+			error = err instanceof Error ? err.message : "Erro ao gerar conteudo";
+		} finally {
 			isGenerating = false;
-		}, 1500);
+		}
+	}
+
+	// Regenerate with same settings
+	async function handleRegenerate() {
+		await handleGenerate();
 	}
 
 	function handleCopyCaption() {
-		navigator.clipboard.writeText(mockCaption);
+		navigator.clipboard.writeText(generatedCaption);
 	}
 
-	// Mapeamento de tons para exibição
+	// Get selected image
+	let selectedImage = $derived(generatedImages[selectedImageIndex] ?? null);
+
+	// Model name mapping for display
+	const modelDisplayNames: Record<string, string> = {
+		"google/gemini-2.5-flash-image": "Nano Banana",
+		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
+		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
+		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
+		"openai/gpt-5-image": "GPT Image 1.5",
+	};
+
+	// Tone mapping for display
 	const toneLabels: Record<string, string> = {
 		profissional: "Profissional",
 		casual: "Casual",
 		inspirador: "Inspirador",
-		humoristico: "Humorístico",
+		humoristico: "Humoristico",
 		educativo: "Educativo",
 		promocional: "Promocional"
 	};
+
+	// Extract hashtags from caption
+	let hashtags = $derived(
+		generatedCaption.match(/#\w+/g) ?? []
+	);
 </script>
 
 <svelte:head>
@@ -362,9 +416,27 @@ Qual é o seu ritual matinal inegociável?
 			</div>
 		</aside>
 
-		<!-- Painel Direito - Visualização -->
+		<!-- Painel Direito - Visualizacao -->
 		<main class="flex flex-1 flex-col overflow-hidden bg-muted/30">
-			{#if !hasGenerated && !isGenerating}
+			{#if error && !isGenerating}
+				<!-- Estado de Erro -->
+				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-destructive/50 bg-destructive/10">
+						<svg class="h-8 w-8 text-destructive" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+						</svg>
+					</div>
+					<div class="text-center">
+						<h3 class="text-lg font-medium text-destructive">Erro na geracao</h3>
+						<p class="mt-1 max-w-md text-sm text-muted-foreground">
+							{error}
+						</p>
+						<Button variant="outline" class="mt-4" onclick={() => error = null}>
+							Tentar novamente
+						</Button>
+					</div>
+				</div>
+			{:else if !hasGenerated && !isGenerating}
 				<!-- Estado Vazio -->
 				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
 					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-dashed border-border bg-background">
@@ -391,47 +463,139 @@ Qual é o seu ritual matinal inegociável?
 					<div class="text-center">
 						<h3 class="text-lg font-medium">Gerando seu post</h3>
 						<p class="mt-1 text-sm text-muted-foreground">
-							Nossa IA está criando o conteúdo perfeito para você...
+							Criando legenda e {selectedModels.length} imagem{selectedModels.length > 1 ? 's' : ''}...
+						</p>
+						<p class="mt-2 text-xs text-muted-foreground">
+							Isso pode levar alguns segundos
 						</p>
 					</div>
 				</div>
 			{:else}
-				<!-- Conteúdo Gerado -->
+				<!-- Conteudo Gerado -->
 				<div class="flex flex-1 overflow-hidden">
-					<!-- Seção da Imagem -->
+					<!-- Secao das Imagens -->
 					<div class="flex flex-1 flex-col border-r border-border">
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<div class="flex items-center gap-2">
-								<h3 class="text-sm font-medium">Imagem Gerada</h3>
-								<Badge variant="secondary">1024x1024</Badge>
+								<h3 class="text-sm font-medium">Imagens Geradas</h3>
+								{#if selectedImage}
+									<Badge variant="secondary">{selectedImage.width}x{selectedImage.height}</Badge>
+								{/if}
+								{#if generatedImages.length > 1}
+									<Badge variant="outline">{generatedImages.length} modelos</Badge>
+								{/if}
 							</div>
 							<div class="flex items-center gap-2">
-								<Button variant="outline" size="sm" onclick={handleRegenerate}>
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-									</svg>
+								<Button variant="outline" size="sm" onclick={handleRegenerate} disabled={isGenerating}>
+									{#if isGenerating}
+										<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+									{:else}
+										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+										</svg>
+									{/if}
 									Regenerar
 								</Button>
-								<Button variant="outline" size="sm">
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-									</svg>
-									Baixar
-								</Button>
+								{#if selectedImage?.url}
+									<Button variant="outline" size="sm" onclick={() => selectedImage?.url && window.open(selectedImage.url, '_blank')}>
+										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+										</svg>
+										Baixar
+									</Button>
+								{/if}
 							</div>
 						</div>
-						<div class="flex flex-1 items-center justify-center overflow-auto bg-muted/50 p-8">
-							<div class="relative aspect-square w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm">
-								<img 
-									src={mockImageUrl} 
-									alt="Post gerado" 
-									class="h-full w-full object-cover"
-								/>
-							</div>
+						
+						<!-- Image grid / preview area -->
+						<div class="flex flex-1 flex-col overflow-auto bg-muted/50">
+							{#if generatedImages.length === 0}
+								<!-- No images generated -->
+								<div class="flex flex-1 items-center justify-center p-8">
+									<p class="text-sm text-muted-foreground">Nenhuma imagem foi gerada</p>
+								</div>
+							{:else if generatedImages.length === 1}
+								<!-- Single image - full size -->
+								<div class="flex flex-1 items-center justify-center p-8">
+									<div class="relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+										{#if selectedImage?.url}
+											<img 
+												src={selectedImage.url} 
+												alt="Post gerado" 
+												class="h-full w-full object-cover"
+											/>
+										{:else}
+											<div class="flex h-full w-full items-center justify-center bg-muted">
+												<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
+											</div>
+										{/if}
+									</div>
+								</div>
+							{:else}
+								<!-- Multiple images - grid with selection -->
+								<div class="flex flex-1 flex-col">
+									<!-- Main selected image -->
+									<div class="flex flex-1 items-center justify-center p-6">
+										<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+											{#if selectedImage?.url}
+												<img 
+													src={selectedImage.url} 
+													alt="Post gerado selecionado" 
+													class="h-full w-full object-cover"
+												/>
+											{:else}
+												<div class="flex h-full w-full items-center justify-center bg-muted">
+													<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
+												</div>
+											{/if}
+											<!-- Model badge overlay -->
+											<div class="absolute bottom-2 left-2">
+												<Badge variant="secondary" class="bg-background/90 backdrop-blur-sm">
+													{modelDisplayNames[selectedImage?.model ?? ""] ?? selectedImage?.model}
+												</Badge>
+											</div>
+										</div>
+									</div>
+									
+									<!-- Thumbnail strip -->
+									<div class="shrink-0 border-t border-border bg-background p-4">
+										<div class="flex justify-center gap-3">
+											{#each generatedImages as image, index}
+												<button
+													type="button"
+													class="group relative h-20 w-20 overflow-hidden border-2 transition-all {selectedImageIndex === index ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground'}"
+													onclick={() => selectedImageIndex = index}
+												>
+													{#if image.url}
+														<img 
+															src={image.url} 
+															alt="Opcao {index + 1}" 
+															class="h-full w-full object-cover"
+														/>
+													{:else}
+														<div class="flex h-full w-full items-center justify-center bg-muted">
+															<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+																<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+															</svg>
+														</div>
+													{/if}
+													<!-- Model name tooltip on hover -->
+													<div class="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+														{modelDisplayNames[image.model] ?? image.model.split("/").pop()}
+													</div>
+												</button>
+											{/each}
+										</div>
+									</div>
+								</div>
+							{/if}
 						</div>
 					</div>
 
-					<!-- Seção da Legenda -->
+					<!-- Secao da Legenda -->
 					<div class="flex w-[380px] shrink-0 flex-col">
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<h3 class="text-sm font-medium">Legenda</h3>
@@ -442,41 +606,37 @@ Qual é o seu ritual matinal inegociável?
 									</svg>
 									Copiar
 								</Button>
-								<Button variant="ghost" size="sm">
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-									</svg>
-									Editar
-								</Button>
 							</div>
 						</div>
 						<div class="flex flex-1 flex-col overflow-auto bg-background">
 							<div class="flex-1 p-4">
-								<p class="whitespace-pre-wrap text-sm leading-relaxed">{mockCaption}</p>
+								<p class="whitespace-pre-wrap text-sm leading-relaxed">{generatedCaption}</p>
 							</div>
 							
-							<!-- Estatísticas e Metadados -->
+							<!-- Estatisticas e Metadados -->
 							<div class="border-t border-border p-4">
 								<div class="space-y-3">
 									<div class="flex items-center justify-between text-sm">
 										<span class="text-muted-foreground">Caracteres</span>
-										<span class="font-mono">{mockCaption.length}</span>
+										<span class="font-mono">{generatedCaption.length}</span>
 									</div>
 									<div class="flex items-center justify-between text-sm">
 										<span class="text-muted-foreground">Hashtags</span>
-										<span class="font-mono">5</span>
+										<span class="font-mono">{hashtags.length}</span>
 									</div>
-									<Separator />
-									<div class="flex flex-wrap gap-1.5">
-										{#each ["#RotinaDaManha", "#Produtividade", "#Mindfulness", "#MentalidadeDeSucesso", "#HabitosDiarios"] as tag}
-											<Badge variant="outline" class="text-xs">{tag}</Badge>
-										{/each}
-									</div>
+									{#if hashtags.length > 0}
+										<Separator />
+										<div class="flex flex-wrap gap-1.5">
+											{#each hashtags as tag}
+												<Badge variant="outline" class="text-xs">{tag}</Badge>
+											{/each}
+										</div>
+									{/if}
 								</div>
 							</div>
 						</div>
 
-						<!-- Botões de Ação -->
+						<!-- Botoes de Acao -->
 						<div class="shrink-0 border-t border-border bg-background p-4">
 							<div class="flex gap-2">
 								<Button variant="outline" class="flex-1">

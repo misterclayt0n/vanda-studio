@@ -1,6 +1,4 @@
 import { Context, Effect, Layer } from "effect";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText } from "ai";
 import { DEFAULT_IMAGE_MODEL } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
 import {
@@ -14,7 +12,6 @@ import {
     type AspectRatio,
     type Resolution,
     calculateDimensions,
-    formatDimensions,
 } from "../types";
 
 // ============================================================================
@@ -98,6 +95,7 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 
 /**
  * Parse image from various response formats
+ * OpenRouter returns images in: message.images[].image_url.url (base64 data URL)
  */
 function parseImageFromResponse(data: unknown): ImageGenerationResponse | null {
     if (!data || typeof data !== "object") return null;
@@ -110,11 +108,25 @@ function parseImageFromResponse(data: unknown): ImageGenerationResponse | null {
         const message = choice.message as Record<string, unknown> | undefined;
 
         if (message) {
-            // Check message.images array (OpenRouter/Gemini format)
+            // OpenRouter image generation format: message.images[].image_url.url
             if (message.images && Array.isArray(message.images) && message.images.length > 0) {
-                const img = message.images[0];
-                const result = parseImageValue(img);
-                if (result) return result;
+                for (const imgWrapper of message.images) {
+                    if (typeof imgWrapper !== "object" || !imgWrapper) continue;
+                    const wrapper = imgWrapper as Record<string, unknown>;
+                    
+                    // Handle { type: "image_url", image_url: { url: "data:image/..." } }
+                    if (wrapper.image_url && typeof wrapper.image_url === "object") {
+                        const imageUrl = wrapper.image_url as Record<string, unknown>;
+                        if (imageUrl.url && typeof imageUrl.url === "string") {
+                            const result = parseDataUrl(imageUrl.url);
+                            if (result) return result;
+                        }
+                    }
+                    
+                    // Direct base64 or data URL
+                    const directResult = parseImageValue(imgWrapper);
+                    if (directResult) return directResult;
+                }
             }
 
             // Check message.content
@@ -224,58 +236,19 @@ function parseDataUrl(url: string): ImageGenerationResponse | null {
     return null;
 }
 
-/**
- * Map errors from AI SDK to our domain errors
- */
-function mapAiSdkError(error: unknown): AiError {
-    // Handle fetch/network errors
-    if (error instanceof TypeError && String(error).includes("fetch")) {
-        return new NetworkError({ cause: error });
-    }
 
-    // Handle AI SDK specific errors
-    if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-
-        // Rate limit errors
-        if (message.includes("rate limit") || message.includes("429")) {
-            return new RateLimitError({});
-        }
-
-        // Provider/API errors (check for HTTP status codes in message)
-        const statusMatch = error.message.match(/(\d{3})/);
-        if (statusMatch && statusMatch[1]) {
-            const status = parseInt(statusMatch[1], 10);
-            if (status >= 400) {
-                return new ProviderError({ status, message: error.message });
-            }
-        }
-
-        // Image generation specific error
-        return new ImageGenerationError({ reason: error.message });
-    }
-
-    // Fallback for unknown errors
-    return new NetworkError({ cause: error });
-}
 
 // ============================================================================
 // Implementation
 // ============================================================================
+
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export const ImageGenerationLive = Layer.effect(
     ImageGeneration,
     Effect.gen(function* () {
         const apiKey = yield* OpenRouterApiKey;
         const siteUrl = yield* SiteUrl;
-
-        const openrouter = createOpenRouter({
-            apiKey,
-            headers: {
-                "HTTP-Referer": siteUrl,
-                "X-Title": "Vanda Studio",
-            },
-        });
 
         return {
             generateImage: (params) =>
@@ -287,15 +260,14 @@ export const ImageGenerationLive = Layer.effect(
                         const aspectRatio = params.aspectRatio ?? "1:1";
                         const resolution = params.resolution ?? "standard";
                         const dimensions = calculateDimensions(aspectRatio, resolution);
-                        const sizeString = formatDimensions(dimensions);
 
                         console.log(`[IMAGE] Generating with model: ${model}`);
-                        console.log(`[IMAGE] Size: ${sizeString} (${aspectRatio}, ${resolution})`);
+                        console.log(`[IMAGE] Size: ${dimensions.width}x${dimensions.height} (${aspectRatio}, ${resolution})`);
 
-                        // Build multimodal content array
+                        // Build multimodal content array for OpenRouter
                         type ContentPart =
                             | { type: "text"; text: string }
-                            | { type: "image"; image: string };
+                            | { type: "image_url"; image_url: { url: string } };
 
                         const contentParts: ContentPart[] = [];
 
@@ -308,8 +280,8 @@ export const ImageGenerationLive = Layer.effect(
                                 const base64Data = await fetchImageAsBase64(img.url);
                                 if (base64Data) {
                                     contentParts.push({
-                                        type: "image",
-                                        image: base64Data,
+                                        type: "image_url",
+                                        image_url: { url: base64Data },
                                     });
                                     successCount++;
                                 }
@@ -322,68 +294,118 @@ export const ImageGenerationLive = Layer.effect(
                             }
                         }
 
-                        // Add the text prompt with size instructions
-                        const promptWithSize = `Generate an image at ${sizeString} resolution (${aspectRatio} aspect ratio): ${params.prompt}`;
+                        // Add the text prompt
                         contentParts.push({
                             type: "text",
-                            text: promptWithSize,
+                            text: params.prompt,
                         });
 
-                        // Use generateText with extraBody for image modalities
-                        const result = await generateText({
-                            model: openrouter.chat(model, {
-                                extraBody: {
-                                    modalities: ["image", "text"],
+                        // Map resolution to OpenRouter image_size
+                        const imageSizeMap: Record<string, string> = {
+                            "standard": "1K",
+                            "high": "2K",
+                            "ultra": "4K",
+                        };
+
+                        // Make direct API call to OpenRouter
+                        console.log("[IMAGE] Calling OpenRouter API...");
+                        
+                        const response = await fetch(OPENROUTER_API_URL, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${apiKey}`,
+                                "Content-Type": "application/json",
+                                "HTTP-Referer": siteUrl,
+                                "X-Title": "Vanda Studio",
+                            },
+                            body: JSON.stringify({
+                                model,
+                                messages: [
+                                    {
+                                        role: "user",
+                                        content: contentParts,
+                                    },
+                                ],
+                                modalities: ["image", "text"],
+                                image_config: {
+                                    aspect_ratio: aspectRatio,
+                                    image_size: imageSizeMap[resolution] ?? "1K",
                                 },
                             }),
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: contentParts,
-                                },
-                            ],
                         });
 
-                        // Parse the response - check providerMetadata and response body
-                        let imageResult: ImageGenerationResponse | null = null;
+                        console.log(`[IMAGE] Response status: ${response.status}`);
 
-                        // Try to parse from the raw response if available
-                        if (result.response?.body) {
-                            imageResult = parseImageFromResponse(result.response.body);
-                        }
+                        // Handle HTTP errors
+                        if (!response.ok) {
+                            const errorBody = await response.text();
+                            console.error("[IMAGE] API error response:", errorBody);
 
-                        // Check providerMetadata for images
-                        if (!imageResult && result.providerMetadata) {
-                            const metadata = result.providerMetadata as Record<string, unknown>;
-                            // Check openrouter specific metadata
-                            if (metadata.openrouter && typeof metadata.openrouter === "object") {
-                                const orMeta = metadata.openrouter as Record<string, unknown>;
-                                if (orMeta.images && Array.isArray(orMeta.images)) {
-                                    imageResult = parseImageValue(orMeta.images[0]);
-                                }
+                            if (response.status === 429) {
+                                throw new RateLimitError({});
                             }
+
+                            throw new ProviderError({
+                                status: response.status,
+                                message: `OpenRouter API error: ${response.status} - ${errorBody.substring(0, 200)}`,
+                            });
                         }
 
-                        // Try to extract from text if it's a data URL
-                        if (!imageResult && result.text?.startsWith("data:image")) {
-                            imageResult = parseDataUrl(result.text);
-                        }
+                        const result = await response.json();
+                        console.log("[IMAGE] Got JSON response, parsing...");
+
+                        // Parse the image from response
+                        const imageResult = parseImageFromResponse(result);
 
                         if (!imageResult) {
                             console.error("[IMAGE] Failed to parse image from response");
-                            console.error("[IMAGE] Response text:", result.text?.substring(0, 200));
+                            console.error("[IMAGE] Response structure:", JSON.stringify(result, null, 2).substring(0, 1000));
+                            
                             throw new ImageGenerationError({
                                 reason: "O modelo nao retornou uma imagem valida",
                             });
                         }
+
+                        console.log("[IMAGE] Successfully parsed image!");
+                        console.log(`[IMAGE] Image type: ${imageResult.mimeType}, size: ${imageResult.imageBase64.length} chars`);
 
                         return {
                             ...imageResult,
                             dimensions,
                         };
                     },
-                    catch: mapAiSdkError,
+                    catch: (error) => {
+                        // If it's already one of our errors, return it
+                        if (error instanceof ImageGenerationError ||
+                            error instanceof RateLimitError ||
+                            error instanceof ProviderError ||
+                            error instanceof NetworkError) {
+                            return error;
+                        }
+                        return mapFetchError(error);
+                    },
                 }),
         };
     })
 );
+
+/**
+ * Map fetch errors to our domain errors
+ */
+function mapFetchError(error: unknown): AiError {
+    if (error instanceof TypeError && String(error).includes("fetch")) {
+        return new NetworkError({ cause: error });
+    }
+
+    if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes("rate limit") || message.includes("429")) {
+            return new RateLimitError({});
+        }
+
+        return new ImageGenerationError({ reason: error.message });
+    }
+
+    return new NetworkError({ cause: error });
+}

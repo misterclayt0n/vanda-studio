@@ -42,7 +42,7 @@
 			id: IMAGE_MODELS.FLUX_2_FLEX,
 			name: "Flux 2 Flex",
 			provider: "BFL",
-			color: "#6B7280",
+			color: "#1F2937",
 		},
 		{
 			id: IMAGE_MODELS.GPT_IMAGE_1_5,
