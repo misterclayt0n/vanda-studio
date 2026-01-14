@@ -149,19 +149,6 @@ What's your non-negotiable morning ritual?
 							{/each}
 						</div>
 					</div>
-
-					<Separator />
-
-					<!-- Section: Additional Context -->
-					<div class="space-y-3">
-						<Label class="text-sm font-medium">Additional Context</Label>
-						<Input
-							type="text"
-							placeholder="Brand name, product, campaign..."
-							class="bg-background"
-						/>
-					</div>
-
 				</div>
 			</div>
 
