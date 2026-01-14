@@ -74,7 +74,13 @@ export const fetchProfile = action({
 
             await ctx.runMutation(api.projects.updateProfileData, {
                 projectId: args.projectId,
-                ...profile,
+                ...(profile.instagramHandle && { instagramHandle: profile.instagramHandle }),
+                ...(profile.profilePictureUrl && { profilePictureUrl: profile.profilePictureUrl }),
+                ...(profile.bio && { bio: profile.bio }),
+                ...(profile.followersCount !== undefined && { followersCount: profile.followersCount }),
+                ...(profile.followingCount !== undefined && { followingCount: profile.followingCount }),
+                postsCount: profile.postsCount,
+                ...(profile.website && { website: profile.website }),
                 isFetching: false,
             });
 
@@ -134,10 +140,11 @@ export const fetchProfile = action({
                                                 api.files.downloadAndStoreFile,
                                                 { url: img.url }
                                             );
-                                            carouselImagesWithStorage.push({
-                                                url: img.url,
-                                                storageId: storageId ?? undefined,
-                                            });
+                                            carouselImagesWithStorage.push(
+                                                storageId
+                                                    ? { url: img.url, storageId }
+                                                    : { url: img.url }
+                                            );
                                         } catch {
                                             // If individual carousel image fails, still include it without storage
                                             carouselImagesWithStorage.push({ url: img.url });
@@ -326,6 +333,7 @@ function buildPostsFromItems(items: RawInstagramItem[], fallbackUrl: string): In
 
     for (let index = 0; index < items.length; index++) {
         const item = items[index];
+        if (!item) continue;
         const isVideo = isVideoItem(item);
 
         // For videos, prefer videoUrl; for images, prefer displayUrl
@@ -378,26 +386,30 @@ function buildPostsFromItems(items: RawInstagramItem[], fallbackUrl: string): In
             ) ?? "IMAGE"
         );
 
+        const caption = coalesce<string>(item.caption, item.description, item.title);
+        const likeCount = sanitizeLikeCount(coalesce<number>(
+            item.likesCount,
+            item.likeCount,
+            item.edge_liked_by?.count,
+        ));
+        const commentsCount = coalesce<number>(
+            item.commentsCount,
+            item.commentCount,
+            item.edge_media_to_comment?.count,
+        );
+
         posts.push({
             instagramId,
-            caption: coalesce<string>(item.caption, item.description, item.title),
+            ...(caption && { caption }),
             mediaUrl,
-            thumbnailUrl,
+            ...(thumbnailUrl && { thumbnailUrl }),
             mediaType,
             permalink,
             timestamp: normalizeTimestamp(
                 item.timestamp ?? item.takenAt ?? item.publishedAt ?? item.createdAt,
             ),
-            likeCount: sanitizeLikeCount(coalesce<number>(
-                item.likesCount,
-                item.likeCount,
-                item.edge_liked_by?.count,
-            )),
-            commentsCount: coalesce<number>(
-                item.commentsCount,
-                item.commentCount,
-                item.edge_media_to_comment?.count,
-            ),
+            ...(likeCount !== undefined && { likeCount }),
+            ...(commentsCount !== undefined && { commentsCount }),
             // Only include carouselImages if it's a carousel type and has images
             ...(mediaType === "CAROUSEL_ALBUM" && carouselImages.length > 0 ? { carouselImages } : {}),
         });

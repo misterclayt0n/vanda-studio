@@ -9,7 +9,13 @@
  */
 
 import type * as ai_enhancedPostGeneration from "../ai/enhancedPostGeneration.js";
-import type * as ai_llm from "../ai/llm.js";
+import type * as ai_llm_config from "../ai/llm/config.js";
+import type * as ai_llm_errors from "../ai/llm/errors.js";
+import type * as ai_llm_index from "../ai/llm/index.js";
+import type * as ai_llm_models from "../ai/llm/models.js";
+import type * as ai_llm_runtime from "../ai/llm/runtime.js";
+import type * as ai_llm_services_ImageGeneration from "../ai/llm/services/ImageGeneration.js";
+import type * as ai_llm_services_TextGeneration from "../ai/llm/services/TextGeneration.js";
 import type * as ai_prompts from "../ai/prompts.js";
 import type * as ai_regenerate from "../ai/regenerate.js";
 import type * as billing_usage from "../billing/usage.js";
@@ -31,7 +37,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "ai/enhancedPostGeneration": typeof ai_enhancedPostGeneration;
-  "ai/llm": typeof ai_llm;
+  "ai/llm/config": typeof ai_llm_config;
+  "ai/llm/errors": typeof ai_llm_errors;
+  "ai/llm/index": typeof ai_llm_index;
+  "ai/llm/models": typeof ai_llm_models;
+  "ai/llm/runtime": typeof ai_llm_runtime;
+  "ai/llm/services/ImageGeneration": typeof ai_llm_services_ImageGeneration;
+  "ai/llm/services/TextGeneration": typeof ai_llm_services_TextGeneration;
   "ai/prompts": typeof ai_prompts;
   "ai/regenerate": typeof ai_regenerate;
   "billing/usage": typeof billing_usage;

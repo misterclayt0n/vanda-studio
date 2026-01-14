@@ -41,7 +41,7 @@ export const store = mutation({
             name: args.name,
             email: args.email,
             clerkId: identity.subject,
-            imageUrl: args.imageUrl,
+            ...(args.imageUrl && { imageUrl: args.imageUrl }),
         });
 
         // Auto-create free tier subscription for new users

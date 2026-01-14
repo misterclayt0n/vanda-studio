@@ -222,7 +222,7 @@ export const listByProject = query({
                     ...post,
                     mediaStorageUrl,
                     thumbnailStorageUrl,
-                    carouselImagesWithUrls,
+                    ...(carouselImagesWithUrls && { carouselImagesWithUrls }),
                 };
             })
         );

@@ -12,6 +12,8 @@
 		"prepare": "effect-language-service patch --module typescript"
 	},
 	"dependencies": {
+		"@openrouter/ai-sdk-provider": "^1.5.4",
+		"ai": "^6.0.34",
 		"apify-client": "^2.20.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
@@ -23,7 +25,8 @@
 		"mode-watcher": "^0.5.1",
 		"svelte-clerk": "^0.20.3",
 		"svelte-sonner": "^0.3.28",
-		"tailwind-merge": "^3.4.0"
+		"tailwind-merge": "^3.4.0",
+		"zod": "^4.3.5"
 	},
 	"devDependencies": {
 		"@effect/language-service": "^0.65.0",

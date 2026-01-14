@@ -1,10 +1,16 @@
 "use node";
 
+import { Effect } from "effect";
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
+import {
+    TextGeneration,
+    ImageGeneration,
+    MODELS,
+    runAiEffectOrThrow,
+} from "./llm/index";
 import { IMAGE_GENERATION_PROMPT } from "./prompts";
 import type { PostType } from "./prompts";
 
@@ -69,9 +75,15 @@ export const regenerateImage = action({
         let imageUrl: string | null = null;
 
         try {
-            const imageResult = await generateImage(imagePrompt, {
-                referenceImages: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
-            });
+            const imageResult = await runAiEffectOrThrow(
+                Effect.gen(function* () {
+                    const imageGen = yield* ImageGeneration;
+                    return yield* imageGen.generateImage({
+                        prompt: imagePrompt,
+                        ...(referenceImageUrls.length > 0 && { referenceImages: referenceImageUrls }),
+                    });
+                })
+            );
 
             const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) => c.charCodeAt(0));
             const blob = new Blob([binaryData], { type: imageResult.mimeType });
@@ -82,13 +94,13 @@ export const regenerateImage = action({
             throw new Error("Falha ao regenerar imagem. Tente novamente.");
         }
 
-        // 8. Update the post
+        // 8. Update the post - use conditional spreading
         await ctx.runMutation(api.generatedPosts.updateImage, {
             id: args.generatedPostId,
             imageStorageId,
             imagePrompt,
             imageModel: MODELS.GEMINI_3_PRO_IMAGE,
-            feedback: args.feedback,
+            ...(args.feedback && { feedback: args.feedback }),
         });
 
         // 9. Consume credit
@@ -153,19 +165,20 @@ Incorpore este feedback na nova legenda.
 - Responda em JSON: { "caption": "nova legenda completa", "reasoning": "por que essas mudancas" }`;
 
         // 6. Generate new caption
-        const response = await callLLM(
-            [
-                { role: "system", content: "Voce e um especialista em legendas para Instagram. Responda apenas com JSON valido." },
-                { role: "user", content: captionPrompt },
-            ],
-            {
-                model: MODELS.GPT_4_1,
-                temperature: 0.8,
-                maxTokens: 1024,
-            }
+        const generated = await runAiEffectOrThrow(
+            Effect.gen(function* () {
+                const textGen = yield* TextGeneration;
+                return yield* textGen.generateCaption({
+                    messages: [
+                        { role: "system", content: "Voce e um especialista em legendas para Instagram. Responda apenas com JSON valido." },
+                        { role: "user", content: captionPrompt },
+                    ],
+                    model: MODELS.GPT_4_1,
+                    temperature: 0.8,
+                    maxTokens: 1024,
+                });
+            })
         );
-
-        const generated = parseJSONResponse<{ caption: string; reasoning: string }>(response.content);
 
         // 7. Handle image
         let imageUrl = post.imageUrl;
@@ -190,9 +203,15 @@ Incorpore este feedback na nova legenda.
             });
 
             try {
-                const imageResult = await generateImage(imagePrompt, {
-                    referenceImages: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
-                });
+                const imageResult = await runAiEffectOrThrow(
+                    Effect.gen(function* () {
+                        const imageGen = yield* ImageGeneration;
+                        return yield* imageGen.generateImage({
+                            prompt: imagePrompt,
+                            ...(referenceImageUrls.length > 0 && { referenceImages: referenceImageUrls }),
+                        });
+                    })
+                );
 
                 const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) => c.charCodeAt(0));
                 const blob = new Blob([binaryData], { type: imageResult.mimeType });
@@ -204,16 +223,18 @@ Incorpore este feedback na nova legenda.
             }
         }
 
-        // 8. Save to history and update post
+        // 8. Save to history and update post - use conditional spreading
         await ctx.runMutation(api.generationHistory.saveVersion, {
             generatedPostId: args.generatedPostId,
             caption: generated.caption,
-            imageStorageId: newImageStorageId,
-            imagePrompt: post.imagePrompt,
+            ...(newImageStorageId && { imageStorageId: newImageStorageId }),
+            ...(post.imagePrompt && { imagePrompt: post.imagePrompt }),
             action: args.keepImage === false ? "regenerate_both" : "regenerate_caption",
-            feedback: args.feedback,
+            ...(args.feedback && { feedback: args.feedback }),
             model: MODELS.GPT_4_1,
-            imageModel: newImageStorageId !== post.imageStorageId ? MODELS.GEMINI_3_PRO_IMAGE : post.imageModel,
+            ...(newImageStorageId !== post.imageStorageId
+                ? { imageModel: MODELS.GEMINI_3_PRO_IMAGE }
+                : post.imageModel && { imageModel: post.imageModel }),
         });
 
         await ctx.runMutation(api.generatedPosts.updateRegenerated, {

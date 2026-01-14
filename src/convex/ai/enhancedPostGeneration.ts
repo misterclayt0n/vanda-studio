@@ -1,10 +1,16 @@
 "use node";
 
+import { Effect } from "effect";
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { callLLM, parseJSONResponse, generateImage, MODELS } from "./llm";
+import {
+    TextGeneration,
+    ImageGeneration,
+    MODELS,
+    runAiEffectOrThrow,
+} from "./llm/index";
 import { IMAGE_GENERATION_PROMPT, POST_TYPE_PROMPTS } from "./prompts";
 import type { PostType } from "./prompts";
 
@@ -102,20 +108,21 @@ ${args.brief.toneOverride?.length ? `- Tom: ${args.brief.toneOverride.join(', ')
 
 IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
 
-        // 7. Generate caption
-        const response = await callLLM(
-            [
-                { role: "system", content: "Voce e um especialista em conteudo para Instagram. Crie legendas envolventes e autenticticas. Responda apenas com JSON valido." },
-                { role: "user", content: captionPrompt },
-            ],
-            {
-                model: MODELS.GPT_4_1,
-                temperature: 0.8,
-                maxTokens: 1024,
-            }
+        // 7. Generate caption using Effect
+        const generated = await runAiEffectOrThrow(
+            Effect.gen(function* () {
+                const textGen = yield* TextGeneration;
+                return yield* textGen.generateCaption({
+                    messages: [
+                        { role: "system", content: "Voce e um especialista em conteudo para Instagram. Crie legendas envolventes e autenticticas. Responda apenas com JSON valido." },
+                        { role: "user", content: captionPrompt },
+                    ],
+                    model: MODELS.GPT_4_1,
+                    temperature: 0.8,
+                    maxTokens: 1024,
+                });
+            })
         );
-
-        const generated = parseJSONResponse<{ caption: string; reasoning: string }>(response.content);
 
         // 8. Collect reference images for image generation
         const referenceImageUrls: Array<{ url: string }> = [];
@@ -130,16 +137,22 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
             brandName: project.name,
             visualStyle: "Moderno e profissional",
             caption: generated.caption,
-            additionalContext: args.brief.additionalContext,
+            ...(args.brief.additionalContext && { additionalContext: args.brief.additionalContext }),
             hasReferenceImages: referenceImageUrls.length > 0,
             postType: args.brief.postType as PostType,
         });
 
         let imageStorageId: Id<"_storage"> | undefined;
         try {
-            const imageResult = await generateImage(imagePrompt, {
-                referenceImages: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
-            });
+            const imageResult = await runAiEffectOrThrow(
+                Effect.gen(function* () {
+                    const imageGen = yield* ImageGeneration;
+                    return yield* imageGen.generateImage({
+                        prompt: imagePrompt,
+                        ...(referenceImageUrls.length > 0 && { referenceImages: referenceImageUrls }),
+                    });
+                })
+            );
 
             const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) => c.charCodeAt(0));
             const blob = new Blob([binaryData], { type: imageResult.mimeType });
@@ -148,24 +161,24 @@ IMPORTANTE: Responda APENAS com o objeto JSON, sem markdown.`;
             console.error("Image generation failed:", imageError);
         }
 
-        // 10. Store generated post
+        // 10. Store generated post - use conditional spreading for optional fields
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             projectId: args.projectId,
             caption: generated.caption,
-            reasoning: generated.reasoning,
+            ...(generated.reasoning && { reasoning: generated.reasoning }),
             model: MODELS.GPT_4_1,
-            imageStorageId,
-            imagePrompt: imageStorageId ? imagePrompt : undefined,
-            imageModel: imageStorageId ? MODELS.GEMINI_3_PRO_IMAGE : undefined,
+            ...(imageStorageId && { imageStorageId }),
+            ...(imageStorageId && { imagePrompt }),
+            ...(imageStorageId && { imageModel: MODELS.GEMINI_3_PRO_IMAGE }),
             brief: {
                 postType: args.brief.postType,
-                contentPillar: args.brief.contentPillar,
-                customTopic: args.brief.customTopic,
-                toneOverride: args.brief.toneOverride,
-                captionLength: args.brief.captionLength,
-                includeHashtags: args.brief.includeHashtags,
-                additionalContext: args.brief.additionalContext,
-                referenceText: args.brief.referenceText,
+                ...(args.brief.contentPillar && { contentPillar: args.brief.contentPillar }),
+                ...(args.brief.customTopic && { customTopic: args.brief.customTopic }),
+                ...(args.brief.toneOverride && { toneOverride: args.brief.toneOverride }),
+                ...(args.brief.captionLength && { captionLength: args.brief.captionLength }),
+                ...(args.brief.includeHashtags !== undefined && { includeHashtags: args.brief.includeHashtags }),
+                ...(args.brief.additionalContext && { additionalContext: args.brief.additionalContext }),
+                ...(args.brief.referenceText && { referenceText: args.brief.referenceText }),
             },
         });
 
