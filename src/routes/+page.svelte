@@ -26,7 +26,7 @@
 						<button
 							class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
 						>
-							Sign In
+							Entrar
 						</button>
 					</SignInButton>
 				</SignedOut>
@@ -43,9 +43,9 @@
 		<SignedOut>
 			<div class="flex flex-col items-center justify-center gap-6 py-20">
 				<div class="text-center">
-					<h2 class="text-2xl font-bold">Welcome to Vanda Studio</h2>
+					<h2 class="text-2xl font-bold">Bem-vindo ao Vanda Studio</h2>
 					<p class="mt-2 text-muted-foreground">
-						Instagram post generation powered by AI
+						Geração de posts para Instagram com inteligência artificial
 					</p>
 				</div>
 
@@ -53,7 +53,7 @@
 					<button
 						class="h-9 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
 					>
-						Get Started
+						Começar Agora
 					</button>
 				</SignInButton>
 			</div>
@@ -62,19 +62,19 @@
 		<SignedIn>
 			<div class="space-y-6">
 				<div>
-					<h2 class="text-xl font-semibold">Your Projects</h2>
+					<h2 class="text-xl font-semibold">Seus Projetos</h2>
 					<p class="text-sm text-muted-foreground">
-						Convex + Clerk integration is working!
+						Integração Convex + Clerk funcionando!
 					</p>
 				</div>
 
 				<!-- Projects from Convex -->
 				<div class="rounded-none border border-border bg-card p-4">
 					{#if projects.isLoading}
-						<p class="text-sm text-muted-foreground">Loading projects...</p>
+						<p class="text-sm text-muted-foreground">Carregando projetos...</p>
 					{:else if projects.error}
 						<p class="text-sm text-destructive">
-							Error: {projects.error.message}
+							Erro: {projects.error.message}
 						</p>
 					{:else if projects.data && projects.data.length > 0}
 						<ul class="space-y-2">
@@ -83,7 +83,7 @@
 									<div>
 										<p class="font-medium">{project.name}</p>
 										<p class="text-xs text-muted-foreground">
-											{project.instagramUrl || "No Instagram URL"}
+											{project.instagramUrl || "Sem URL do Instagram"}
 										</p>
 									</div>
 								</li>
@@ -91,7 +91,7 @@
 						</ul>
 					{:else}
 						<p class="text-sm text-muted-foreground">
-							No projects yet. Create one to get started!
+							Nenhum projeto ainda. Crie um para começar!
 						</p>
 					{/if}
 				</div>
