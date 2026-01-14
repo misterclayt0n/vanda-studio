@@ -16,7 +16,7 @@
 	}
 </script>
 
-<ModeWatcher />
+<ModeWatcher defaultMode="light" />
 <Toaster position="bottom-right" />
 
 <ClerkProvider>
