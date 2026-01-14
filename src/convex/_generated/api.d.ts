@@ -8,7 +8,10 @@
  * @module
  */
 
-import type * as ai_enhancedPostGeneration from "../ai/enhancedPostGeneration.js";
+import type * as ai_agents_caption from "../ai/agents/caption.js";
+import type * as ai_agents_image from "../ai/agents/image.js";
+import type * as ai_agents_index from "../ai/agents/index.js";
+import type * as ai_chat from "../ai/chat.js";
 import type * as ai_llm_config from "../ai/llm/config.js";
 import type * as ai_llm_errors from "../ai/llm/errors.js";
 import type * as ai_llm_index from "../ai/llm/index.js";
@@ -16,9 +19,8 @@ import type * as ai_llm_models from "../ai/llm/models.js";
 import type * as ai_llm_runtime from "../ai/llm/runtime.js";
 import type * as ai_llm_services_ImageGeneration from "../ai/llm/services/ImageGeneration.js";
 import type * as ai_llm_services_TextGeneration from "../ai/llm/services/TextGeneration.js";
-import type * as ai_prompts from "../ai/prompts.js";
-import type * as ai_regenerate from "../ai/regenerate.js";
 import type * as billing_usage from "../billing/usage.js";
+import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
 import type * as files from "../files.js";
 import type * as generatedPosts from "../generatedPosts.js";
@@ -36,7 +38,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "ai/enhancedPostGeneration": typeof ai_enhancedPostGeneration;
+  "ai/agents/caption": typeof ai_agents_caption;
+  "ai/agents/image": typeof ai_agents_image;
+  "ai/agents/index": typeof ai_agents_index;
+  "ai/chat": typeof ai_chat;
   "ai/llm/config": typeof ai_llm_config;
   "ai/llm/errors": typeof ai_llm_errors;
   "ai/llm/index": typeof ai_llm_index;
@@ -44,9 +49,8 @@ declare const fullApi: ApiFromModules<{
   "ai/llm/runtime": typeof ai_llm_runtime;
   "ai/llm/services/ImageGeneration": typeof ai_llm_services_ImageGeneration;
   "ai/llm/services/TextGeneration": typeof ai_llm_services_TextGeneration;
-  "ai/prompts": typeof ai_prompts;
-  "ai/regenerate": typeof ai_regenerate;
   "billing/usage": typeof billing_usage;
+  chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
   files: typeof files;
   generatedPosts: typeof generatedPosts;

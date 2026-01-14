@@ -115,6 +115,7 @@ export default defineSchema({
     }).index("by_project_id", ["projectId"]),
 
     // Generation history - tracks all versions/iterations of a generated post
+    // DEPRECATED: Use chat_messages instead for new posts
     generation_history: defineTable({
         generatedPostId: v.id("generated_posts"),
         version: v.number(), // 1, 2, 3, etc.
@@ -132,4 +133,41 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_generated_post_id", ["generatedPostId"])
       .index("by_version", ["generatedPostId", "version"]),
+
+    // Chat messages for post generation conversations
+    chat_messages: defineTable({
+        generatedPostId: v.id("generated_posts"),
+        role: v.string(), // "user" | "assistant" | "system"
+        content: v.string(), // The message text
+
+        // What action was taken (user messages only)
+        action: v.optional(v.string()), // "initial" | "regenerate_caption" | "regenerate_image" | "regenerate_both"
+
+        // State snapshot AFTER this message (assistant messages only)
+        snapshot: v.optional(v.object({
+            caption: v.string(),
+            imageStorageId: v.optional(v.id("_storage")),
+            imagePrompt: v.optional(v.string()),
+        })),
+
+        // Attachments for this message (user messages only)
+        attachments: v.optional(v.object({
+            // Reference images - URLs for external, storageIds for uploaded
+            imageUrls: v.optional(v.array(v.string())),
+            imageStorageIds: v.optional(v.array(v.id("_storage"))),
+            // Instagram post reference
+            instagramPostUrl: v.optional(v.string()),
+            instagramPostCaption: v.optional(v.string()),
+            // Text context
+            referenceText: v.optional(v.string()),
+        })),
+
+        // Generation metadata (assistant messages only)
+        model: v.optional(v.string()),
+        imageModel: v.optional(v.string()),
+        creditsUsed: v.optional(v.number()),
+
+        createdAt: v.number(),
+    }).index("by_generated_post_id", ["generatedPostId"])
+      .index("by_created_at", ["generatedPostId", "createdAt"]),
 });

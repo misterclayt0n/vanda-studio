@@ -124,6 +124,7 @@ export const create = mutation({
         imageStorageId: v.optional(v.id("_storage")),
         imagePrompt: v.optional(v.string()),
         imageModel: v.optional(v.string()),
+        status: v.optional(v.string()), // "generated" | "in_progress"
         // Full brief used for generation
         brief: v.optional(v.object({
             postType: v.string(),
@@ -169,9 +170,58 @@ export const create = mutation({
             ...(args.imagePrompt && { imagePrompt: args.imagePrompt }),
             ...(args.imageModel && { imageModel: args.imageModel }),
             ...(args.brief && { brief: args.brief }),
-            status: "generated",
+            status: args.status ?? "generated",
             createdAt: now,
             updatedAt: now,
+        });
+    },
+});
+
+// Update from chat (for chat-based generation)
+export const updateFromChat = mutation({
+    args: {
+        id: v.id("generated_posts"),
+        caption: v.optional(v.string()),
+        imageStorageId: v.optional(v.id("_storage")),
+        imagePrompt: v.optional(v.string()),
+        model: v.optional(v.string()),
+        imageModel: v.optional(v.string()),
+        status: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const post = await ctx.db.get(args.id);
+        if (!post) {
+            throw new Error("Generated post not found");
+        }
+
+        // Verify user owns the project
+        const project = await ctx.db.get(post.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            throw new Error("Not authorized");
+        }
+
+        await ctx.db.patch(args.id, {
+            ...(args.caption && { caption: args.caption }),
+            ...(args.imageStorageId && { imageStorageId: args.imageStorageId }),
+            ...(args.imagePrompt && { imagePrompt: args.imagePrompt }),
+            ...(args.model && { model: args.model }),
+            ...(args.imageModel && { imageModel: args.imageModel }),
+            ...(args.status && { status: args.status }),
+            updatedAt: Date.now(),
         });
     },
 });
