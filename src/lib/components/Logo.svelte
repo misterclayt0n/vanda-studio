@@ -22,10 +22,10 @@
 	};
 </script>
 
-<div class={cn("flex items-center gap-1", className)}>
+<div class={cn("flex items-center", className)}>
 	<!-- V Logo SVG -->
 	<svg 
-		class={cn(sizes[size], "shrink-0")} 
+		class={cn(sizes[size], "shrink-0 -mr-1")} 
 		viewBox="0 0 32 32" 
 		fill="none" 
 		xmlns="http://www.w3.org/2000/svg"
