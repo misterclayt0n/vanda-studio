@@ -5,7 +5,14 @@ import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
 import { generateCaption, generateImage, type ChatMessage } from "./agents/index";
-import { MODELS } from "./llm/index";
+import {
+    MODELS,
+    IMAGE_MODELS,
+    DEFAULT_IMAGE_MODEL,
+    type AspectRatio,
+    type Resolution,
+    calculateDimensions,
+} from "./llm/index";
 
 // ============================================================================
 // Types
@@ -94,20 +101,35 @@ function buildReferenceText(attachments?: Attachments): string | undefined {
 // ============================================================================
 
 /**
+ * Generated image result type
+ */
+type GeneratedImageResult = {
+    storageId: Id<"_storage">;
+    model: string;
+    url: string | null;
+    prompt: string;
+    width: number;
+    height: number;
+};
+
+/**
  * Start a new post generation conversation
- * Creates the post and generates initial caption + image
+ * Creates the post and generates initial caption + images (one per model)
  */
 export const generate = action({
     args: {
-        projectId: v.id("projects"),
+        projectId: v.optional(v.id("projects")), // Optional - can be null for standalone
         message: v.string(),
         attachments: attachmentsValidator,
+        imageModels: v.optional(v.array(v.string())), // Models to generate with
+        aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
+        resolution: v.optional(v.string()), // "standard", "high", "ultra"
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
         generatedPostId: Id<"generated_posts">;
         caption: string;
-        imageUrl: string | null;
+        images: GeneratedImageResult[];
     }> => {
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
@@ -115,26 +137,25 @@ export const generate = action({
             throw new Error("Voce precisa estar autenticado");
         }
 
-        // 2. Verify project access
-        const project = await ctx.runQuery(api.projects.get, {
-            projectId: args.projectId,
-        });
-        if (!project) {
-            throw new Error("Projeto nao encontrado");
+        // 2. Verify project access (if projectId provided)
+        if (args.projectId) {
+            const project = await ctx.runQuery(api.projects.get, {
+                projectId: args.projectId,
+            });
+            if (!project) {
+                throw new Error("Projeto nao encontrado");
+            }
         }
 
-        // 3. Check quota (2 credits: caption + image)
-        await ctx.runMutation(api.billing.usage.ensureSubscription, {});
-        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
-        if (!quota || quota.remaining < 2) {
-            throw new Error(
-                `Creditos insuficientes. Necessario: 2. Disponivel: ${quota?.remaining ?? 0}`
-            );
-        }
+        // 3. Parse studio settings
+        const imageModels = args.imageModels ?? [DEFAULT_IMAGE_MODEL];
+        const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
+        const resolution = (args.resolution ?? "standard") as Resolution;
+        const dimensions = calculateDimensions(aspectRatio, resolution);
 
         // 4. Create the generated_post record
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
-            projectId: args.projectId,
+            ...(args.projectId && { projectId: args.projectId }),
             caption: "", // Will be updated after generation
             status: "in_progress",
         });
@@ -161,43 +182,84 @@ export const generate = action({
         // 8. Collect reference images
         const referenceImageUrls = await collectReferenceImageUrls(ctx, args.attachments);
 
-        // 9. Generate image
-        let imageStorageId: Id<"_storage"> | undefined;
-        let imagePrompt: string | undefined;
+        // 9. Generate images in parallel (one per model)
+        console.log(`[GENERATE] Starting parallel image generation for ${imageModels.length} models`);
 
-        try {
-            const imageResult = await generateImage({
-                caption: captionResult.caption,
-                instructions: args.message,
-                ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
-            });
+        const imageResults = await Promise.all(
+            imageModels.map(async (model): Promise<GeneratedImageResult | null> => {
+                try {
+                    console.log(`[GENERATE] Generating image with model: ${model}`);
 
-            imagePrompt = imageResult.prompt;
-            const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) =>
-                c.charCodeAt(0)
-            );
-            const blob = new Blob([binaryData], { type: imageResult.mimeType });
-            imageStorageId = await ctx.storage.store(blob);
-        } catch (err) {
-            console.error("Image generation failed:", err);
-            // Continue without image
-        }
+                    const imageResult = await generateImage({
+                        caption: captionResult.caption,
+                        instructions: args.message,
+                        model,
+                        aspectRatio,
+                        resolution,
+                        ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
+                    });
+
+                    // Store the image
+                    const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) =>
+                        c.charCodeAt(0)
+                    );
+                    const blob = new Blob([binaryData], { type: imageResult.mimeType });
+                    const storageId = await ctx.storage.store(blob);
+
+                    // Save to generated_images table
+                    await ctx.runMutation(api.generatedImages.create, {
+                        generatedPostId,
+                        storageId,
+                        model,
+                        aspectRatio,
+                        resolution,
+                        prompt: imageResult.prompt,
+                        width: imageResult.dimensions?.width ?? dimensions.width,
+                        height: imageResult.dimensions?.height ?? dimensions.height,
+                    });
+
+                    // Get URL for response
+                    const url = await ctx.storage.getUrl(storageId);
+
+                    console.log(`[GENERATE] Successfully generated image with ${model}`);
+
+                    return {
+                        storageId,
+                        model,
+                        url,
+                        prompt: imageResult.prompt,
+                        width: imageResult.dimensions?.width ?? dimensions.width,
+                        height: imageResult.dimensions?.height ?? dimensions.height,
+                    };
+                } catch (err) {
+                    console.error(`[GENERATE] Image generation failed for ${model}:`, err);
+                    return null;
+                }
+            })
+        );
+
+        // Filter out failed generations
+        const successfulImages = imageResults.filter(
+            (img): img is GeneratedImageResult => img !== null
+        );
 
         // 10. Update generated_post with results
+        const primaryImage = successfulImages[0];
         await ctx.runMutation(api.generatedPosts.updateFromChat, {
             id: generatedPostId,
             caption: captionResult.caption,
-            ...(imageStorageId && { imageStorageId }),
-            ...(imagePrompt && { imagePrompt }),
+            ...(primaryImage && { imageStorageId: primaryImage.storageId }),
+            ...(primaryImage && { imagePrompt: primaryImage.prompt }),
             model: MODELS.GPT_4_1,
-            ...(imageStorageId && { imageModel: MODELS.GEMINI_3_PRO_IMAGE }),
+            ...(primaryImage && { imageModel: primaryImage.model }),
             status: "generated",
         });
 
         // 11. Save assistant message with snapshot
-        const assistantContent = imageStorageId
-            ? `${captionResult.explanation}\n\nGerei a legenda e a imagem com sucesso!`
-            : `${captionResult.explanation}\n\n(A imagem nao pode ser gerada, mas a legenda esta pronta)`;
+        const imageCount = successfulImages.length;
+        const assistantContent = imageCount > 0
+            ? `${captionResult.explanation}\n\nGerei a legenda e ${imageCount} imagem(ns) com sucesso!`
+            : `${captionResult.explanation}\n\n(As imagens nao puderam ser geradas, mas a legenda esta pronta)`;
 
         await ctx.runMutation(internal.chatMessages.saveMessage, {
             generatedPostId,
@@ -205,30 +267,19 @@ export const generate = action({
             content: assistantContent,
             snapshot: {
                 caption: captionResult.caption,
-                ...(imageStorageId && { imageStorageId }),
-                ...(imagePrompt && { imagePrompt }),
+                ...(primaryImage && { imageStorageId: primaryImage.storageId }),
+                ...(primaryImage && { imagePrompt: primaryImage.prompt }),
             },
             model: MODELS.GPT_4_1,
-            ...(imageStorageId && { imageModel: MODELS.GEMINI_3_PRO_IMAGE }),
-            creditsUsed: imageStorageId ? 2 : 1,
+            ...(primaryImage && { imageModel: primaryImage.model }),
+            creditsUsed: 1 + imageCount,
         });
-
-        // 12. Consume credits
-        await ctx.runMutation(api.billing.usage.consumePrompt, {
-            count: imageStorageId ? 2 : 1,
-        });
-
-        // 13. Get image URL for response
-        let imageUrl: string | null = null;
-        if (imageStorageId) {
-            imageUrl = await ctx.storage.getUrl(imageStorageId);
-        }
 
         return {
             success: true,
             generatedPostId,
             caption: captionResult.caption,
-            imageUrl,
+            images: successfulImages,
         };
     },
 });

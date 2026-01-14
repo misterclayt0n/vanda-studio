@@ -1,5 +1,10 @@
 import { Effect } from "effect";
-import { ImageGeneration, MODELS, runAiEffectOrThrow } from "../llm/index";
+import {
+    ImageGeneration,
+    runAiEffectOrThrow,
+    type AspectRatio,
+    type Resolution,
+} from "../llm/index";
 
 // ============================================================================
 // System Prompt
@@ -35,6 +40,12 @@ export interface ImageInput {
     instructions?: string;
     /** Reference image URLs (external URLs or Convex storage URLs) */
     referenceImageUrls?: string[];
+    /** Model to use for generation */
+    model?: string;
+    /** Aspect ratio for the image */
+    aspectRatio?: AspectRatio;
+    /** Resolution for the image */
+    resolution?: Resolution;
 }
 
 export interface ImageOutput {
@@ -42,6 +53,8 @@ export interface ImageOutput {
     mimeType: string;
     /** The full prompt used for generation (for debugging/history) */
     prompt: string;
+    /** Dimensions of the generated image */
+    dimensions?: { width: number; height: number };
 }
 
 // ============================================================================
@@ -90,6 +103,9 @@ export async function generateImage(input: ImageInput): Promise<ImageOutput> {
                     input.referenceImageUrls.length > 0 && {
                         referenceImages: input.referenceImageUrls.map((url) => ({ url })),
                     }),
+                ...(input.model && { model: input.model }),
+                ...(input.aspectRatio && { aspectRatio: input.aspectRatio }),
+                ...(input.resolution && { resolution: input.resolution }),
             });
         })
     );
@@ -98,5 +114,6 @@ export async function generateImage(input: ImageInput): Promise<ImageOutput> {
         imageBase64: result.imageBase64,
         mimeType: result.mimeType,
         prompt,
+        ...(result.dimensions && { dimensions: result.dimensions }),
     };
 }

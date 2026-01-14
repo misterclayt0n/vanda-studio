@@ -17,20 +17,23 @@ export const get = query({
             return null;
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(post.projectId);
-        if (!project) {
-            return null;
-        }
+        // If post has a project, verify user owns it
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                return null;
+            }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
 
-        if (!user || project.userId !== user._id) {
-            return null;
+            if (!user || project.userId !== user._id) {
+                return null;
+            }
         }
+        // For standalone posts (no projectId), auth check above is sufficient
 
         // Resolve image URL if available
         let imageUrl: string | null = null;
@@ -116,7 +119,7 @@ export const countByProject = query({
 // Create a new generated post
 export const create = mutation({
     args: {
-        projectId: v.id("projects"),
+        projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
         caption: v.string(),
         sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
         reasoning: v.optional(v.string()),
@@ -144,24 +147,26 @@ export const create = mutation({
             throw new Error("Not authenticated");
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(args.projectId);
-        if (!project) {
-            throw new Error("Project not found");
-        }
+        // If projectId is provided, verify user owns the project
+        if (args.projectId) {
+            const project = await ctx.db.get(args.projectId);
+            if (!project) {
+                throw new Error("Project not found");
+            }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
 
-        if (!user || project.userId !== user._id) {
-            throw new Error("Not authorized");
+            if (!user || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
         }
 
         const now = Date.now();
         return await ctx.db.insert("generated_posts", {
-            projectId: args.projectId,
+            ...(args.projectId && { projectId: args.projectId }),
             caption: args.caption,
             sourcePostIds: args.sourcePostIds ?? [],
             ...(args.reasoning && { reasoning: args.reasoning }),
@@ -199,20 +204,23 @@ export const updateFromChat = mutation({
             throw new Error("Generated post not found");
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(post.projectId);
-        if (!project) {
-            throw new Error("Project not found");
-        }
+        // If post has a project, verify user owns it
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                throw new Error("Project not found");
+            }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
 
-        if (!user || project.userId !== user._id) {
-            throw new Error("Not authorized");
+            if (!user || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
         }
+        // For standalone posts (no projectId), auth check above is sufficient
 
         await ctx.db.patch(args.id, {
             ...(args.caption && { caption: args.caption }),
@@ -243,20 +251,23 @@ export const updateCaption = mutation({
             throw new Error("Generated post not found");
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(post.projectId);
-        if (!project) {
-            throw new Error("Project not found");
-        }
+        // If post has a project, verify user owns it
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                throw new Error("Project not found");
+            }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
 
-        if (!user || project.userId !== user._id) {
-            throw new Error("Not authorized");
+            if (!user || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
         }
+        // For standalone posts (no projectId), auth check above is sufficient
 
         // Save to history before updating
         const existingVersions = await ctx.db
@@ -304,20 +315,23 @@ export const updateImage = mutation({
             throw new Error("Generated post not found");
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(post.projectId);
-        if (!project) {
-            throw new Error("Project not found");
-        }
+        // If post has a project, verify user owns it
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                throw new Error("Project not found");
+            }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
 
-        if (!user || project.userId !== user._id) {
-            throw new Error("Not authorized");
+            if (!user || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
         }
+        // For standalone posts (no projectId), auth check above is sufficient
 
         // Save to history before updating
         const existingVersions = await ctx.db
@@ -391,19 +405,32 @@ export const remove = mutation({
             throw new Error("Generated post not found");
         }
 
-        // Verify user owns the project
-        const project = await ctx.db.get(post.projectId);
-        if (!project) {
-            throw new Error("Project not found");
+        // If post has a project, verify user owns it
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                throw new Error("Project not found");
+            }
+
+            const user = await ctx.db
+                .query("users")
+                .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+                .unique();
+
+            if (!user || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
         }
+        // For standalone posts (no projectId), auth check above is sufficient
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!user || project.userId !== user._id) {
-            throw new Error("Not authorized");
+        // Delete associated generated images
+        const images = await ctx.db
+            .query("generated_images")
+            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+            .collect();
+        
+        for (const img of images) {
+            await ctx.db.delete(img._id);
         }
 
         // Delete associated history

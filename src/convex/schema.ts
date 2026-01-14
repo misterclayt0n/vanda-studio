@@ -60,7 +60,7 @@ export default defineSchema({
 
     // AI-generated posts
     generated_posts: defineTable({
-        projectId: v.id("projects"),
+        projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
         caption: v.string(),
         // Legacy fields - kept for backwards compatibility with existing data
         additionalContext: v.optional(v.string()),
@@ -170,4 +170,17 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_generated_post_id", ["generatedPostId"])
       .index("by_created_at", ["generatedPostId", "createdAt"]),
+
+    // Generated images - stores multiple images per post (one per model)
+    generated_images: defineTable({
+        generatedPostId: v.id("generated_posts"),
+        storageId: v.id("_storage"),
+        model: v.string(), // The model used to generate this image
+        aspectRatio: v.string(), // "1:1", "16:9", etc.
+        resolution: v.string(), // "standard", "high", "ultra"
+        prompt: v.string(), // The prompt used to generate the image
+        width: v.number(),
+        height: v.number(),
+        createdAt: v.number(),
+    }).index("by_generated_post_id", ["generatedPostId"]),
 });

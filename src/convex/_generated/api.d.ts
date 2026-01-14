@@ -24,6 +24,7 @@ import type * as billing_usage from "../billing/usage.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
 import type * as files from "../files.js";
+import type * as generatedImages from "../generatedImages.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as generationHistory from "../generationHistory.js";
 import type * as instagram from "../instagram.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
   files: typeof files;
+  generatedImages: typeof generatedImages;
   generatedPosts: typeof generatedPosts;
   generationHistory: typeof generationHistory;
   instagram: typeof instagram;
