@@ -14,6 +14,7 @@
 	type AspectRatio = keyof typeof ASPECT_RATIOS;
 
 	const ASPECT_RATIO_LIST: AspectRatio[] = ["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"];
+	const DEFAULT_ASPECT_RATIO: AspectRatio = "1:1";
 
 	interface Props {
 		value: AspectRatio;
@@ -62,7 +63,12 @@
 				></div>
 			</div>
 			<!-- Label -->
-			<span class="text-xs font-medium">{ratio}</span>
+			<div class="flex flex-col items-center gap-0.5">
+				<span class="text-xs font-medium">{ratio}</span>
+				{#if ratio === DEFAULT_ASPECT_RATIO}
+					<span class="text-[9px] text-muted-foreground">Padrão</span>
+				{/if}
+			</div>
 		</button>
 	{/each}
 </div>

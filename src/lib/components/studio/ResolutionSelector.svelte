@@ -20,6 +20,7 @@
 	type Resolution = keyof typeof RESOLUTIONS;
 
 	const RESOLUTION_LIST: Resolution[] = ["standard", "high", "ultra"];
+	const DEFAULT_RESOLUTION: Resolution = "standard";
 
 	interface Props {
 		value: Resolution;
@@ -43,14 +44,21 @@
 			)}
 			onclick={() => onchange(resolution)}
 		>
-			<span
-				class={cn(
-					"text-sm font-medium",
-					value === resolution ? "text-primary" : "text-foreground"
-				)}
-			>
-				{info.label}
-			</span>
+			<div class="flex items-center gap-1.5">
+				<span
+					class={cn(
+						"text-sm font-medium",
+						value === resolution ? "text-primary" : "text-foreground"
+					)}
+				>
+					{info.label}
+				</span>
+				{#if resolution === DEFAULT_RESOLUTION}
+					<span class="rounded-none bg-primary/10 px-1 py-0.5 text-[9px] font-medium text-primary">
+						Padrão
+					</span>
+				{/if}
+			</div>
 			<span
 				class={cn(
 					"text-xs",

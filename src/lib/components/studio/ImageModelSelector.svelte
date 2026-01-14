@@ -52,6 +52,8 @@
 		},
 	];
 
+	const DEFAULT_MODEL = IMAGE_MODELS.NANO_BANANA_PRO;
+
 	interface Props {
 		selected: string[];
 		onchange: (models: string[]) => void;
@@ -116,7 +118,14 @@
 
 			<!-- Model Info -->
 			<div class="flex-1 min-w-0">
-				<div class="text-sm font-medium">{model.name}</div>
+				<div class="flex items-center gap-2">
+					<span class="text-sm font-medium">{model.name}</span>
+					{#if model.id === DEFAULT_MODEL}
+						<span class="rounded-none bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+							Recomendado
+						</span>
+					{/if}
+				</div>
 				<div class="text-xs text-muted-foreground">{model.provider}</div>
 			</div>
 
