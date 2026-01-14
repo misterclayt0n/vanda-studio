@@ -8,7 +8,8 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"prepare": "effect-language-service patch --module typescript"
 	},
 	"dependencies": {
 		"apify-client": "^2.20.0",
@@ -17,6 +18,7 @@
 		"convex": "^1.29.3",
 		"convex-svelte": "^0.0.12",
 		"diff": "^8.0.2",
+		"effect": "^3.19.14",
 		"lucide-svelte": "^0.469.0",
 		"mode-watcher": "^0.5.1",
 		"svelte-clerk": "^0.20.3",
@@ -24,6 +26,7 @@
 		"tailwind-merge": "^3.4.0"
 	},
 	"devDependencies": {
+		"@effect/language-service": "^0.65.0",
 		"@sveltejs/adapter-auto": "^4.0.0",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.3",
