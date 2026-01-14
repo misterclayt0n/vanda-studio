@@ -2,6 +2,7 @@
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
+	import Logo from "$lib/components/Logo.svelte";
 
 	// Type definitions for studio settings
 	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
@@ -103,8 +104,8 @@ Qual é o seu ritual matinal inegociável?
 	<header class="shrink-0 border-b border-border">
 		<div class="flex h-14 items-center justify-between px-4">
 			<div class="flex items-center gap-4">
-				<a href="/" class="flex items-center gap-2">
-					<h1 class="text-lg font-semibold">Vanda Studio</h1>
+				<a href="/">
+					<Logo />
 				</a>
 				<Separator orientation="vertical" class="h-6" />
 				<span class="text-sm text-muted-foreground">Criar Post</span>

@@ -2,6 +2,7 @@
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useQuery } from "convex-svelte";
 	import { api } from "../convex/_generated/api.js";
+	import Logo from "$lib/components/Logo.svelte";
 
 	// Test query - list user's projects (will be empty if not authenticated)
 	const projects = useQuery(api.projects.list, {});
@@ -15,8 +16,8 @@
 	<!-- Header -->
 	<header class="border-b border-border">
 		<div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-			<div class="flex items-center gap-2">
-				<h1 class="text-lg font-semibold">Vanda Studio</h1>
+			<div class="flex items-center gap-3">
+				<Logo />
 				<span class="rounded-none bg-primary/10 px-2 py-0.5 text-xs text-primary">SvelteKit</span>
 			</div>
 

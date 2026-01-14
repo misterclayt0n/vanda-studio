@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="vGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E879B9"/>
+      <stop offset="50%" stop-color="#D946A8"/>
+      <stop offset="100%" stop-color="#BE3A91"/>
+    </linearGradient>
+  </defs>
+  <!-- Main V shape with modern geometric design -->
+  <path 
+    d="M8 8L24 40L40 8H32L24 28L16 8H8Z" 
+    fill="url(#vGradient)"
+  />
+  <!-- Subtle accent line for depth -->
+  <path 
+    d="M12 8L24 34L36 8H32L24 28L16 8H12Z" 
+    fill="url(#vGradient)"
+    opacity="0.9"
+  />
+</svg>
