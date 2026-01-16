@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
-	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
+	import { SignedIn, SignedOut } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
-	import Logo from "$lib/components/Logo.svelte";
+	import Navbar from "$lib/components/Navbar.svelte";
 
 	// Type definitions for studio settings
 	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
@@ -336,33 +336,7 @@
 </svelte:head>
 
 <div class="flex h-screen flex-col bg-background">
-	<!-- Header -->
-	<header class="shrink-0 border-b border-border">
-		<div class="flex h-14 items-center justify-between px-4">
-			<div class="flex items-center gap-4">
-				<a href="/">
-					<Logo />
-				</a>
-				<Separator orientation="vertical" class="h-6" />
-				<span class="text-sm text-muted-foreground">Criar Post</span>
-			</div>
-
-			<div class="flex items-center gap-4">
-				<SignedOut>
-					<SignInButton mode="modal">
-						<button
-							class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
-						>
-							Entrar
-						</button>
-					</SignInButton>
-				</SignedOut>
-				<SignedIn>
-					<UserButton />
-				</SignedIn>
-			</div>
-		</div>
-	</header>
+	<Navbar />
 
 	<!-- Conteúdo Principal -->
 	<div class="flex min-h-0 flex-1">

@@ -31,7 +31,7 @@ export const get = query({
     },
 });
 
-// List all conversations for the current user
+// List all conversations for the current user (not deleted)
 export const listByUser = query({
     args: {},
     handler: async (ctx) => {
@@ -55,13 +55,37 @@ export const listByUser = query({
             .order("desc")
             .collect();
 
-        // Get source image URLs for all conversations
+        // Filter out deleted and get source image URLs
+        const activeConversations = conversations.filter((conv) => !conv.deletedAt);
+
         return Promise.all(
-            conversations.map(async (conv) => {
+            activeConversations.map(async (conv) => {
                 const sourceImageUrl = await ctx.storage.getUrl(conv.sourceStorageId);
+                
+                // Get latest output for preview
+                const outputs = await ctx.db
+                    .query("image_edit_outputs")
+                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+                    .order("desc")
+                    .take(1);
+                
+                let latestOutputUrl: string | null = null;
+                const latestOutput = outputs[0];
+                if (latestOutput) {
+                    latestOutputUrl = await ctx.storage.getUrl(latestOutput.storageId);
+                }
+
+                // Get turn count
+                const turns = await ctx.db
+                    .query("image_edit_turns")
+                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+                    .collect();
+
                 return {
                     ...conv,
                     sourceImageUrl,
+                    latestOutputUrl,
+                    turnCount: turns.length,
                 };
             })
         );
@@ -167,7 +191,73 @@ export const touch = mutation({
     },
 });
 
-// Delete a conversation and all its turns/outputs
+// Soft delete (move to trash)
+export const softDelete = mutation({
+    args: {
+        id: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const conversation = await ctx.db.get(args.id);
+        if (!conversation) {
+            throw new Error("Conversation not found");
+        }
+
+        // Verify user owns it
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || conversation.userId !== user._id) {
+            throw new Error("Not authorized");
+        }
+
+        await ctx.db.patch(args.id, {
+            deletedAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Restore from trash
+export const restore = mutation({
+    args: {
+        id: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const conversation = await ctx.db.get(args.id);
+        if (!conversation) {
+            throw new Error("Conversation not found");
+        }
+
+        // Verify user owns it
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || conversation.userId !== user._id) {
+            throw new Error("Not authorized");
+        }
+
+        await ctx.db.patch(args.id, {
+            deletedAt: undefined,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Delete a conversation and all its turns/outputs (hard delete)
 export const remove = mutation({
     args: {
         id: v.id("image_edit_conversations"),

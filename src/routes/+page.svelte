@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
+	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useQuery } from "convex-svelte";
 	import { api } from "../convex/_generated/api.js";
-	import Logo from "$lib/components/Logo.svelte";
+	import Navbar from "$lib/components/Navbar.svelte";
 
 	// Test query - list user's projects (will be empty if not authenticated)
 	const projects = useQuery(api.projects.list, {});
@@ -12,35 +12,11 @@
 	<title>Vanda Studio</title>
 </svelte:head>
 
-<div class="min-h-screen bg-background">
-	<!-- Header -->
-	<header class="border-b border-border">
-		<div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-			<div class="flex items-center gap-3">
-				<Logo />
-				<span class="rounded-none bg-primary/10 px-2 py-0.5 text-xs text-primary">SvelteKit</span>
-			</div>
-
-			<div class="flex items-center gap-4">
-				<SignedOut>
-					<SignInButton mode="modal">
-						<button
-							class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
-						>
-							Entrar
-						</button>
-					</SignInButton>
-				</SignedOut>
-
-				<SignedIn>
-					<UserButton />
-				</SignedIn>
-			</div>
-		</div>
-	</header>
+<div class="flex h-screen flex-col bg-background">
+	<Navbar />
 
 	<!-- Main Content -->
-	<main class="mx-auto max-w-7xl px-4 py-8">
+	<main class="flex-1 overflow-y-auto px-4 py-8">
 		<SignedOut>
 			<div class="flex flex-col items-center justify-center gap-6 py-20">
 				<div class="text-center">
@@ -100,3 +76,4 @@
 		</SignedIn>
 	</main>
 </div>
+

@@ -61,6 +61,7 @@ export default defineSchema({
     // AI-generated posts
     generated_posts: defineTable({
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
+        userId: v.optional(v.id("users")), // Direct user ownership for standalone posts
         caption: v.string(),
         // Legacy fields - kept for backwards compatibility with existing data
         additionalContext: v.optional(v.string()),
@@ -83,6 +84,8 @@ export default defineSchema({
         // Progressive loading fields
         pendingImageModels: v.optional(v.array(v.string())), // Models still generating
         totalImageModels: v.optional(v.number()), // Total models requested
+        // Soft delete
+        deletedAt: v.optional(v.number()), // Timestamp when soft-deleted (null = not deleted)
 
         // Full brief that was used for generation
         brief: v.optional(v.object({
@@ -98,7 +101,9 @@ export default defineSchema({
             referenceImageIds: v.optional(v.array(v.id("_storage"))),
         })),
     }).index("by_project_id", ["projectId"])
-      .index("by_created_at", ["createdAt"]),
+      .index("by_created_at", ["createdAt"])
+      .index("by_user_id", ["userId"])
+      .index("by_user_created", ["userId", "createdAt"]),
 
     // Reference images uploaded by user for generation
     reference_images: defineTable({
@@ -210,8 +215,11 @@ export default defineSchema({
         // Timestamps
         createdAt: v.number(),
         updatedAt: v.number(),
+        // Soft delete
+        deletedAt: v.optional(v.number()), // Timestamp when soft-deleted (null = not deleted)
     }).index("by_user_id", ["userId"])
-      .index("by_source_image", ["sourceImageId"]),
+      .index("by_source_image", ["sourceImageId"])
+      .index("by_user_created", ["userId", "createdAt"]),
 
     // Each turn in an image editing conversation
     image_edit_turns: defineTable({
