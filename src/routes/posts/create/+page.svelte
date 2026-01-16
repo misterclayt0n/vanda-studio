@@ -125,20 +125,24 @@
 	let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
 	let fileInputEl: HTMLInputElement;
 
-	function handleFileSelect(event: Event) {
-		const input = event.target as HTMLInputElement;
-		if (!input.files) return;
-		
-		const files = Array.from(input.files);
+	function addImageFiles(files: File[]) {
 		files.forEach((file) => {
+			if (!file.type.startsWith('image/')) return;
 			const url = URL.createObjectURL(file);
 			referenceImages = [...referenceImages, {
 				id: crypto.randomUUID(),
 				url,
-				name: file.name,
+				name: file.name || `pasted-image-${Date.now()}.png`,
 				file
 			}];
 		});
+	}
+
+	function handleFileSelect(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (!input.files) return;
+		
+		addImageFiles(Array.from(input.files));
 		
 		// Clear input to allow selecting the same file again
 		input.value = "";
@@ -150,6 +154,27 @@
 			URL.revokeObjectURL(image.url);
 		}
 		referenceImages = referenceImages.filter(img => img.id !== id);
+	}
+
+	// Handle paste from clipboard
+	function handlePaste(event: ClipboardEvent) {
+		const items = event.clipboardData?.items;
+		if (!items) return;
+
+		const imageFiles: File[] = [];
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				const file = item.getAsFile();
+				if (file) {
+					imageFiles.push(file);
+				}
+			}
+		}
+
+		if (imageFiles.length > 0) {
+			event.preventDefault();
+			addImageFiles(imageFiles);
+		}
 	}
 
 	// Build the full prompt with tone
@@ -347,8 +372,9 @@
 						<div class="relative">
 							<Textarea
 								bind:value={prompt}
-								placeholder="Descreva o post que você quer criar. Seja específico sobre o tema, mensagem e pontos-chave que deseja incluir..."
+								placeholder="Descreva o post que você quer criar. Seja específico sobre o tema, mensagem e pontos-chave que deseja incluir... (Cole imagens com Ctrl+V)"
 								class="min-h-[140px] resize-none bg-background pb-12"
+								onpaste={handlePaste}
 							/>
 							<!-- Barra de ações do prompt -->
 							<div class="absolute bottom-2 left-2 right-2 flex items-center justify-between">

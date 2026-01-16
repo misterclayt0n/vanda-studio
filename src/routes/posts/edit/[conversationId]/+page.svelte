@@ -54,23 +54,49 @@
 		"openai/gpt-5-image": "GPT Image 1.5",
 	};
 
+	// Add image files to references
+	function addImageFiles(files: File[]) {
+		files.forEach((file) => {
+			if (!file.type.startsWith('image/')) return;
+			const url = URL.createObjectURL(file);
+			referenceImages = [...referenceImages, {
+				id: crypto.randomUUID(),
+				url,
+				name: file.name || `pasted-image-${Date.now()}.png`,
+				file
+			}];
+		});
+	}
+
 	// Handle file selection for additional references
 	function handleFileSelect(event: Event) {
 		const input = event.target as HTMLInputElement;
 		if (!input.files) return;
 		
-		const files = Array.from(input.files);
-		files.forEach((file) => {
-			const url = URL.createObjectURL(file);
-			referenceImages = [...referenceImages, {
-				id: crypto.randomUUID(),
-				url,
-				name: file.name,
-				file
-			}];
-		});
+		addImageFiles(Array.from(input.files));
 		
 		input.value = "";
+	}
+
+	// Handle paste from clipboard
+	function handlePaste(event: ClipboardEvent) {
+		const items = event.clipboardData?.items;
+		if (!items) return;
+
+		const imageFiles: File[] = [];
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				const file = item.getAsFile();
+				if (file) {
+					imageFiles.push(file);
+				}
+			}
+		}
+
+		if (imageFiles.length > 0) {
+			event.preventDefault();
+			addImageFiles(imageFiles);
+		}
 	}
 
 	function removeReference(id: string) {
@@ -460,9 +486,10 @@
 							</TooltipProvider>
 							<Textarea
 								bind:value={editPrompt}
-								placeholder="Descreva a proxima edicao..."
+								placeholder="Descreva a proxima edicao... (Cole imagens com Ctrl+V)"
 								class="min-h-[40px] max-h-[120px] resize-none bg-background"
 								rows={1}
+								onpaste={handlePaste}
 							/>
 							<Button 
 								onclick={handleSendEdit} 

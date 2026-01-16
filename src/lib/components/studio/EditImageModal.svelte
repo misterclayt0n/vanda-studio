@@ -52,23 +52,49 @@
         "openai/gpt-5-image": "GPT Image 1.5",
     };
 
+    // Add image files to references
+    function addImageFiles(files: File[]) {
+        files.forEach((file) => {
+            if (!file.type.startsWith('image/')) return;
+            const url = URL.createObjectURL(file);
+            referenceImages = [...referenceImages, {
+                id: crypto.randomUUID(),
+                url,
+                name: file.name || `pasted-image-${Date.now()}.png`,
+                file
+            }];
+        });
+    }
+
     // Handle file selection for additional references
     function handleFileSelect(event: Event) {
         const input = event.target as HTMLInputElement;
         if (!input.files) return;
         
-        const files = Array.from(input.files);
-        files.forEach((file) => {
-            const url = URL.createObjectURL(file);
-            referenceImages = [...referenceImages, {
-                id: crypto.randomUUID(),
-                url,
-                name: file.name,
-                file
-            }];
-        });
+        addImageFiles(Array.from(input.files));
         
         input.value = "";
+    }
+
+    // Handle paste from clipboard
+    function handlePaste(event: ClipboardEvent) {
+        const items = event.clipboardData?.items;
+        if (!items) return;
+
+        const imageFiles: File[] = [];
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    imageFiles.push(file);
+                }
+            }
+        }
+
+        if (imageFiles.length > 0) {
+            event.preventDefault();
+            addImageFiles(imageFiles);
+        }
     }
 
     function removeReference(id: string) {
@@ -233,8 +259,9 @@
                     <div class="relative">
                         <Textarea
                             bind:value={editPrompt}
-                            placeholder="Descreva a edicao que voce quer fazer. Ex: 'Troque o fundo por uma praia ao por do sol' ou 'Adicione um chapeu na pessoa'..."
+                            placeholder="Descreva a edicao que voce quer fazer. Ex: 'Troque o fundo por uma praia ao por do sol' ou 'Adicione um chapeu na pessoa'... (Cole imagens com Ctrl+V)"
                             class="min-h-[120px] resize-none bg-background pb-12"
+                            onpaste={handlePaste}
                         />
                         <!-- Action bar -->
                         <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between">
