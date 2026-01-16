@@ -11,7 +11,23 @@
 
 	// Search state
 	let searchQuery = $state("");
-	let isSearching = $state(false);
+	let searchInputEl: HTMLInputElement;
+
+	// Detect platform for keyboard shortcut
+	let isMac = $state(false);
+	$effect(() => {
+		isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+	});
+
+	// Keyboard shortcut to focus search (Cmd+K on Mac, Ctrl+K on others)
+	function handleKeydown(event: KeyboardEvent) {
+		const modifier = isMac ? event.metaKey : event.ctrlKey;
+		if (modifier && event.key === 'k') {
+			event.preventDefault();
+			searchInputEl?.focus();
+			searchInputEl?.select();
+		}
+	}
 
 	// Queries
 	const postsQuery = useQuery(api.generatedPosts.listByUser, () => ({ limit: 50 }));
@@ -91,6 +107,8 @@
 	<title>Galeria - Vanda Studio</title>
 </svelte:head>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="flex h-screen flex-col bg-background">
 	<Navbar />
 
@@ -100,28 +118,36 @@
 			<div class="flex items-center gap-4">
 				<!-- Search -->
 				<div class="relative">
-					<Input
+					<input
+						bind:this={searchInputEl}
 						type="text"
 						placeholder="Buscar por prompt..."
-						class="w-64 pl-9"
+						class="flex h-9 w-72 rounded-md border border-input bg-transparent px-3 py-1 pl-9 pr-16 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 						value={searchQuery}
 						oninput={handleSearch}
 					/>
 					<svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
 					</svg>
-					{#if searchQuery}
-						<button
-							type="button"
-							aria-label="Limpar busca"
-							class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-							onclick={clearSearch}
-						>
-							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					{/if}
+					<!-- Keyboard shortcut hint -->
+					<div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+						{#if searchQuery}
+							<button
+								type="button"
+								aria-label="Limpar busca"
+								class="pointer-events-auto text-muted-foreground hover:text-foreground"
+								onclick={clearSearch}
+							>
+								<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						{:else}
+							<kbd class="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+								<span class="text-xs">{isMac ? '⌘' : 'Ctrl'}</span>K
+							</kbd>
+						{/if}
+					</div>
 				</div>
 				<span class="text-sm text-muted-foreground">
 					{#if searchQuery.trim()}
@@ -149,7 +175,7 @@
 				<div class="text-center">
 					<h2 class="text-2xl font-bold">Entre para ver sua galeria</h2>
 					<p class="mt-2 text-muted-foreground">
-						Faca login para acessar suas geracoes
+						Faca login para acessar suas gerações
 					</p>
 				</div>
 				<SignInButton mode="modal">

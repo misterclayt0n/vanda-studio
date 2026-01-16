@@ -286,9 +286,6 @@
 													{/if}
 												</Button>
 											</TooltipTrigger>
-											<TooltipContent>
-												<p>Copiado para a area de transferencia!</p>
-											</TooltipContent>
 										</Tooltip>
 									</TooltipProvider>
 								</div>
