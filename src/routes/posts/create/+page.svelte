@@ -698,13 +698,25 @@
 							{:else if generatedImages.length === 1 && pendingModels.length === 0}
 								<!-- Single image - full size -->
 								<div class="flex flex-1 items-center justify-center p-8">
-									<div class="relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+									<div class="group relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
 										{#if selectedImage?.url}
 											<img 
 												src={selectedImage.url} 
 												alt="Post gerado" 
 												class="h-full w-full object-cover"
 											/>
+											<!-- Edit button overlay -->
+											<button
+												type="button"
+												aria-label="Editar imagem"
+												class="absolute right-3 top-3 flex items-center gap-2 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
+												onclick={() => openEditModal(selectedImage)}
+											>
+												<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+												</svg>
+												Editar
+											</button>
 										{:else}
 											<div class="flex h-full w-full items-center justify-center bg-muted">
 												<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
@@ -718,13 +730,25 @@
 									<!-- Main selected image -->
 									<div class="flex flex-1 items-center justify-center p-6">
 										{#if selectedImage}
-											<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+											<div class="group relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
 												{#if selectedImage?.url}
 													<img 
 														src={selectedImage.url} 
 														alt="Post gerado selecionado" 
 														class="h-full w-full object-cover"
 													/>
+													<!-- Edit button overlay -->
+													<button
+														type="button"
+														aria-label="Editar imagem"
+														class="absolute right-3 top-3 flex items-center gap-2 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
+														onclick={() => openEditModal(selectedImage)}
+													>
+														<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+														</svg>
+														Editar
+													</button>
 												{:else}
 													<div class="flex h-full w-full items-center justify-center bg-muted">
 														<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
