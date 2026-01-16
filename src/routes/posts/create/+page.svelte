@@ -262,8 +262,15 @@
 		await handleGenerate();
 	}
 
+	// Copy feedback state
+	let showCopiedFeedback = $state(false);
+
 	function handleCopyCaption() {
 		navigator.clipboard.writeText(generatedCaption);
+		showCopiedFeedback = true;
+		setTimeout(() => {
+			showCopiedFeedback = false;
+		}, 2000);
 	}
 
 	// Download the selected image directly to browser
@@ -701,6 +708,12 @@
 										</svg>
 										Baixar
 									</Button>
+									<Button variant="outline" size="sm" onclick={() => openEditModal(selectedImage)}>
+										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+										</svg>
+										Refinar
+									</Button>
 								{/if}
 							</div>
 						</div>
@@ -724,25 +737,13 @@
 							{:else if generatedImages.length === 1 && pendingModels.length === 0}
 								<!-- Single image - full size -->
 								<div class="flex flex-1 items-center justify-center p-8">
-									<div class="group relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+									<div class="relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
 										{#if selectedImage?.url}
 											<img 
 												src={selectedImage.url} 
 												alt="Post gerado" 
 												class="h-full w-full object-cover"
 											/>
-											<!-- Edit button overlay -->
-											<button
-												type="button"
-												aria-label="Editar imagem"
-												class="absolute right-3 top-3 flex items-center gap-2 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
-												onclick={() => openEditModal(selectedImage)}
-											>
-												<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-												</svg>
-												Editar
-											</button>
 										{:else}
 											<div class="flex h-full w-full items-center justify-center bg-muted">
 												<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
@@ -756,25 +757,13 @@
 									<!-- Main selected image -->
 									<div class="flex flex-1 items-center justify-center p-6">
 										{#if selectedImage}
-											<div class="group relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
+											<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
 												{#if selectedImage?.url}
 													<img 
 														src={selectedImage.url} 
 														alt="Post gerado selecionado" 
 														class="h-full w-full object-cover"
 													/>
-													<!-- Edit button overlay -->
-													<button
-														type="button"
-														aria-label="Editar imagem"
-														class="absolute right-3 top-3 flex items-center gap-2 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
-														onclick={() => openEditModal(selectedImage)}
-													>
-														<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-															<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-														</svg>
-														Editar
-													</button>
 												{:else}
 													<div class="flex h-full w-full items-center justify-center bg-muted">
 														<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
@@ -852,12 +841,27 @@
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<h3 class="text-sm font-medium">Legenda</h3>
 							<div class="flex items-center gap-2">
-								<Button variant="ghost" size="sm" onclick={handleCopyCaption}>
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-									</svg>
-									Copiar
-								</Button>
+								<TooltipProvider>
+									<Tooltip open={showCopiedFeedback}>
+										<TooltipTrigger>
+											<Button variant="ghost" size="sm" onclick={handleCopyCaption}>
+												{#if showCopiedFeedback}
+													<svg class="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+													</svg>
+												{:else}
+													<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+													</svg>
+												{/if}
+												{showCopiedFeedback ? 'Copiado!' : 'Copiar'}
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p>Copiado para a area de transferencia!</p>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
 							</div>
 						</div>
 						<div class="flex flex-1 flex-col overflow-auto bg-background">
