@@ -44,6 +44,8 @@ export interface CaptionInput {
     userMessage: string;
     /** Reference text from Instagram posts, articles, etc. */
     referenceText?: string;
+    /** Model to use for caption generation */
+    model?: string;
 }
 
 export interface CaptionOutput {
@@ -95,7 +97,7 @@ ${input.userMessage}`;
             const textGen = yield* TextGeneration;
             return yield* textGen.generateCaption({
                 messages,
-                model: MODELS.GPT_4_1,
+                model: input.model ?? MODELS.GPT_4_1,
                 temperature: 0.8,
                 maxTokens: 1024,
             });

@@ -119,6 +119,49 @@ export const getLatest = query({
     },
 });
 
+// Get a turn by index (for getting previous turn's outputs)
+export const getByIndex = query({
+    args: {
+        conversationId: v.id("image_edit_conversations"),
+        turnIndex: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const turns = await ctx.db
+            .query("image_edit_turns")
+            .withIndex("by_conversation_turn", (q) =>
+                q.eq("conversationId", args.conversationId).eq("turnIndex", args.turnIndex)
+            )
+            .take(1);
+
+        const turn = turns[0];
+        if (!turn) {
+            return null;
+        }
+
+        const outputs = await ctx.db
+            .query("image_edit_outputs")
+            .withIndex("by_turn", (q) => q.eq("turnId", turn._id))
+            .collect();
+
+        const outputsWithUrls = await Promise.all(
+            outputs.map(async (output) => ({
+                ...output,
+                url: await ctx.storage.getUrl(output.storageId),
+            }))
+        );
+
+        return {
+            ...turn,
+            outputs: outputsWithUrls,
+        };
+    },
+});
+
 // Count turns in a conversation
 export const countByConversation = query({
     args: {

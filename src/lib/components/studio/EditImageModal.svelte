@@ -43,6 +43,22 @@
         }
     });
 
+    // Actual image dimensions (loaded from image file)
+    let actualDimensions = $state<{ width: number; height: number } | null>(null);
+
+    // Load actual dimensions when image URL changes
+    $effect(() => {
+        const url = image?.url;
+        if (url) {
+            actualDimensions = null; // Reset while loading
+            const img = new Image();
+            img.onload = () => {
+                actualDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+            };
+            img.src = url;
+        }
+    });
+
     // Model display names
     const modelDisplayNames: Record<string, string> = {
         "google/gemini-2.5-flash-image": "Nano Banana",
@@ -138,19 +154,20 @@
                 manualReferenceIds = await Promise.all(uploadPromises);
             }
 
-            // Call the action to start the conversation
-            const result = await client.action(api.ai.imageEdit.startConversation, {
+            // Create conversation and first turn synchronously (fast mutation)
+            const result = await client.mutation(api.imageEditConversations.startWithTurn, {
                 sourceImageId: image._id,
                 userMessage: editPrompt,
                 selectedModels,
                 ...(manualReferenceIds.length > 0 && { manualReferenceIds }),
             });
 
-            // Navigate to the conversation page
-            goto(`/posts/edit/${result.conversationId}`);
+            // Navigate immediately to the conversation page
+            // The page will trigger the image generation action
+            goto(`/posts/edit/${result.conversationId}?turnId=${result.turnId}`);
         } catch (err) {
             console.error("Failed to start conversation:", err);
-            error = err instanceof Error ? err.message : "Erro ao iniciar edicao";
+            error = err instanceof Error ? err.message : "Erro ao iniciar edição";
             isStarting = false;
         }
     }
@@ -240,7 +257,13 @@
                 </div>
                 <div class="mt-3 space-y-1">
                     <p class="text-sm font-medium">{modelDisplayNames[image.model] ?? image.model}</p>
-                    <p class="text-xs text-muted-foreground">{image.width} x {image.height}</p>
+                    <p class="text-xs text-muted-foreground">
+                        {#if actualDimensions}
+                            {actualDimensions.width} x {actualDimensions.height}
+                        {:else}
+                            {image.width} x {image.height}
+                        {/if}
+                    </p>
                 </div>
             </div>
 
@@ -259,7 +282,7 @@
                     <div class="relative">
                         <Textarea
                             bind:value={editPrompt}
-                            placeholder="Descreva a edicao que voce quer fazer. Ex: 'Troque o fundo por uma praia ao por do sol' ou 'Adicione um chapeu na pessoa'... (Cole imagens com Ctrl+V)"
+                            placeholder="Descreva a edição que você quer fazer. Ex: 'Troque o fundo por uma praia ao por do sol' ou 'Adicione um chapéu na pessoa'... (Cole imagens com Ctrl+V)"
                             class="min-h-[120px] resize-none bg-background pb-12"
                             onpaste={handlePaste}
                         />
@@ -374,7 +397,7 @@
                         </svg>
                         Iniciando...
                     {:else}
-                        Comecar Edicao
+                        Começar Edição
                     {/if}
                 </Button>
             </div>

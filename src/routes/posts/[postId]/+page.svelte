@@ -27,6 +27,22 @@
 	let selectedImageIndex = $state(0);
 	let selectedImage = $derived(post?.images?.[selectedImageIndex] ?? null);
 
+	// Actual image dimensions (loaded from image file)
+	let actualDimensions = $state<{ width: number; height: number } | null>(null);
+
+	// Load actual dimensions when image URL changes
+	$effect(() => {
+		const url = selectedImage?.url;
+		if (url) {
+			actualDimensions = null; // Reset while loading
+			const img = new Image();
+			img.onload = () => {
+				actualDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+			};
+			img.src = url;
+		}
+	});
+
 	// Edit modal state
 	let editModalOpen = $state(false);
 	let editModalImage = $state<typeof selectedImage>(null);
@@ -348,7 +364,13 @@
 									{#if selectedImage}
 										<div class="flex items-center justify-between px-4 py-3">
 											<span class="text-sm text-muted-foreground">Dimensoes</span>
-											<span class="text-sm font-mono">{selectedImage.width}x{selectedImage.height}</span>
+											<span class="text-sm font-mono">
+												{#if actualDimensions}
+													{actualDimensions.width}x{actualDimensions.height}
+												{:else}
+													{selectedImage.width}x{selectedImage.height}
+												{/if}
+											</span>
 										</div>
 									{/if}
 								</div>

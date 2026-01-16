@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
+	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
 	import { SignedIn, SignedOut } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
@@ -33,14 +33,15 @@
 	let customTone = $state("");
 	let useCustomTone = $state(false);
 	let platform = $state("instagram");
-	
+	let captionModel = $state<string>("openai/gpt-4.1");
+
 	// Generation state
 	let isGenerating = $state(false);
 	let hasGenerated = $state(false);
 	let error = $state<string | null>(null);
 
 	// Studio settings (declared early for derived state references)
-	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
+	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 
@@ -239,6 +240,7 @@
 			// The action runs in the background, subscriptions will update UI progressively
 			const result = await client.action(api.ai.chat.generate, {
 				message: buildFullPrompt(),
+				captionModel,
 				imageModels: selectedModels,
 				aspectRatio,
 				resolution,
@@ -305,6 +307,22 @@
 
 	// Get selected image
 	let selectedImage = $derived(generatedImages[selectedImageIndex] ?? null);
+
+	// Actual image dimensions (loaded from image file)
+	let actualDimensions = $state<{ width: number; height: number } | null>(null);
+
+	// Load actual dimensions when image URL changes
+	$effect(() => {
+		const url = selectedImage?.url;
+		if (url) {
+			actualDimensions = null; // Reset while loading
+			const img = new Image();
+			img.onload = () => {
+				actualDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+			};
+			img.src = url;
+		}
+	});
 
 	// Model name mapping for display
 	const modelDisplayNames: Record<string, string> = {
@@ -505,6 +523,22 @@
 
 					<Separator />
 
+					<!-- Seção: Modelo de Legenda -->
+					<div class="space-y-3">
+						<div class="flex items-center gap-2">
+							<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+							</svg>
+							<Label class="text-sm font-medium">Modelo de Legenda</Label>
+						</div>
+						<CaptionModelSelector
+							value={captionModel}
+							onchange={(model) => captionModel = model}
+						/>
+					</div>
+
+					<Separator />
+
 					<!-- Seção: Modelo de Imagem -->
 					<div class="space-y-3">
 						<div class="flex items-center gap-2">
@@ -513,7 +547,7 @@
 							</svg>
 							<Label class="text-sm font-medium">Modelo de Imagem</Label>
 						</div>
-						<ImageModelSelector 
+						<ImageModelSelector
 							selected={selectedModels}
 							onchange={(models) => selectedModels = models}
 						/>
@@ -652,7 +686,13 @@
 									<Badge variant="secondary">Gerando...</Badge>
 								{:else if hasAnyImage}
 									{#if selectedImage}
-										<Badge variant="secondary">{selectedImage.width}x{selectedImage.height}</Badge>
+										<Badge variant="secondary">
+											{#if actualDimensions}
+												{actualDimensions.width}x{actualDimensions.height}
+											{:else}
+												{selectedImage.width}x{selectedImage.height}
+											{/if}
+										</Badge>
 									{/if}
 									{#if pendingModels.length > 0}
 										<Badge variant="outline">{generatedImages.length}/{totalModels}</Badge>

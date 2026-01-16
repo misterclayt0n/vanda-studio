@@ -81,7 +81,7 @@ export const get = query({
 // Internal Mutations (called by actions)
 // ============================================================================
 
-// Create a new output
+// Create a new output AND its corresponding gallery post
 export const create = internalMutation({
     args: {
         turnId: v.id("image_edit_turns"),
@@ -91,9 +91,18 @@ export const create = internalMutation({
         prompt: v.string(),
         width: v.number(),
         height: v.number(),
+        // Data for creating gallery post (lineage tracking)
+        aspectRatio: v.string(),
+        resolution: v.string(),
+        originalPostId: v.id("generated_posts"),
+        originalCaption: v.string(),
+        userId: v.id("users"),
     },
     handler: async (ctx, args) => {
-        return await ctx.db.insert("image_edit_outputs", {
+        const now = Date.now();
+
+        // 1. Create the output record
+        const outputId = await ctx.db.insert("image_edit_outputs", {
             turnId: args.turnId,
             conversationId: args.conversationId,
             storageId: args.storageId,
@@ -101,7 +110,37 @@ export const create = internalMutation({
             prompt: args.prompt,
             width: args.width,
             height: args.height,
-            createdAt: Date.now(),
+            createdAt: now,
         });
+
+        // 2. Create the corresponding gallery post (for composability)
+        const postId = await ctx.db.insert("generated_posts", {
+            userId: args.userId,
+            caption: args.originalCaption,
+            status: "edited",
+            imageModel: args.model, // For gallery badge display
+            // Lineage tracking
+            parentPostId: args.originalPostId,
+            sourceConversationId: args.conversationId,
+            sourceOutputId: outputId,
+            // Timestamps
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // 3. Create the generated_image linked to the new post
+        await ctx.db.insert("generated_images", {
+            generatedPostId: postId,
+            storageId: args.storageId,
+            model: args.model,
+            aspectRatio: args.aspectRatio,
+            resolution: args.resolution,
+            prompt: args.prompt,
+            width: args.width,
+            height: args.height,
+            createdAt: now,
+        });
+
+        return outputId;
     },
 });

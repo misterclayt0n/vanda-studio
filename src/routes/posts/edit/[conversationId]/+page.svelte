@@ -12,8 +12,31 @@
 	// Convex client
 	const client = useConvexClient();
 
-	// Get conversation ID from URL
+	// Get conversation ID and turnId from URL
 	let conversationId = $derived($page.params.conversationId as Id<"image_edit_conversations">);
+	let pendingTurnId = $derived($page.url.searchParams.get('turnId') as Id<"image_edit_turns"> | null);
+
+	// Track if we've triggered generation for the pending turn
+	let generationTriggered = $state(false);
+
+	// Trigger image generation when arriving with a turnId parameter
+	$effect(() => {
+		if (pendingTurnId && !generationTriggered) {
+			generationTriggered = true;
+			// Remove the turnId from URL to prevent re-triggering on refresh
+			const url = new URL($page.url);
+			url.searchParams.delete('turnId');
+			goto(url.pathname, { replaceState: true, noScroll: true });
+			
+			// Trigger the image generation action
+			client.action(api.ai.imageEdit.generateForTurn, {
+				conversationId,
+				turnId: pendingTurnId,
+			}).catch((err) => {
+				console.error("Failed to generate images:", err);
+			});
+		}
+	});
 
 	// Subscriptions
 	const conversationQuery = useQuery(
@@ -210,7 +233,7 @@
 				<button
 					type="button"
 					class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-					onclick={() => goto('/posts/create')}
+					onclick={() => history.back()}
 				>
 					<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -221,7 +244,7 @@
 				<div class="flex items-center gap-2">
 					<span class="text-sm font-medium">{conversation?.title ?? 'Carregando...'}</span>
 					{#if turnCount > 0}
-						<Badge variant="secondary">{turnCount} {turnCount === 1 ? 'edicao' : 'edicoes'}</Badge>
+						<Badge variant="secondary">{turnCount} {turnCount === 1 ? 'edição' : 'edições'}</Badge>
 					{/if}
 				</div>
 			</div>
@@ -304,7 +327,7 @@
 									{#if output.url}
 										<img 
 											src={output.url} 
-											alt="Edicao {index + 1}" 
+											alt="Edição {index + 1}" 
 											class="h-full w-full object-cover"
 										/>
 									{:else}
@@ -342,7 +365,7 @@
 								<!-- Turn header -->
 								<div class="flex items-center gap-3">
 									<div class="h-2 w-2 rounded-full bg-primary"></div>
-									<span class="text-xs font-medium uppercase text-muted-foreground">Edicao {index + 1}</span>
+									<span class="text-xs font-medium uppercase text-muted-foreground">Edição {index + 1}</span>
 									{#if turn.status === "generating" || (turn.pendingModels && turn.pendingModels.length > 0)}
 										<Badge variant="secondary">Gerando...</Badge>
 									{/if}
@@ -403,7 +426,7 @@
 
 						{#if turns.length === 0}
 							<div class="flex flex-col items-center justify-center py-12 text-center">
-								<p class="text-sm text-muted-foreground">Nenhuma edicao ainda. Use o formulario abaixo para comecar.</p>
+								<p class="text-sm text-muted-foreground">Nenhuma edição ainda. Use o formulário abaixo para começar.</p>
 							</div>
 						{/if}
 					</div>
@@ -486,7 +509,7 @@
 							</TooltipProvider>
 							<Textarea
 								bind:value={editPrompt}
-								placeholder="Descreva a proxima edicao... (Cole imagens com Ctrl+V)"
+								placeholder="Descreva a proxima edição... (Cole imagens com Ctrl+V)"
 								class="min-h-[40px] max-h-[120px] resize-none bg-background"
 								rows={1}
 								onpaste={handlePaste}

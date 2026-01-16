@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-// Get a single conversation with source image URL
+// Get a single conversation with source image URL and original post data
 export const get = query({
     args: {
         id: v.id("image_edit_conversations"),
@@ -23,10 +23,17 @@ export const get = query({
         // Get source image details
         const sourceImage = await ctx.db.get(conversation.sourceImageId);
 
+        // Get original post data (for caption inheritance)
+        let originalPost = null;
+        if (sourceImage?.generatedPostId) {
+            originalPost = await ctx.db.get(sourceImage.generatedPostId);
+        }
+
         return {
             ...conversation,
             sourceImageUrl,
             sourceImage,
+            originalPost,
         };
     },
 });
@@ -155,6 +162,74 @@ export const create = mutation({
     },
 });
 
+// Start a new conversation with first turn (synchronous - for immediate navigation)
+// Image generation is triggered separately from the conversation page
+export const startWithTurn = mutation({
+    args: {
+        sourceImageId: v.id("generated_images"),
+        userMessage: v.string(),
+        selectedModels: v.array(v.string()),
+        manualReferenceIds: v.optional(v.array(v.id("_storage"))),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        // Get source image
+        const sourceImage = await ctx.db.get(args.sourceImageId);
+        if (!sourceImage) {
+            throw new Error("Source image not found");
+        }
+
+        const now = Date.now();
+
+        // Generate title from first message
+        const title = args.userMessage.trim().substring(0, 50) + (args.userMessage.length > 50 ? "..." : "");
+
+        // Create conversation
+        const conversationId = await ctx.db.insert("image_edit_conversations", {
+            userId: user._id,
+            sourceImageId: args.sourceImageId,
+            sourceStorageId: sourceImage.storageId,
+            title,
+            aspectRatio: sourceImage.aspectRatio,
+            resolution: sourceImage.resolution,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // Create first turn
+        const turnId = await ctx.db.insert("image_edit_turns", {
+            conversationId,
+            turnIndex: 0,
+            userMessage: args.userMessage,
+            selectedModels: args.selectedModels,
+            ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
+            status: "generating",
+            pendingModels: args.selectedModels,
+            createdAt: now,
+        });
+
+        return {
+            conversationId,
+            turnId,
+            aspectRatio: sourceImage.aspectRatio,
+            resolution: sourceImage.resolution,
+        };
+    },
+});
+
 // Update conversation title
 export const updateTitle = mutation({
     args: {
@@ -254,6 +329,66 @@ export const restore = mutation({
             deletedAt: undefined,
             updatedAt: Date.now(),
         });
+    },
+});
+
+// List conversations for a specific source image
+export const listBySourceImage = query({
+    args: {
+        sourceImageId: v.id("generated_images"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const conversations = await ctx.db
+            .query("image_edit_conversations")
+            .withIndex("by_source_image", (q) => q.eq("sourceImageId", args.sourceImageId))
+            .collect();
+
+        // Filter out deleted and enrich with turn counts and thumbnails
+        const activeConversations = conversations.filter((conv) => !conv.deletedAt);
+
+        return Promise.all(
+            activeConversations.map(async (conv) => {
+                // Get turn count
+                const turns = await ctx.db
+                    .query("image_edit_turns")
+                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+                    .collect();
+
+                // Get latest output for thumbnail
+                const latestOutput = await ctx.db
+                    .query("image_edit_outputs")
+                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+                    .order("desc")
+                    .first();
+
+                let thumbnailUrl: string | null = null;
+                if (latestOutput) {
+                    thumbnailUrl = await ctx.storage.getUrl(latestOutput.storageId);
+                } else {
+                    thumbnailUrl = await ctx.storage.getUrl(conv.sourceStorageId);
+                }
+
+                return {
+                    ...conv,
+                    turnCount: turns.length,
+                    thumbnailUrl,
+                };
+            })
+        );
     },
 });
 

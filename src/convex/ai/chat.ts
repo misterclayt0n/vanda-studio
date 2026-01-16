@@ -123,6 +123,7 @@ export const generate = action({
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone
         message: v.string(),
         attachments: attachmentsValidator,
+        captionModel: v.optional(v.string()), // Model for caption generation
         imageModels: v.optional(v.array(v.string())), // Models to generate with
         aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
         resolution: v.optional(v.string()), // "standard", "high", "ultra"
@@ -175,19 +176,21 @@ export const generate = action({
         const referenceText = buildReferenceText(args.attachments);
 
         // 7. Generate caption
-        console.log(`[GENERATE] Generating caption...`);
+        console.log(`[GENERATE] Generating caption with model: ${args.captionModel ?? MODELS.GPT_4_1}`);
         const captionResult = await generateCaption({
             conversationHistory: [],
             userMessage: args.message,
             ...(referenceText && { referenceText }),
+            ...(args.captionModel && { model: args.captionModel }),
         });
 
         // 8. Update post with caption, change status to "generating_images"
         // This triggers subscription update so frontend shows caption immediately
+        const captionModel = args.captionModel ?? MODELS.GPT_4_1;
         await ctx.runMutation(api.generatedPosts.updateFromChat, {
             id: generatedPostId,
             caption: captionResult.caption,
-            model: MODELS.GPT_4_1,
+            model: captionModel,
             status: "generating_images",
         });
         console.log(`[GENERATE] Caption saved, starting image generation...`);
@@ -281,7 +284,7 @@ export const generate = action({
                 ...(primaryImage && { imageStorageId: primaryImage.storageId }),
                 ...(primaryImage && { imagePrompt: primaryImage.prompt }),
             },
-            model: MODELS.GPT_4_1,
+            model: captionModel,
             ...(primaryImage && { imageModel: primaryImage.model }),
             creditsUsed: 1 + imageCount,
         });
@@ -301,6 +304,7 @@ export const regenerateCaption = action({
         generatedPostId: v.id("generated_posts"),
         message: v.string(),
         attachments: attachmentsValidator,
+        captionModel: v.optional(v.string()), // Model for caption generation
     },
     handler: async (ctx, args) => {
         // 1. Auth check
@@ -343,18 +347,20 @@ export const regenerateCaption = action({
         const referenceText = buildReferenceText(args.attachments);
 
         // 7. Generate new caption with full context
+        const captionModel = args.captionModel ?? MODELS.GPT_4_1;
         const captionResult = await generateCaption({
             conversationHistory: dbMessagesToChat(messages),
             currentCaption: post.caption,
             userMessage: args.message,
             ...(referenceText && { referenceText }),
+            ...(args.captionModel && { model: args.captionModel }),
         });
 
         // 8. Update post
         await ctx.runMutation(api.generatedPosts.updateFromChat, {
             id: args.generatedPostId,
             caption: captionResult.caption,
-            model: MODELS.GPT_4_1,
+            model: captionModel,
             status: "regenerated",
         });
 
@@ -368,7 +374,7 @@ export const regenerateCaption = action({
                 ...(post.imageStorageId && { imageStorageId: post.imageStorageId }),
                 ...(post.imagePrompt && { imagePrompt: post.imagePrompt }),
             },
-            model: MODELS.GPT_4_1,
+            model: captionModel,
             creditsUsed: 1,
         });
 

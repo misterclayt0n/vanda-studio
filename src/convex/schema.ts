@@ -87,6 +87,11 @@ export default defineSchema({
         // Soft delete
         deletedAt: v.optional(v.number()), // Timestamp when soft-deleted (null = not deleted)
 
+        // Lineage tracking - for posts created from edit conversations
+        parentPostId: v.optional(v.id("generated_posts")), // The post this was derived from
+        sourceConversationId: v.optional(v.id("image_edit_conversations")), // The conversation that created this
+        sourceOutputId: v.optional(v.id("image_edit_outputs")), // The specific output
+
         // Full brief that was used for generation
         brief: v.optional(v.object({
             postType: v.string(), // "promocao" | "conteudo_profissional" | "engajamento"
@@ -103,7 +108,9 @@ export default defineSchema({
     }).index("by_project_id", ["projectId"])
       .index("by_created_at", ["createdAt"])
       .index("by_user_id", ["userId"])
-      .index("by_user_created", ["userId", "createdAt"]),
+      .index("by_user_created", ["userId", "createdAt"])
+      .index("by_source_output", ["sourceOutputId"])
+      .index("by_parent_post", ["parentPostId"]),
 
     // Reference images uploaded by user for generation
     reference_images: defineTable({

@@ -567,9 +567,13 @@ export const listByUser = query({
                     firstImageUrl = await ctx.storage.getUrl(firstImage.storageId);
                 }
 
+                // Fallback to first image's model if post.imageModel is not set
+                const imageModel = post.imageModel ?? firstImage?.model;
+
                 return {
                     ...post,
                     imageUrl: firstImageUrl ?? imageUrl,
+                    ...(imageModel && { imageModel }),
                 };
             })
         );

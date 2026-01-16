@@ -68,3 +68,32 @@ export const IMAGE_MODEL_INFO: Record<
         color: "#EC4899", // pink
     },
 };
+
+// ============================================================================
+// Caption Generation Models
+// ============================================================================
+
+export const CAPTION_MODELS = {
+    GEMINI_2_5_FLASH: "google/gemini-2.5-flash",
+    GPT_4_1: "openai/gpt-4.1",
+} as const;
+
+export type CaptionModelName = (typeof CAPTION_MODELS)[keyof typeof CAPTION_MODELS];
+
+export const DEFAULT_CAPTION_MODEL = CAPTION_MODELS.GPT_4_1;
+
+export const CAPTION_MODEL_INFO: Record<
+    CaptionModelName,
+    { name: string; provider: string; color: string }
+> = {
+    [CAPTION_MODELS.GPT_4_1]: {
+        name: "GPT 4.1",
+        provider: "OpenAI",
+        color: "#EC4899", // pink
+    },
+    [CAPTION_MODELS.GEMINI_2_5_FLASH]: {
+        name: "Flash 2.5",
+        provider: "Google",
+        color: "#FACC15", // yellow
+    },
+};

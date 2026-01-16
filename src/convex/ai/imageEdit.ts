@@ -68,7 +68,13 @@ export const startConversation = action({
             throw new Error("Voce precisa estar autenticado");
         }
 
-        // 2. Get source image data
+        // 2. Get current user
+        const user = await ctx.runQuery(api.users.current, {});
+        if (!user) {
+            throw new Error("Usuario nao encontrado");
+        }
+
+        // 3. Get source image data
         const sourceImage = await ctx.runQuery(api.generatedImages.get, {
             id: args.sourceImageId,
         });
@@ -76,7 +82,15 @@ export const startConversation = action({
             throw new Error("Imagem de origem nao encontrada");
         }
 
-        // 3. Create conversation
+        // 4. Get original post data (for caption inheritance)
+        const originalPost = await ctx.runQuery(api.generatedPosts.get, {
+            id: sourceImage.generatedPostId,
+        });
+        if (!originalPost) {
+            throw new Error("Post original nao encontrado");
+        }
+
+        // 5. Create conversation
         const title = generateTitle(args.userMessage);
         const conversationId = await ctx.runMutation(api.imageEditConversations.create, {
             sourceImageId: args.sourceImageId,
@@ -87,7 +101,7 @@ export const startConversation = action({
 
         console.log(`[IMAGE_EDIT] Created conversation ${conversationId} with title: "${title}"`);
 
-        // 4. Create turn 0
+        // 6. Create turn 0
         const turnId = await ctx.runMutation(internal.imageEditTurns.create, {
             conversationId,
             turnIndex: 0,
@@ -98,7 +112,7 @@ export const startConversation = action({
 
         console.log(`[IMAGE_EDIT] Created turn 0: ${turnId}`);
 
-        // 5. Build reference URLs
+        // 7. Build reference URLs
         // Source image is the primary reference
         const referenceUrls: string[] = [];
         if (sourceImage.url) {
@@ -111,12 +125,12 @@ export const startConversation = action({
             referenceUrls.push(...manualUrls);
         }
 
-        // 6. Parse dimensions
+        // 8. Parse dimensions
         const aspectRatio = sourceImage.aspectRatio as AspectRatio;
         const resolution = sourceImage.resolution as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 7. Generate images in parallel
+        // 9. Generate images in parallel
         console.log(`[IMAGE_EDIT] Starting parallel generation for ${args.selectedModels.length} models`);
 
         await Promise.all(
@@ -140,7 +154,7 @@ export const startConversation = action({
                     const blob = new Blob([binaryData], { type: result.mimeType });
                     const storageId = await ctx.storage.store(blob);
 
-                    // Save output
+                    // Save output (also creates gallery post for composability)
                     await ctx.runMutation(internal.imageEditOutputs.create, {
                         turnId,
                         conversationId,
@@ -149,6 +163,12 @@ export const startConversation = action({
                         prompt: result.prompt,
                         width: result.dimensions?.width ?? dimensions.width,
                         height: result.dimensions?.height ?? dimensions.height,
+                        // Data for gallery post creation
+                        aspectRatio: sourceImage.aspectRatio,
+                        resolution: sourceImage.resolution,
+                        originalPostId: originalPost._id,
+                        originalCaption: originalPost.caption,
+                        userId: user._id,
                     });
 
                     // Remove from pending
@@ -169,7 +189,7 @@ export const startConversation = action({
             })
         );
 
-        // 8. Update conversation timestamp
+        // 10. Update conversation timestamp
         await ctx.runMutation(api.imageEditConversations.touch, {
             id: conversationId,
         });
@@ -204,25 +224,35 @@ export const sendEdit = action({
             throw new Error("Voce precisa estar autenticado");
         }
 
-        // 2. Get conversation
+        // 2. Get current user
+        const user = await ctx.runQuery(api.users.current, {});
+        if (!user) {
+            throw new Error("Usuario nao encontrado");
+        }
+
+        // 3. Get conversation (now includes originalPost for caption)
         const conversation = await ctx.runQuery(api.imageEditConversations.get, {
             id: args.conversationId,
         });
         if (!conversation) {
             throw new Error("Conversa nao encontrada");
         }
+        const originalPost = conversation.originalPost;
+        if (!originalPost) {
+            throw new Error("Post original nao encontrado");
+        }
 
-        // 3. Get previous turn's outputs (auto-references)
+        // 5. Get previous turn's outputs (auto-references)
         const previousTurn = await ctx.runQuery(api.imageEditTurns.getLatest, {
             conversationId: args.conversationId,
         });
 
-        // 4. Count existing turns to get next index
+        // 6. Count existing turns to get next index
         const turnCount = await ctx.runQuery(api.imageEditTurns.countByConversation, {
             conversationId: args.conversationId,
         });
 
-        // 5. Create new turn
+        // 7. Create new turn
         const turnId = await ctx.runMutation(internal.imageEditTurns.create, {
             conversationId: args.conversationId,
             turnIndex: turnCount,
@@ -233,7 +263,7 @@ export const sendEdit = action({
 
         console.log(`[IMAGE_EDIT] Created turn ${turnCount}: ${turnId}`);
 
-        // 6. Build reference URLs from previous turn's outputs
+        // 8. Build reference URLs from previous turn's outputs
         const referenceUrls: string[] = [];
 
         // Add previous turn's outputs as references (auto-reference)
@@ -258,12 +288,12 @@ export const sendEdit = action({
 
         console.log(`[IMAGE_EDIT] Using ${referenceUrls.length} reference images`);
 
-        // 7. Parse dimensions
+        // 9. Parse dimensions
         const aspectRatio = conversation.aspectRatio as AspectRatio;
         const resolution = conversation.resolution as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 8. Generate images in parallel
+        // 10. Generate images in parallel
         console.log(`[IMAGE_EDIT] Starting parallel generation for ${args.selectedModels.length} models`);
 
         await Promise.all(
@@ -287,7 +317,7 @@ export const sendEdit = action({
                     const blob = new Blob([binaryData], { type: result.mimeType });
                     const storageId = await ctx.storage.store(blob);
 
-                    // Save output
+                    // Save output (also creates gallery post for composability)
                     await ctx.runMutation(internal.imageEditOutputs.create, {
                         turnId,
                         conversationId: args.conversationId,
@@ -296,6 +326,12 @@ export const sendEdit = action({
                         prompt: result.prompt,
                         width: result.dimensions?.width ?? dimensions.width,
                         height: result.dimensions?.height ?? dimensions.height,
+                        // Data for gallery post creation
+                        aspectRatio: conversation.aspectRatio,
+                        resolution: conversation.resolution,
+                        originalPostId: originalPost._id,
+                        originalCaption: originalPost.caption,
+                        userId: user._id,
                     });
 
                     // Remove from pending
@@ -316,7 +352,7 @@ export const sendEdit = action({
             })
         );
 
-        // 9. Update conversation timestamp
+        // 11. Update conversation timestamp
         await ctx.runMutation(api.imageEditConversations.touch, {
             id: args.conversationId,
         });
@@ -327,5 +363,150 @@ export const sendEdit = action({
             success: true,
             turnId,
         };
+    },
+});
+
+/**
+ * Generate images for an existing turn (called after navigating to conversation page)
+ * This allows the modal to close immediately and generation happens on the conversation page
+ */
+export const generateForTurn = action({
+    args: {
+        conversationId: v.id("image_edit_conversations"),
+        turnId: v.id("image_edit_turns"),
+    },
+    handler: async (ctx, args): Promise<{ success: boolean }> => {
+        // 1. Auth check
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Voce precisa estar autenticado");
+        }
+
+        // 2. Get current user
+        const user = await ctx.runQuery(api.users.current, {});
+        if (!user) {
+            throw new Error("Usuario nao encontrado");
+        }
+
+        // 3. Get conversation (includes originalPost for caption)
+        const conversation = await ctx.runQuery(api.imageEditConversations.get, {
+            id: args.conversationId,
+        });
+        if (!conversation) {
+            throw new Error("Conversa nao encontrada");
+        }
+        const originalPost = conversation.originalPost;
+        if (!originalPost) {
+            throw new Error("Post original nao encontrado");
+        }
+
+        // 4. Get the turn
+        const turn = await ctx.runQuery(api.imageEditTurns.get, {
+            id: args.turnId,
+        });
+        if (!turn) {
+            throw new Error("Turno nao encontrado");
+        }
+
+        // 5. Build reference URLs
+        const referenceUrls: string[] = [];
+
+        // Source image is the primary reference for first turn
+        if (turn.turnIndex === 0) {
+            if (conversation.sourceImageUrl) {
+                referenceUrls.push(conversation.sourceImageUrl);
+            }
+        } else {
+            // For subsequent turns, get previous turn's outputs
+            const previousTurn = await ctx.runQuery(api.imageEditTurns.getByIndex, {
+                conversationId: args.conversationId,
+                turnIndex: turn.turnIndex - 1,
+            });
+            if (previousTurn?.outputs) {
+                for (const output of previousTurn.outputs) {
+                    if (output.url) {
+                        referenceUrls.push(output.url);
+                    }
+                }
+            } else if (conversation.sourceImageUrl) {
+                // Fallback to source image
+                referenceUrls.push(conversation.sourceImageUrl);
+            }
+        }
+
+        // Add manual references if any
+        if (turn.manualReferenceIds && turn.manualReferenceIds.length > 0) {
+            const manualUrls = await storageIdsToUrls(ctx, turn.manualReferenceIds);
+            referenceUrls.push(...manualUrls);
+        }
+
+        console.log(`[IMAGE_EDIT] Generating for turn ${turn.turnIndex} with ${referenceUrls.length} references`);
+
+        // 6. Parse dimensions
+        const aspectRatio = conversation.aspectRatio as AspectRatio;
+        const resolution = conversation.resolution as Resolution;
+        const dimensions = calculateDimensions(aspectRatio, resolution);
+
+        // 7. Generate images in parallel
+        await Promise.all(
+            turn.selectedModels.map(async (model) => {
+                try {
+                    console.log(`[IMAGE_EDIT] Generating with model: ${model}`);
+
+                    const result = await generateImage({
+                        caption: "",
+                        instructions: turn.userMessage,
+                        model,
+                        aspectRatio,
+                        resolution,
+                        referenceImageUrls: referenceUrls,
+                    });
+
+                    // Store the image
+                    const binaryData = Uint8Array.from(atob(result.imageBase64), (c) =>
+                        c.charCodeAt(0)
+                    );
+                    const blob = new Blob([binaryData], { type: result.mimeType });
+                    const storageId = await ctx.storage.store(blob);
+
+                    // Save output (also creates gallery post)
+                    await ctx.runMutation(internal.imageEditOutputs.create, {
+                        turnId: args.turnId,
+                        conversationId: args.conversationId,
+                        storageId,
+                        model,
+                        prompt: result.prompt,
+                        width: result.dimensions?.width ?? dimensions.width,
+                        height: result.dimensions?.height ?? dimensions.height,
+                        aspectRatio: conversation.aspectRatio,
+                        resolution: conversation.resolution,
+                        originalPostId: originalPost._id,
+                        originalCaption: originalPost.caption,
+                        userId: user._id,
+                    });
+
+                    // Remove from pending
+                    await ctx.runMutation(internal.imageEditTurns.removeFromPending, {
+                        id: args.turnId,
+                        model,
+                    });
+
+                    console.log(`[IMAGE_EDIT] Successfully generated with ${model}`);
+                } catch (err) {
+                    console.error(`[IMAGE_EDIT] Generation failed for ${model}:`, err);
+                    await ctx.runMutation(internal.imageEditTurns.removeFromPending, {
+                        id: args.turnId,
+                        model,
+                    });
+                }
+            })
+        );
+
+        // 8. Update conversation timestamp
+        await ctx.runMutation(api.imageEditConversations.touch, {
+            id: args.conversationId,
+        });
+
+        return { success: true };
     },
 });

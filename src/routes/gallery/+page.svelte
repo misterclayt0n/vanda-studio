@@ -5,13 +5,52 @@
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
 	import Navbar from "$lib/components/Navbar.svelte";
+	import { Lightbox } from "$lib/components/lightbox";
 
 	const client = useConvexClient();
 
 	// Search state
 	let searchQuery = $state("");
 	let searchInputEl: HTMLInputElement;
+
+	// Lightbox state from URL params
+	let lightboxPostId = $derived($page.url.searchParams.get('view'));
+	let lightboxImageId = $derived($page.url.searchParams.get('img'));
+	let lightboxOpen = $derived(!!lightboxPostId);
+
+	// Open lightbox
+	function openLightbox(postId: string, imageId?: string | null) {
+		const url = new URL($page.url);
+		url.searchParams.set('view', postId);
+		if (imageId) {
+			url.searchParams.set('img', imageId);
+		} else {
+			url.searchParams.delete('img');
+		}
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	// Close lightbox
+	function closeLightbox() {
+		const url = new URL($page.url);
+		url.searchParams.delete('view');
+		url.searchParams.delete('img');
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	// Navigate within lightbox
+	function navigateLightbox(postId: string, imageId?: string | null) {
+		const url = new URL($page.url);
+		url.searchParams.set('view', postId);
+		if (imageId) {
+			url.searchParams.set('img', imageId);
+		} else {
+			url.searchParams.delete('img');
+		}
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
 	// Detect platform for keyboard shortcut
 	let isMac = $state(false);
@@ -21,6 +60,9 @@
 
 	// Keyboard shortcut to focus search (Cmd+K on Mac, Ctrl+K on others)
 	function handleKeydown(event: KeyboardEvent) {
+		// Don't handle if lightbox is open (it handles its own keyboard)
+		if (lightboxOpen) return;
+		
 		const modifier = isMac ? event.metaKey : event.ctrlKey;
 		if (modifier && event.key === 'k') {
 			event.preventDefault();
@@ -121,7 +163,7 @@
 					<input
 						bind:this={searchInputEl}
 						type="text"
-						placeholder="Buscar por prompt..."
+						placeholder="Buscar..."
 						class="flex h-9 w-72 rounded-md border border-input bg-transparent px-3 py-1 pl-9 pr-16 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 						value={searchQuery}
 						oninput={handleSearch}
@@ -153,7 +195,7 @@
 					{#if searchQuery.trim()}
 						{posts.length} resultado{posts.length !== 1 ? 's' : ''} para "{searchQuery}"
 					{:else}
-						{posts.length} geracao{posts.length !== 1 ? 'es' : ''}
+						{posts.length} geraç{posts.length !== 1 ? 'ões' : 'ão'}
 					{/if}
 				</span>
 			</div>
@@ -230,8 +272,8 @@
 					{#each posts as post (post._id)}
 						<div 
 							class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
-							onclick={() => goto(`/posts/${post._id}`)}
-							onkeydown={(e) => e.key === 'Enter' && goto(`/posts/${post._id}`)}
+							onclick={() => openLightbox(post._id)}
+							onkeydown={(e) => e.key === 'Enter' && openLightbox(post._id)}
 							role="button"
 							tabindex="0"
 						>
@@ -323,3 +365,14 @@
 		</SignedIn>
 	</main>
 </div>
+
+<!-- Lightbox -->
+{#if lightboxOpen && lightboxPostId && posts.length > 0}
+	<Lightbox
+		{posts}
+		currentPostId={lightboxPostId}
+		currentImageId={lightboxImageId}
+		onclose={closeLightbox}
+		onnavigate={navigateLightbox}
+	/>
+{/if}
