@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
-	import { SignedIn, SignedOut } from "svelte-clerk";
+	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
@@ -24,8 +24,19 @@
 		resolution?: string;
 	};
 
-	// Convex client
+	// Convex client and Clerk auth
 	const client = useConvexClient();
+	const clerk = useClerkContext();
+
+	// Auth state
+	let showLoginPrompt = $state(false);
+
+	// Hide login prompt when user logs in
+	$effect(() => {
+		if (clerk.user && showLoginPrompt) {
+			showLoginPrompt = false;
+		}
+	});
 
 	// Form state
 	let prompt = $state("");
@@ -209,7 +220,13 @@
 	// Real generation function with progressive loading
 	async function handleGenerate() {
 		if (!prompt.trim()) return;
-		
+
+		// Check if user is authenticated
+		if (!clerk.user) {
+			showLoginPrompt = true;
+			return;
+		}
+
 		isGenerating = true;
 		error = null;
 		hasGenerated = false;
@@ -609,7 +626,32 @@
 
 		<!-- Painel Direito - Visualizacao -->
 		<main class="flex flex-1 flex-col overflow-hidden bg-muted/30">
-			{#if error && !isGenerating}
+			{#if showLoginPrompt}
+				<!-- Login Required State -->
+				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-primary/50 bg-primary/10">
+						<svg class="h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+						</svg>
+					</div>
+					<div class="text-center">
+						<h3 class="text-lg font-medium">Entre para continuar</h3>
+						<p class="mt-1 max-w-md text-sm text-muted-foreground">
+							Voce precisa estar logado para gerar posts. Faca login ou crie uma conta para comecar.
+						</p>
+					</div>
+					<div class="flex gap-3 mt-2">
+						<SignInButton mode="modal">
+							<button class="h-9 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+								Entrar
+							</button>
+						</SignInButton>
+						<Button variant="outline" onclick={() => showLoginPrompt = false}>
+							Voltar
+						</Button>
+					</div>
+				</div>
+			{:else if error && !isGenerating}
 				<!-- Estado de Erro -->
 				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
 					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-destructive/50 bg-destructive/10">
