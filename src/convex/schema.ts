@@ -186,4 +186,66 @@ export default defineSchema({
         height: v.number(),
         createdAt: v.number(),
     }).index("by_generated_post_id", ["generatedPostId"]),
+
+    // ============================================================================
+    // Image Editing Conversations
+    // ============================================================================
+
+    // Conversations for iteratively editing images
+    image_edit_conversations: defineTable({
+        // Owner
+        userId: v.id("users"),
+
+        // Source image that started this conversation
+        sourceImageId: v.id("generated_images"),
+        sourceStorageId: v.id("_storage"), // Denormalized for quick access
+
+        // Metadata
+        title: v.string(), // Auto-generated from first prompt
+
+        // Settings (defaults for new turns, inherited from source)
+        aspectRatio: v.string(), // "1:1", "16:9", etc.
+        resolution: v.string(), // "standard", "high", "ultra"
+
+        // Timestamps
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_user_id", ["userId"])
+      .index("by_source_image", ["sourceImageId"]),
+
+    // Each turn in an image editing conversation
+    image_edit_turns: defineTable({
+        conversationId: v.id("image_edit_conversations"),
+        turnIndex: v.number(), // 0, 1, 2, ...
+
+        // User input
+        userMessage: v.string(),
+        selectedModels: v.array(v.string()), // Models chosen for this turn
+
+        // Additional reference images (user-uploaded, not auto from previous turn)
+        manualReferenceIds: v.optional(v.array(v.id("_storage"))),
+
+        // Generation state (for progressive loading)
+        status: v.string(), // "pending" | "generating" | "completed" | "error"
+        pendingModels: v.optional(v.array(v.string())), // Models still generating
+
+        createdAt: v.number(),
+    }).index("by_conversation", ["conversationId"])
+      .index("by_conversation_turn", ["conversationId", "turnIndex"]),
+
+    // Output images for each turn (one per model)
+    image_edit_outputs: defineTable({
+        turnId: v.id("image_edit_turns"),
+        conversationId: v.id("image_edit_conversations"), // Denormalized for queries
+
+        // Image data
+        storageId: v.id("_storage"),
+        model: v.string(),
+        prompt: v.string(), // The prompt used
+        width: v.number(),
+        height: v.number(),
+
+        createdAt: v.number(),
+    }).index("by_turn", ["turnId"])
+      .index("by_conversation", ["conversationId"]),
 });

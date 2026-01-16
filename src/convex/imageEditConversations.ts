@@ -1,0 +1,211 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+// Get a single conversation with source image URL
+export const get = query({
+    args: {
+        id: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const conversation = await ctx.db.get(args.id);
+        if (!conversation) {
+            return null;
+        }
+
+        // Get source image URL
+        const sourceImageUrl = await ctx.storage.getUrl(conversation.sourceStorageId);
+
+        // Get source image details
+        const sourceImage = await ctx.db.get(conversation.sourceImageId);
+
+        return {
+            ...conversation,
+            sourceImageUrl,
+            sourceImage,
+        };
+    },
+});
+
+// List all conversations for the current user
+export const listByUser = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const conversations = await ctx.db
+            .query("image_edit_conversations")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .collect();
+
+        // Get source image URLs for all conversations
+        return Promise.all(
+            conversations.map(async (conv) => {
+                const sourceImageUrl = await ctx.storage.getUrl(conv.sourceStorageId);
+                return {
+                    ...conv,
+                    sourceImageUrl,
+                };
+            })
+        );
+    },
+});
+
+// Check if a conversation already exists for a source image
+export const getBySourceImage = query({
+    args: {
+        sourceImageId: v.id("generated_images"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const conversation = await ctx.db
+            .query("image_edit_conversations")
+            .withIndex("by_source_image", (q) => q.eq("sourceImageId", args.sourceImageId))
+            .first();
+
+        return conversation;
+    },
+});
+
+// Create a new conversation
+export const create = mutation({
+    args: {
+        sourceImageId: v.id("generated_images"),
+        title: v.string(),
+        aspectRatio: v.string(),
+        resolution: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        // Get source image to get storageId
+        const sourceImage = await ctx.db.get(args.sourceImageId);
+        if (!sourceImage) {
+            throw new Error("Source image not found");
+        }
+
+        const now = Date.now();
+        return await ctx.db.insert("image_edit_conversations", {
+            userId: user._id,
+            sourceImageId: args.sourceImageId,
+            sourceStorageId: sourceImage.storageId,
+            title: args.title,
+            aspectRatio: args.aspectRatio,
+            resolution: args.resolution,
+            createdAt: now,
+            updatedAt: now,
+        });
+    },
+});
+
+// Update conversation title
+export const updateTitle = mutation({
+    args: {
+        id: v.id("image_edit_conversations"),
+        title: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const conversation = await ctx.db.get(args.id);
+        if (!conversation) {
+            throw new Error("Conversation not found");
+        }
+
+        await ctx.db.patch(args.id, {
+            title: args.title,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Update conversation timestamp (called after each turn)
+export const touch = mutation({
+    args: {
+        id: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.id, {
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Delete a conversation and all its turns/outputs
+export const remove = mutation({
+    args: {
+        id: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const conversation = await ctx.db.get(args.id);
+        if (!conversation) {
+            throw new Error("Conversation not found");
+        }
+
+        // Delete all outputs for this conversation
+        const outputs = await ctx.db
+            .query("image_edit_outputs")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", args.id))
+            .collect();
+
+        for (const output of outputs) {
+            // Delete the stored image
+            await ctx.storage.delete(output.storageId);
+            await ctx.db.delete(output._id);
+        }
+
+        // Delete all turns
+        const turns = await ctx.db
+            .query("image_edit_turns")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", args.id))
+            .collect();
+
+        for (const turn of turns) {
+            await ctx.db.delete(turn._id);
+        }
+
+        // Delete the conversation
+        await ctx.db.delete(args.id);
+    },
+});

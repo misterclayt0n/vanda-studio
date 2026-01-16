@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton } from "$lib/components/studio";
+	import { ImageModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
@@ -13,12 +13,15 @@
 
 	// Generated image type from backend
 	type GeneratedImage = {
+		_id: Id<"generated_images">;
 		storageId: Id<"_storage">;
 		model: string;
 		url: string | null;
 		prompt: string;
 		width: number;
 		height: number;
+		aspectRatio?: string;
+		resolution?: string;
 	};
 
 	// Convex client
@@ -74,6 +77,20 @@
 	let generatedImages = $state<GeneratedImage[]>([]);
 	let selectedImageIndex = $state(0);
 
+	// Edit modal state
+	let editModalOpen = $state(false);
+	let editModalImage = $state<GeneratedImage | null>(null);
+
+	function openEditModal(image: GeneratedImage) {
+		editModalImage = image;
+		editModalOpen = true;
+	}
+
+	function closeEditModal() {
+		editModalOpen = false;
+		editModalImage = null;
+	}
+
 	// Sync subscription data to state
 	$effect(() => {
 		if (subscriptionCaption) {
@@ -84,12 +101,15 @@
 	$effect(() => {
 		if (imagesData.length > 0) {
 			generatedImages = imagesData.map(img => ({
+				_id: img._id,
 				storageId: img.storageId,
 				model: img.model,
 				url: img.url,
 				prompt: img.prompt,
 				width: img.width,
 				height: img.height,
+				aspectRatio: img.aspectRatio,
+				resolution: img.resolution,
 			}));
 		}
 	});
@@ -219,6 +239,36 @@
 
 	function handleCopyCaption() {
 		navigator.clipboard.writeText(generatedCaption);
+	}
+
+	// Download the selected image directly to browser
+	async function handleDownloadImage() {
+		if (!selectedImage?.url) return;
+		
+		try {
+			const response = await fetch(selectedImage.url);
+			const blob = await response.blob();
+			
+			// Create a download link
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			
+			// Generate filename from model name
+			const modelName = selectedImage.model.split('/').pop() ?? 'image';
+			const extension = blob.type.split('/').pop() ?? 'png';
+			link.download = `vanda-${modelName}-${Date.now()}.${extension}`;
+			
+			// Trigger download
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+			// Clean up
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('Download failed:', err);
+		}
 	}
 
 	// Get selected image
@@ -619,7 +669,7 @@
 									Regenerar
 								</Button>
 								{#if selectedImage?.url}
-									<Button variant="outline" size="sm" onclick={() => selectedImage?.url && window.open(selectedImage.url, '_blank')}>
+									<Button variant="outline" size="sm" onclick={handleDownloadImage}>
 										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
 										</svg>
@@ -699,29 +749,42 @@
 									<div class="shrink-0 border-t border-border bg-background p-4">
 										<div class="flex justify-center gap-3">
 											{#each generatedImages as image, index}
-												<button
-													type="button"
-													class="group relative h-20 w-20 overflow-hidden border-2 transition-all {selectedImageIndex === index ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground'}"
-													onclick={() => selectedImageIndex = index}
-												>
-													{#if image.url}
-														<img 
-															src={image.url} 
-															alt="Opcao {index + 1}" 
-															class="h-full w-full object-cover"
-														/>
-													{:else}
-														<div class="flex h-full w-full items-center justify-center bg-muted">
-															<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-																<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-															</svg>
+												<div class="group relative">
+													<button
+														type="button"
+														class="relative h-20 w-20 overflow-hidden border-2 transition-all {selectedImageIndex === index ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground'}"
+														onclick={() => selectedImageIndex = index}
+													>
+														{#if image.url}
+															<img 
+																src={image.url} 
+																alt="Opcao {index + 1}" 
+																class="h-full w-full object-cover"
+															/>
+														{:else}
+															<div class="flex h-full w-full items-center justify-center bg-muted">
+																<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+																	<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+																</svg>
+															</div>
+														{/if}
+														<!-- Model name tooltip on hover -->
+														<div class="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+															{modelDisplayNames[image.model] ?? image.model.split("/").pop()}
 														</div>
-													{/if}
-													<!-- Model name tooltip on hover -->
-													<div class="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-														{modelDisplayNames[image.model] ?? image.model.split("/").pop()}
-													</div>
-												</button>
+													</button>
+													<!-- Edit button overlay -->
+													<button
+														type="button"
+														aria-label="Editar imagem"
+														class="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center bg-primary text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
+														onclick={(e) => { e.stopPropagation(); openEditModal(image); }}
+													>
+														<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+														</svg>
+													</button>
+												</div>
 											{/each}
 											<!-- Skeletons for pending models -->
 											{#each pendingModels as model}
@@ -792,3 +855,12 @@
 		</main>
 	</div>
 </div>
+
+<!-- Edit Image Modal -->
+{#if editModalImage}
+	<EditImageModal 
+		image={editModalImage}
+		open={editModalOpen}
+		onclose={closeEditModal}
+	/>
+{/if}
