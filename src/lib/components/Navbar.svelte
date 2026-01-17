@@ -8,11 +8,12 @@
 
 	// Determine current route for active state
 	let currentPath = $derived($page.url.pathname);
-	
+
 	// Navigation items
 	const navItems = [
 		{ href: "/posts/create", label: "Criar", icon: "sparkles" },
 		{ href: "/gallery", label: "Galeria", icon: "gallery" },
+		{ href: "/projects", label: "Projetos", icon: "projects" },
 	];
 
 	function isActive(href: string): boolean {
@@ -27,14 +28,14 @@
 			<a href="/">
 				<Logo />
 			</a>
-			
+
 			<Separator orientation="vertical" class="h-6" />
-			
+
 			<!-- Navigation links -->
 			<nav class="flex items-center gap-1">
 				{#each navItems as item}
-					<Button 
-						variant={isActive(item.href) ? "secondary" : "ghost"} 
+					<Button
+						variant={isActive(item.href) ? "secondary" : "ghost"}
 						size="sm"
 						onclick={() => goto(item.href)}
 						class="gap-2"
@@ -46,6 +47,10 @@
 						{:else if item.icon === "gallery"}
 							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+							</svg>
+						{:else if item.icon === "projects"}
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" />
 							</svg>
 						{/if}
 						{item.label}

@@ -245,3 +245,42 @@ export const updateProfilePictureStorage = mutation({
         });
     },
 });
+
+export const update = mutation({
+    args: {
+        projectId: v.id("projects"),
+        name: v.optional(v.string()),
+        instagramUrl: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Called update project without authentication");
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            throw new Error("Not authorized to update this project");
+        }
+
+        const patch: Record<string, unknown> = {};
+        if (args.name !== undefined) patch.name = args.name;
+        if (args.instagramUrl !== undefined) patch.instagramUrl = args.instagramUrl;
+
+        if (Object.keys(patch).length === 0) {
+            return project;
+        }
+
+        await ctx.db.patch(args.projectId, patch);
+        return await ctx.db.get(args.projectId);
+    },
+});

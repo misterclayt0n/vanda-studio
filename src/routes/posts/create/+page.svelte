@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal, EditableCaption } from "$lib/components/studio";
+	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal, EditableCaption, ProjectSelector } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import Navbar from "$lib/components/Navbar.svelte";
+	import { page } from "$app/stores";
 
 	// Type definitions for studio settings
 	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
@@ -38,6 +39,9 @@
 		}
 	});
 
+	// Project from URL params
+	let urlProjectId = $derived($page.url.searchParams.get('projectId') as Id<"projects"> | null);
+
 	// Form state
 	let prompt = $state("");
 	let tone = $state("profissional");
@@ -45,6 +49,14 @@
 	let useCustomTone = $state(false);
 	let platform = $state("instagram");
 	let captionModel = $state<string>("openai/gpt-4.1");
+	let selectedProjectId = $state<Id<"projects"> | null>(null);
+
+	// Initialize selectedProjectId from URL param
+	$effect(() => {
+		if (urlProjectId && selectedProjectId === null) {
+			selectedProjectId = urlProjectId;
+		}
+	});
 
 	// Generation state
 	let isGenerating = $state(false);
@@ -262,6 +274,7 @@
 				aspectRatio,
 				resolution,
 				...(attachments && { attachments }),
+				...(selectedProjectId && { projectId: selectedProjectId }),
 			});
 
 			// Set ID to start subscriptions (this triggers reactive updates)
@@ -468,6 +481,14 @@
 							</div>
 						{/if}
 					</div>
+
+					<Separator />
+
+					<!-- Seção: Projeto -->
+					<ProjectSelector
+						value={selectedProjectId}
+						onchange={(id) => selectedProjectId = id}
+					/>
 
 					<Separator />
 

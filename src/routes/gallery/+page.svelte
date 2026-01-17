@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Input, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
+	import { Button, Input, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Popover, PopoverTrigger, PopoverContent } from "$lib/components/ui";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../convex/_generated/api.js";
@@ -14,6 +14,10 @@
 	// Search state
 	let searchQuery = $state("");
 	let searchInputEl: HTMLInputElement;
+
+	// Project filter state
+	let filterProjectId = $state<Id<"projects"> | null>(null);
+	let projectFilterOpen = $state(false);
 
 	// Lightbox state from URL params
 	let lightboxPostId = $derived($page.url.searchParams.get('view'));
@@ -72,15 +76,58 @@
 	}
 
 	// Queries
-	const postsQuery = useQuery(api.generatedPosts.listByUser, () => ({ limit: 50 }));
+	const projectsQuery = useQuery(api.projects.list, () => ({}));
+	const postsQuery = useQuery(api.generatedPosts.listByUser, () => filterProjectId ? "skip" : { limit: 50 });
+	const projectPostsQuery = useQuery(
+		api.generatedPosts.listByProject,
+		() => filterProjectId ? { projectId: filterProjectId } : "skip"
+	);
 	const searchResultsQuery = useQuery(
 		api.generatedPosts.search,
 		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
 	);
 
 	// Derived data
-	let posts = $derived(searchQuery.trim() ? (searchResultsQuery.data ?? []) : (postsQuery.data ?? []));
-	let isLoading = $derived(postsQuery.isLoading || (searchQuery.trim() && searchResultsQuery.isLoading));
+	let projects = $derived(projectsQuery.data ?? []);
+	let selectedProject = $derived(projects.find(p => p._id === filterProjectId) ?? null);
+	let posts = $derived(() => {
+		if (searchQuery.trim()) {
+			return searchResultsQuery.data ?? [];
+		}
+		if (filterProjectId) {
+			return projectPostsQuery.data ?? [];
+		}
+		return postsQuery.data ?? [];
+	});
+	let isLoading = $derived(
+		postsQuery.isLoading ||
+		(filterProjectId && projectPostsQuery.isLoading) ||
+		(searchQuery.trim() && searchResultsQuery.isLoading)
+	);
+
+	// Get profile picture URL for a project
+	function getProjectProfilePicture(project: typeof projects[0] | null): string | null {
+		if (!project) return null;
+		return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
+	}
+
+	// Get handle from a project
+	function getProjectHandle(project: typeof projects[0]): string | null {
+		if (project.instagramHandle) return project.instagramHandle;
+		try {
+			const url = new URL(project.instagramUrl);
+			const parts = url.pathname.split('/').filter(Boolean);
+			return parts[0] ?? null;
+		} catch {
+			return null;
+		}
+	}
+
+	// Select project filter
+	function selectProjectFilter(projectId: Id<"projects"> | null) {
+		filterProjectId = projectId;
+		projectFilterOpen = false;
+	}
 
 	// Model display names
 	const modelDisplayNames: Record<string, string> = {
@@ -191,11 +238,109 @@
 						{/if}
 					</div>
 				</div>
+
+				<!-- Project Filter -->
+				{#if projects.length > 0}
+					<Popover bind:open={projectFilterOpen}>
+						<PopoverTrigger>
+							<button
+								type="button"
+								class="flex h-9 items-center gap-2 border border-border bg-background px-3 text-sm transition-colors hover:bg-muted {projectFilterOpen ? 'ring-1 ring-ring' : ''}"
+							>
+								{#if selectedProject}
+									<div class="h-5 w-5 overflow-hidden rounded-full border border-border bg-muted">
+										{#if getProjectProfilePicture(selectedProject)}
+											<img
+												src={getProjectProfilePicture(selectedProject)}
+												alt={selectedProject.name}
+												class="h-full w-full object-cover"
+											/>
+										{:else}
+											<div class="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted-foreground">
+												{selectedProject.name.charAt(0).toUpperCase()}
+											</div>
+										{/if}
+									</div>
+									<span>{selectedProject.name}</span>
+								{:else}
+									<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+									</svg>
+									<span class="text-muted-foreground">Filtrar projeto</span>
+								{/if}
+								<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+								</svg>
+							</button>
+						</PopoverTrigger>
+						<PopoverContent class="w-56 p-1" align="start">
+							<!-- All projects option -->
+							<button
+								type="button"
+								class="flex w-full items-center gap-2 px-2 py-2 text-sm transition-colors hover:bg-muted {filterProjectId === null ? 'bg-muted' : ''}"
+								onclick={() => selectProjectFilter(null)}
+							>
+								<div class="h-5 w-5 overflow-hidden rounded-full border border-dashed border-border bg-background">
+									<div class="flex h-full w-full items-center justify-center">
+										<svg class="h-3 w-3 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+										</svg>
+									</div>
+								</div>
+								<span>Todos os projetos</span>
+								{#if filterProjectId === null}
+									<svg class="ml-auto h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+									</svg>
+								{/if}
+							</button>
+
+							<div class="my-1 border-t border-border"></div>
+
+							<!-- Project options -->
+							{#each projects as project (project._id)}
+								<button
+									type="button"
+									class="flex w-full items-center gap-2 px-2 py-2 text-sm transition-colors hover:bg-muted {filterProjectId === project._id ? 'bg-muted' : ''}"
+									onclick={() => selectProjectFilter(project._id)}
+								>
+									<div class="h-5 w-5 overflow-hidden rounded-full border border-border bg-muted">
+										{#if getProjectProfilePicture(project)}
+											<img
+												src={getProjectProfilePicture(project)}
+												alt={project.name}
+												class="h-full w-full object-cover"
+											/>
+										{:else}
+											<div class="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted-foreground">
+												{project.name.charAt(0).toUpperCase()}
+											</div>
+										{/if}
+									</div>
+									<div class="flex flex-col items-start">
+										<span class="font-medium">{project.name}</span>
+										{#if getProjectHandle(project)}
+											<span class="text-xs text-muted-foreground">@{getProjectHandle(project)}</span>
+										{/if}
+									</div>
+									{#if filterProjectId === project._id}
+										<svg class="ml-auto h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+										</svg>
+									{/if}
+								</button>
+							{/each}
+						</PopoverContent>
+					</Popover>
+				{/if}
+
 				<span class="text-sm text-muted-foreground">
 					{#if searchQuery.trim()}
-						{posts.length} resultado{posts.length !== 1 ? 's' : ''} para "{searchQuery}"
+						{posts().length} resultado{posts().length !== 1 ? 's' : ''} para "{searchQuery}"
+					{:else if filterProjectId && selectedProject}
+						{posts().length} post{posts().length !== 1 ? 's' : ''} em {selectedProject.name}
 					{:else}
-						{posts.length} geraç{posts.length !== 1 ? 'ões' : 'ão'}
+						{posts().length} geraç{posts().length !== 1 ? 'ões' : 'ão'}
 					{/if}
 				</span>
 			</div>
@@ -239,7 +384,7 @@
 						<p class="text-sm text-muted-foreground">Carregando galeria...</p>
 					</div>
 				</div>
-			{:else if posts.length === 0}
+			{:else if posts().length === 0}
 				<div class="flex flex-col items-center justify-center py-20">
 					<div class="flex h-20 w-20 items-center justify-center rounded-none border-2 border-dashed border-border bg-muted/50">
 						<svg class="h-10 w-10 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -249,6 +394,8 @@
 					<h3 class="mt-6 text-lg font-medium">
 						{#if searchQuery.trim()}
 							Nenhum resultado encontrado
+						{:else if filterProjectId}
+							Nenhum post neste projeto
 						{:else}
 							Nenhuma geracao ainda
 						{/if}
@@ -256,20 +403,31 @@
 					<p class="mt-2 text-sm text-muted-foreground">
 						{#if searchQuery.trim()}
 							Tente buscar por outros termos
+						{:else if filterProjectId}
+							Crie um post para este projeto ou limpe o filtro
 						{:else}
 							Crie seu primeiro post para comecar
 						{/if}
 					</p>
-					{#if !searchQuery.trim()}
+					{#if !searchQuery.trim() && !filterProjectId}
 						<Button class="mt-6" onclick={() => goto('/posts/create')}>
 							Criar Primeiro Post
 						</Button>
+					{:else if filterProjectId}
+						<div class="mt-6 flex gap-2">
+							<Button onclick={() => goto(`/posts/create?projectId=${filterProjectId}`)}>
+								Criar Post
+							</Button>
+							<Button variant="outline" onclick={() => filterProjectId = null}>
+								Limpar filtro
+							</Button>
+						</div>
 					{/if}
 				</div>
 			{:else}
 				<!-- Gallery grid -->
 				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-					{#each posts as post (post._id)}
+					{#each posts() as post (post._id)}
 						<div 
 							class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
 							onclick={() => openLightbox(post._id)}
@@ -367,9 +525,9 @@
 </div>
 
 <!-- Lightbox -->
-{#if lightboxOpen && lightboxPostId && posts.length > 0}
+{#if lightboxOpen && lightboxPostId && posts().length > 0}
 	<Lightbox
-		{posts}
+		posts={posts()}
 		currentPostId={lightboxPostId}
 		currentImageId={lightboxImageId}
 		onclose={closeLightbox}
