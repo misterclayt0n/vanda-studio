@@ -121,6 +121,9 @@
         // Don't handle if edit modal is open
         if (editModalOpen) return;
 
+        // Don't handle if user is typing in a textarea (editing caption)
+        if (e.target instanceof HTMLTextAreaElement) return;
+
         if (e.key === "Escape") {
             onclose();
         }

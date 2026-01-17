@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal } from "$lib/components/studio";
+	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal, EditableCaption } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
@@ -919,9 +919,19 @@
 						</div>
 						<div class="flex flex-1 flex-col overflow-auto bg-background">
 							<div class="flex-1 p-4">
-								<p class="whitespace-pre-wrap text-sm leading-relaxed">{generatedCaption}</p>
+								{#if generatedPostId}
+									<EditableCaption
+										postId={generatedPostId}
+										caption={generatedCaption}
+										showHashtags={true}
+										showCharCount={false}
+										onupdate={(newCaption) => generatedCaption = newCaption}
+									/>
+								{:else}
+									<p class="whitespace-pre-wrap text-sm leading-relaxed">{generatedCaption}</p>
+								{/if}
 							</div>
-							
+
 							<!-- Estatisticas e Metadados -->
 							<div class="border-t border-border p-4">
 								<div class="space-y-3">

@@ -3,6 +3,7 @@
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import { Badge, Button } from "$lib/components/ui";
+    import { EditableCaption } from "$lib/components/studio";
     import LightboxThumbnail from "./LightboxThumbnail.svelte";
     import LightboxConversationCard from "./LightboxConversationCard.svelte";
 
@@ -50,13 +51,6 @@
     );
     let conversations = $derived(conversationsQuery.data ?? []);
 
-    // Extract hashtags from caption
-    let hashtags = $derived(post?.caption?.match(/#\w+/g) ?? []);
-
-    // Caption without hashtags (for cleaner display)
-    let captionText = $derived(
-        post?.caption?.replace(/#\w+/g, "").trim() ?? ""
-    );
 
     // Model display names
     const modelDisplayNames: Record<string, string> = {
@@ -205,16 +199,14 @@
             {#if post.caption}
                 <div class="mt-6">
                     <h3 class="text-sm font-medium text-foreground">Legenda</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                        {captionText}
-                    </p>
-                    {#if hashtags.length > 0}
-                        <div class="mt-3 flex flex-wrap gap-1.5">
-                            {#each hashtags as tag}
-                                <Badge variant="outline" class="text-xs">{tag}</Badge>
-                            {/each}
-                        </div>
-                    {/if}
+                    <div class="mt-2">
+                        <EditableCaption
+                            postId={postId}
+                            caption={post.caption}
+                            showHashtags={true}
+                            showCharCount={false}
+                        />
+                    </div>
                 </div>
             {/if}
 
