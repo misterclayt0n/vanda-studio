@@ -4,6 +4,7 @@
 	import { page } from "$app/stores";
 	import { goto } from "$app/navigation";
 	import Logo from "./Logo.svelte";
+	import SettingsMenu from "./SettingsMenu.svelte";
 
 	// Determine current route for active state
 	let currentPath = $derived($page.url.pathname);
@@ -54,6 +55,7 @@
 		</div>
 
 		<div class="flex items-center gap-4">
+			<SettingsMenu />
 			<SignedOut>
 				<SignInButton mode="modal">
 					<button class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted">
