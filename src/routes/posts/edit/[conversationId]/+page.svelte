@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, ImageSkeleton } from "$lib/components/studio";
+	import { ImageModelSelector, ImageSkeleton, EditableCaption } from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../../convex/_generated/api.js";
@@ -60,6 +60,20 @@
 	let allOutputs = $derived(allOutputsQuery.data ?? []);
 	let turnCount = $derived(turns.length);
 	let isLoading = $derived(!conversation && conversationQuery.isLoading);
+
+	// Caption sidebar state
+	let currentCaption = $derived(conversation?.originalPost?.caption ?? "");
+	let hashtags = $derived(currentCaption.match(/#\w+/g) ?? []);
+	let showCopiedFeedback = $state(false);
+
+	function handleCopyCaption() {
+		if (!currentCaption) return;
+		navigator.clipboard.writeText(currentCaption);
+		showCopiedFeedback = true;
+		setTimeout(() => {
+			showCopiedFeedback = false;
+		}, 2000);
+	}
 
 	// Form state for new edit
 	let editPrompt = $state("");
@@ -293,9 +307,11 @@
 				</div>
 			</div>
 		{:else}
-			<!-- Conversation content -->
-			<div class="flex flex-1 flex-col overflow-hidden">
-				<!-- Thumbnail strip -->
+			<!-- Two-column layout: Conversation + Caption sidebar -->
+			<div class="flex flex-1 overflow-hidden">
+				<!-- Left: Conversation content -->
+				<div class="flex flex-1 flex-col overflow-hidden border-r border-border">
+					<!-- Thumbnail strip -->
 				{#if allOutputs.length > 0}
 					<div class="shrink-0 border-b border-border bg-muted/30 p-4">
 						<div class="flex gap-2 overflow-x-auto pb-2">
@@ -537,6 +553,72 @@
 							<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
 							para enviar
 						</p>
+					</div>
+				</div>
+				</div>
+
+				<!-- Right: Caption sidebar -->
+				<div class="flex w-[380px] shrink-0 flex-col">
+					<!-- Header -->
+					<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
+						<h3 class="text-sm font-medium">Legenda</h3>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger>
+									<Button variant="ghost" size="sm" onclick={handleCopyCaption} disabled={!currentCaption}>
+										{#if showCopiedFeedback}
+											<svg class="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+											</svg>
+										{:else}
+											<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+											</svg>
+										{/if}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p>{showCopiedFeedback ? 'Copiado!' : 'Copiar legenda'}</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+
+					<!-- Caption content -->
+					<div class="flex flex-1 flex-col overflow-auto bg-background">
+						<div class="flex-1 p-4">
+							{#if conversation?.originalPost}
+								<EditableCaption
+									postId={conversation.originalPost._id}
+									caption={currentCaption}
+									showHashtags={true}
+									showCharCount={false}
+								/>
+							{:else}
+								<p class="text-sm text-muted-foreground">Nenhuma legenda disponivel</p>
+							{/if}
+						</div>
+
+						<!-- Stats section -->
+						<div class="border-t border-border p-4">
+							<div class="space-y-3">
+								<div class="flex items-center justify-between text-sm">
+									<span class="text-muted-foreground">Caracteres</span>
+									<span class="font-medium">{currentCaption.length}</span>
+								</div>
+								<div class="flex items-center justify-between text-sm">
+									<span class="text-muted-foreground">Hashtags</span>
+									<span class="font-medium">{hashtags.length}</span>
+								</div>
+								{#if hashtags.length > 0}
+									<div class="flex flex-wrap gap-1.5 pt-2">
+										{#each hashtags as tag}
+											<Badge variant="outline" class="text-xs">{tag}</Badge>
+										{/each}
+									</div>
+								{/if}
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
