@@ -35,6 +35,13 @@ export interface ChatMessage {
     content: string;
 }
 
+export interface ProjectContext {
+    accountDescription?: string;
+    brandTraits?: string[];
+    additionalContext?: string;
+    contextImageUrls?: string[];
+}
+
 export interface CaptionInput {
     /** Full conversation history for context */
     conversationHistory: ChatMessage[];
@@ -46,6 +53,8 @@ export interface CaptionInput {
     referenceText?: string;
     /** Model to use for caption generation */
     model?: string;
+    /** Project brand context for personalization */
+    projectContext?: ProjectContext;
 }
 
 export interface CaptionOutput {
@@ -58,12 +67,44 @@ export interface CaptionOutput {
 // ============================================================================
 
 /**
+ * Build brand context section for system prompt
+ */
+function buildBrandContextPrompt(projectContext: ProjectContext): string {
+    let contextPrompt = "";
+
+    if (projectContext.accountDescription) {
+        contextPrompt += `Descricao da Conta: ${projectContext.accountDescription}\n`;
+    }
+
+    if (projectContext.brandTraits && projectContext.brandTraits.length > 0) {
+        contextPrompt += `Caracteristicas da Marca: ${projectContext.brandTraits.join(", ")}\n`;
+    }
+
+    if (projectContext.additionalContext) {
+        contextPrompt += `Contexto Adicional: ${projectContext.additionalContext}\n`;
+    }
+
+    return contextPrompt;
+}
+
+/**
  * Generate or refine a caption based on conversation context
  */
 export async function generateCaption(input: CaptionInput): Promise<CaptionOutput> {
+    // Build system prompt with optional brand context
+    let systemPrompt = SYSTEM_PROMPT;
+
+    if (input.projectContext) {
+        const brandContext = buildBrandContextPrompt(input.projectContext);
+        if (brandContext) {
+            systemPrompt += `\n\n## Contexto da Marca\n${brandContext}`;
+            systemPrompt += `\nUse este contexto para adaptar o tom, estilo e conteudo da legenda de acordo com a identidade da marca.`;
+        }
+    }
+
     // Build messages array for the LLM
     const messages: ChatMessage[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
     ];
 
     // Add conversation history (excluding system messages, we have our own)

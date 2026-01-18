@@ -50,6 +50,31 @@
 	let platform = $state("instagram");
 	let captionModel = $state<string>("openai/gpt-4.1");
 	let selectedProjectId = $state<Id<"projects"> | null>(null);
+	let includeProjectContext = $state(true);
+
+	// Query selected project data
+	const selectedProjectQuery = useQuery(
+		api.projects.get,
+		() => selectedProjectId ? { projectId: selectedProjectId } : "skip"
+	);
+	let selectedProject = $derived(selectedProjectQuery.data);
+
+	// Query context images for selected project
+	const contextImagesQuery = useQuery(
+		api.contextImages.list,
+		() => selectedProjectId ? { projectId: selectedProjectId } : "skip"
+	);
+	let contextImages = $derived(contextImagesQuery.data ?? []);
+
+	// Check if project has any context configured
+	let projectHasContext = $derived(
+		selectedProject && (
+			!!selectedProject.accountDescription ||
+			(selectedProject.brandTraits && selectedProject.brandTraits.length > 0) ||
+			!!selectedProject.additionalContext ||
+			contextImages.length > 0
+		)
+	);
 
 	// Initialize selectedProjectId from URL param
 	$effect(() => {
@@ -261,9 +286,35 @@
 			}
 
 			// Build attachments object if we have reference images
-			const attachments = imageStorageIds.length > 0 
-				? { imageStorageIds } 
+			const attachments = imageStorageIds.length > 0
+				? { imageStorageIds }
 				: undefined;
+
+			// Build projectContext if enabled and project has context
+			let projectContext: {
+				accountDescription?: string;
+				brandTraits?: string[];
+				additionalContext?: string;
+				contextImageUrls?: string[];
+			} | undefined;
+
+			if (includeProjectContext && projectHasContext && selectedProject) {
+				projectContext = {};
+				if (selectedProject.accountDescription) {
+					projectContext.accountDescription = selectedProject.accountDescription;
+				}
+				if (selectedProject.brandTraits && selectedProject.brandTraits.length > 0) {
+					projectContext.brandTraits = selectedProject.brandTraits;
+				}
+				if (selectedProject.additionalContext) {
+					projectContext.additionalContext = selectedProject.additionalContext;
+				}
+				if (contextImages.length > 0) {
+					projectContext.contextImageUrls = contextImages
+						.filter(img => img.url)
+						.map(img => img.url as string);
+				}
+			}
 
 			// Call action - it will return generatedPostId
 			// The action runs in the background, subscriptions will update UI progressively
@@ -275,6 +326,7 @@
 				resolution,
 				...(attachments && { attachments }),
 				...(selectedProjectId && { projectId: selectedProjectId }),
+				...(projectContext && { projectContext }),
 			});
 
 			// Set ID to start subscriptions (this triggers reactive updates)
@@ -489,6 +541,32 @@
 						value={selectedProjectId}
 						onchange={(id) => selectedProjectId = id}
 					/>
+
+					<!-- Context toggle (only shown when project has context) -->
+					{#if selectedProjectId && projectHasContext}
+						<div class="flex items-center justify-between pt-2">
+							<div class="flex items-center gap-2">
+								<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+								</svg>
+								<span class="text-sm">Incluir contexto da marca</span>
+							</div>
+							<button
+								type="button"
+								role="switch"
+								aria-checked={includeProjectContext}
+								class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {includeProjectContext ? 'bg-primary' : 'bg-muted'}"
+								onclick={() => includeProjectContext = !includeProjectContext}
+							>
+								<span
+									class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform {includeProjectContext ? 'translate-x-4' : 'translate-x-0'}"
+								></span>
+							</button>
+						</div>
+						<p class="text-xs text-muted-foreground">
+							A IA usara as informacoes configuradas nas configuracoes do projeto
+						</p>
+					{/if}
 
 					<Separator />
 

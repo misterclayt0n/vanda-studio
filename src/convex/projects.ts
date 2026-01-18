@@ -251,6 +251,11 @@ export const update = mutation({
         projectId: v.id("projects"),
         name: v.optional(v.string()),
         instagramUrl: v.optional(v.string()),
+        // Brand context fields
+        platform: v.optional(v.string()),
+        accountDescription: v.optional(v.string()),
+        brandTraits: v.optional(v.array(v.string())),
+        additionalContext: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -275,6 +280,10 @@ export const update = mutation({
         const patch: Record<string, unknown> = {};
         if (args.name !== undefined) patch.name = args.name;
         if (args.instagramUrl !== undefined) patch.instagramUrl = args.instagramUrl;
+        if (args.platform !== undefined) patch.platform = args.platform;
+        if (args.accountDescription !== undefined) patch.accountDescription = args.accountDescription;
+        if (args.brandTraits !== undefined) patch.brandTraits = args.brandTraits;
+        if (args.additionalContext !== undefined) patch.additionalContext = args.additionalContext;
 
         if (Object.keys(patch).length === 0) {
             return project;

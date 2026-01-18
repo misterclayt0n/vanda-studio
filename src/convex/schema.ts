@@ -23,7 +23,20 @@ export default defineSchema({
         website: v.optional(v.string()),
         isFetching: v.optional(v.boolean()),
         createdAt: v.number(),
+        // Brand context fields
+        platform: v.optional(v.string()), // "instagram" | "tiktok" | "twitter" | "other"
+        accountDescription: v.optional(v.string()), // What is this account about?
+        brandTraits: v.optional(v.array(v.string())), // ["friendly", "witty", "concise"]
+        additionalContext: v.optional(v.string()), // Free-form additional context
     }).index("by_user_id", ["userId"]),
+
+    // Context images for brand context
+    context_images: defineTable({
+        projectId: v.id("projects"),
+        storageId: v.id("_storage"),
+        storageUrl: v.optional(v.string()),
+        createdAt: v.number(),
+    }).index("by_project_id", ["projectId"]),
 
     instagram_posts: defineTable({
         projectId: v.id("projects"),

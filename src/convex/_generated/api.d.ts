@@ -24,6 +24,7 @@ import type * as ai_llm_types from "../ai/llm/types.js";
 import type * as billing_usage from "../billing/usage.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
+import type * as contextImages from "../contextImages.js";
 import type * as files from "../files.js";
 import type * as generatedImages from "../generatedImages.js";
 import type * as generatedPosts from "../generatedPosts.js";
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   "billing/usage": typeof billing_usage;
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
+  contextImages: typeof contextImages;
   files: typeof files;
   generatedImages: typeof generatedImages;
   generatedPosts: typeof generatedPosts;

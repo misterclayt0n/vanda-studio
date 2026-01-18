@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
-import { generateCaption, generateImage, type ChatMessage } from "./agents/index";
+import { generateCaption, generateImage, type ChatMessage, type ProjectContext } from "./agents/index";
 import {
     MODELS,
     IMAGE_MODELS,
@@ -118,6 +118,15 @@ type GeneratedImageResult = {
  * Uses progressive updates - caption and images update DB as they complete,
  * allowing frontend to show results progressively via subscriptions.
  */
+const projectContextValidator = v.optional(
+    v.object({
+        accountDescription: v.optional(v.string()),
+        brandTraits: v.optional(v.array(v.string())),
+        additionalContext: v.optional(v.string()),
+        contextImageUrls: v.optional(v.array(v.string())),
+    })
+);
+
 export const generate = action({
     args: {
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone
@@ -127,6 +136,7 @@ export const generate = action({
         imageModels: v.optional(v.array(v.string())), // Models to generate with
         aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
         resolution: v.optional(v.string()), // "standard", "high", "ultra"
+        projectContext: projectContextValidator, // Brand context for personalization
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -182,6 +192,7 @@ export const generate = action({
             userMessage: args.message,
             ...(referenceText && { referenceText }),
             ...(args.captionModel && { model: args.captionModel }),
+            ...(args.projectContext && { projectContext: args.projectContext }),
         });
 
         // 8. Update post with caption, change status to "generating_images"
@@ -305,6 +316,7 @@ export const regenerateCaption = action({
         message: v.string(),
         attachments: attachmentsValidator,
         captionModel: v.optional(v.string()), // Model for caption generation
+        projectContext: projectContextValidator, // Brand context for personalization
     },
     handler: async (ctx, args) => {
         // 1. Auth check
@@ -354,6 +366,7 @@ export const regenerateCaption = action({
             userMessage: args.message,
             ...(referenceText && { referenceText }),
             ...(args.captionModel && { model: args.captionModel }),
+            ...(args.projectContext && { projectContext: args.projectContext }),
         });
 
         // 8. Update post
