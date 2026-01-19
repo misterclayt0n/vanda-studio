@@ -16,6 +16,8 @@
         accountDescription?: string;
         brandTraits?: string[];
         additionalContext?: string;
+        isFetching?: boolean;
+        bio?: string;
     }
 
     interface Props {
@@ -66,6 +68,10 @@
     let isSaving = $state(false);
     let saveError = $state<string | null>(null);
     let saveSuccess = $state(false);
+
+    // AI auto-fill state
+    let isAnalyzing = $state(false);
+    let analyzeError = $state<string | null>(null);
 
     // Profile picture upload
     async function handleProfilePictureSelect(event: Event) {
@@ -162,6 +168,28 @@
         if (!project) return null;
         return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
     }
+
+    // Auto-fill with AI
+    async function handleAutoFill() {
+        if (isAnalyzing) return;
+
+        isAnalyzing = true;
+        analyzeError = null;
+
+        try {
+            const result = await client.action(api.ai.profileAnalysis.analyzeProfileForConfig, {
+                projectId,
+            });
+            accountDescription = result.accountDescription;
+            brandTraits = result.brandTraits;
+            additionalContext = result.additionalContext;
+        } catch (err) {
+            console.error("Profile analysis failed:", err);
+            analyzeError = err instanceof Error ? err.message : "Erro ao analisar perfil";
+        } finally {
+            isAnalyzing = false;
+        }
+    }
 </script>
 
 <div class="space-y-8">
@@ -253,7 +281,33 @@
 
     <!-- Brand Context Section -->
     <section class="border border-border bg-card p-6">
-        <h2 class="text-lg font-semibold mb-4">Contexto da Marca</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Contexto da Marca</h2>
+            <Button
+                variant="outline"
+                size="sm"
+                onclick={handleAutoFill}
+                disabled={isAnalyzing || project?.isFetching}
+            >
+                {#if isAnalyzing}
+                    <svg class="h-4 w-4 animate-spin mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analisando...
+                {:else}
+                    <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                    </svg>
+                    Preencher com IA
+                {/if}
+            </Button>
+        </div>
+        {#if analyzeError}
+            <div class="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p class="text-sm text-destructive">{analyzeError}</p>
+            </div>
+        {/if}
         <div class="space-y-4">
             <div class="space-y-2">
                 <Label for="account-description" class="text-sm font-medium">Sobre a Conta</Label>
@@ -319,7 +373,7 @@
                 </svg>
                 Salvando...
             {:else}
-                Salvar Alteracoes
+                Salvar Alterações
             {/if}
         </Button>
     </div>

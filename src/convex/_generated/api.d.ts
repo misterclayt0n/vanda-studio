@@ -21,6 +21,7 @@ import type * as ai_llm_runtime from "../ai/llm/runtime.js";
 import type * as ai_llm_services_ImageGeneration from "../ai/llm/services/ImageGeneration.js";
 import type * as ai_llm_services_TextGeneration from "../ai/llm/services/TextGeneration.js";
 import type * as ai_llm_types from "../ai/llm/types.js";
+import type * as ai_profileAnalysis from "../ai/profileAnalysis.js";
 import type * as billing_usage from "../billing/usage.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "ai/llm/services/ImageGeneration": typeof ai_llm_services_ImageGeneration;
   "ai/llm/services/TextGeneration": typeof ai_llm_services_TextGeneration;
   "ai/llm/types": typeof ai_llm_types;
+  "ai/profileAnalysis": typeof ai_profileAnalysis;
   "billing/usage": typeof billing_usage;
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
