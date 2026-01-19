@@ -51,20 +51,21 @@ function dbMessagesToChat(messages: Doc<"chat_messages">[]): ChatMessage[] {
 }
 
 /**
- * Collect all reference image URLs from attachments
+ * Collect all reference image URLs from attachments and brand context
  */
 async function collectReferenceImageUrls(
     ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
-    attachments?: Attachments
+    attachments?: Attachments,
+    contextImageUrls?: string[]
 ): Promise<string[]> {
     const urls: string[] = [];
 
-    // External URLs
+    // External URLs from attachments
     if (attachments?.imageUrls) {
         urls.push(...attachments.imageUrls);
     }
 
-    // Storage IDs -> URLs
+    // Storage IDs from attachments -> URLs
     if (attachments?.imageStorageIds) {
         for (const storageId of attachments.imageStorageIds) {
             const url = await ctx.storage.getUrl(storageId);
@@ -72,6 +73,11 @@ async function collectReferenceImageUrls(
                 urls.push(url);
             }
         }
+    }
+
+    // Brand context images from project settings
+    if (contextImageUrls && contextImageUrls.length > 0) {
+        urls.push(...contextImageUrls);
     }
 
     return urls;
@@ -206,8 +212,12 @@ export const generate = action({
         });
         console.log(`[GENERATE] Caption saved, starting image generation...`);
 
-        // 9. Collect reference images
-        const referenceImageUrls = await collectReferenceImageUrls(ctx, args.attachments);
+        // 9. Collect reference images (from attachments + brand context)
+        const referenceImageUrls = await collectReferenceImageUrls(
+            ctx,
+            args.attachments,
+            args.projectContext?.contextImageUrls
+        );
 
         // 10. Generate images in parallel (one per model)
         // Each image saves to DB when done, removing from pendingImageModels
@@ -409,6 +419,7 @@ export const regenerateImage = action({
         generatedPostId: v.id("generated_posts"),
         message: v.string(),
         attachments: attachmentsValidator,
+        projectContext: projectContextValidator, // Brand context for personalization
     },
     handler: async (ctx, args) => {
         // 1. Auth check
@@ -442,8 +453,12 @@ export const regenerateImage = action({
             ...(args.attachments && { attachments: args.attachments }),
         });
 
-        // 5. Collect reference images
-        const referenceImageUrls = await collectReferenceImageUrls(ctx, args.attachments);
+        // 5. Collect reference images (from attachments + brand context)
+        const referenceImageUrls = await collectReferenceImageUrls(
+            ctx,
+            args.attachments,
+            args.projectContext?.contextImageUrls
+        );
 
         // 6. Generate new image
         let imageStorageId: Id<"_storage">;
