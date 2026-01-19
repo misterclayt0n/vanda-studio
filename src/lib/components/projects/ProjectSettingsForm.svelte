@@ -38,6 +38,10 @@
     // Track if form has been initialized
     let formInitialized = $state(false);
 
+    // Profile picture upload state
+    let profilePictureInputEl = $state<HTMLInputElement | null>(null);
+    let isUploadingProfilePicture = $state(false);
+
     // Initialize form when project data loads
     $effect(() => {
         if (project && !formInitialized) {
@@ -62,6 +66,44 @@
     let isSaving = $state(false);
     let saveError = $state<string | null>(null);
     let saveSuccess = $state(false);
+
+    // Profile picture upload
+    async function handleProfilePictureSelect(event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file || !file.type.startsWith('image/')) return;
+
+        isUploadingProfilePicture = true;
+        try {
+            // Get upload URL
+            const uploadUrl = await client.mutation(api.contextImages.generateUploadUrl, {});
+
+            // Upload the file
+            const response = await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": file.type },
+                body: file,
+            });
+
+            if (!response.ok) {
+                throw new Error("Falha ao fazer upload da imagem");
+            }
+
+            const { storageId } = await response.json();
+
+            // Update project profile picture
+            await client.mutation(api.projects.updateProfilePictureStorage, {
+                projectId,
+                storageId: storageId as Id<"_storage">,
+            });
+        } catch (err) {
+            console.error("Profile picture upload failed:", err);
+            saveError = err instanceof Error ? err.message : "Erro ao fazer upload da imagem";
+        } finally {
+            isUploadingProfilePicture = false;
+            input.value = "";
+        }
+    }
 
     // Track if form has changes
     let hasChanges = $derived(
@@ -125,20 +167,53 @@
 <div class="space-y-8">
     <!-- Header -->
     <div class="flex items-center gap-4">
-        <!-- Profile picture -->
-        <div class="h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted">
-            {#if getProfilePicture()}
+        <!-- Profile picture (clickable for upload) -->
+        <input
+            bind:this={profilePictureInputEl}
+            type="file"
+            accept="image/*"
+            class="hidden"
+            onchange={handleProfilePictureSelect}
+        />
+        <button
+            type="button"
+            class="group relative h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted transition-all hover:border-primary"
+            onclick={() => profilePictureInputEl?.click()}
+            disabled={isUploadingProfilePicture}
+        >
+            {#if isUploadingProfilePicture}
+                <div class="flex h-full w-full items-center justify-center bg-muted">
+                    <svg class="h-6 w-6 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            {:else if getProfilePicture()}
                 <img
                     src={getProfilePicture()}
                     alt={project.name}
                     class="h-full w-full object-cover"
                 />
+                <!-- Hover overlay -->
+                <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    </svg>
+                </div>
             {:else}
-                <div class="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted-foreground">
+                <div class="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted-foreground group-hover:text-primary">
                     {project.name.charAt(0).toUpperCase()}
                 </div>
+                <!-- Hover overlay for empty state -->
+                <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    </svg>
+                </div>
             {/if}
-        </div>
+        </button>
         <div>
             <h1 class="text-2xl font-bold">Configuracoes do Projeto</h1>
             <p class="text-muted-foreground">Configure o contexto da marca para geracao de conteudo</p>
