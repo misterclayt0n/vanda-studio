@@ -547,36 +547,62 @@ export const listByUser = query({
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, limit);
 
-        // Resolve image URLs and get first generated image for each
-        return Promise.all(
-            allPosts.map(async (post) => {
-                let imageUrl: string | null = null;
-                if (post.imageStorageId) {
-                    imageUrl = await ctx.storage.getUrl(post.imageStorageId);
-                }
-
-                // Get first generated image for this post
-                const images = await ctx.db
+        // Batch fetch first images for all posts
+        const postIds = allPosts.map((p) => p._id);
+        const allFirstImages = await Promise.all(
+            postIds.map((postId) =>
+                ctx.db
                     .query("generated_images")
-                    .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", post._id))
-                    .take(1);
-                
-                let firstImageUrl: string | null = null;
-                const firstImage = images[0];
-                if (firstImage) {
-                    firstImageUrl = await ctx.storage.getUrl(firstImage.storageId);
-                }
-
-                // Fallback to first image's model if post.imageModel is not set
-                const imageModel = post.imageModel ?? firstImage?.model;
-
-                return {
-                    ...post,
-                    imageUrl: firstImageUrl ?? imageUrl,
-                    ...(imageModel && { imageModel }),
-                };
-            })
+                    .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", postId))
+                    .first()
+            )
         );
+
+        // Create lookup map: postId -> firstImage
+        const firstImageByPostId = new Map<Id<"generated_posts">, (typeof allFirstImages)[0]>();
+        for (let i = 0; i < postIds.length; i++) {
+            if (allFirstImages[i]) {
+                firstImageByPostId.set(postIds[i], allFirstImages[i]);
+            }
+        }
+
+        // Collect all storage IDs to resolve in one batch
+        const storageIdsToResolve: Id<"_storage">[] = [];
+        for (const post of allPosts) {
+            if (post.imageStorageId) storageIdsToResolve.push(post.imageStorageId);
+        }
+        for (const img of allFirstImages) {
+            if (img) storageIdsToResolve.push(img.storageId);
+        }
+
+        // Batch resolve all storage URLs at once
+        const storageUrls = await Promise.all(
+            storageIdsToResolve.map((id) => ctx.storage.getUrl(id))
+        );
+
+        // Create URL lookup map
+        const urlByStorageId = new Map<string, string | null>();
+        for (let i = 0; i < storageIdsToResolve.length; i++) {
+            urlByStorageId.set(storageIdsToResolve[i], storageUrls[i]);
+        }
+
+        // Map posts with resolved data (no async needed)
+        return allPosts.map((post) => {
+            const firstImage = firstImageByPostId.get(post._id);
+            const postImageUrl = post.imageStorageId
+                ? urlByStorageId.get(post.imageStorageId)
+                : null;
+            const firstImageUrl = firstImage
+                ? urlByStorageId.get(firstImage.storageId)
+                : null;
+            const imageModel = post.imageModel ?? firstImage?.model;
+
+            return {
+                ...post,
+                imageUrl: firstImageUrl ?? postImageUrl ?? null,
+                ...(imageModel && { imageModel }),
+            };
+        });
     },
 });
 
