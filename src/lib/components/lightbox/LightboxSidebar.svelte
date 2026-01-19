@@ -63,7 +63,6 @@
     );
     let conversations = $derived(conversationsQuery.data ?? []);
 
-
     // Model display names
     const modelDisplayNames: Record<string, string> = {
         "google/gemini-2.5-flash-image": "Nano Banana",

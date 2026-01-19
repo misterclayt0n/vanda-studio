@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // Get a single generated post with resolved image URL
 export const get = query({
@@ -541,8 +542,17 @@ export const listByUser = query({
         const projectPostsArrays = await Promise.all(projectPostsPromises);
         const projectPosts = projectPostsArrays.flat();
 
-        // Combine and sort by createdAt desc, filter out deleted
-        const allPosts = [...standalonePosts, ...projectPosts]
+        // Combine and deduplicate by _id (a post can have both userId AND projectId)
+        const combinedPosts = [...standalonePosts, ...projectPosts];
+        const seenIds = new Set<string>();
+        const uniquePosts = combinedPosts.filter((post) => {
+            if (seenIds.has(post._id)) return false;
+            seenIds.add(post._id);
+            return true;
+        });
+
+        // Filter out deleted, sort by createdAt desc, and limit
+        const allPosts = uniquePosts
             .filter((post) => !post.deletedAt)
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, limit);
@@ -561,10 +571,12 @@ export const listByUser = query({
         );
 
         // Create lookup map only for posts that needed it
-        const firstImageByPostId = new Map<Id<"generated_posts">, (typeof allFirstImages)[0]>();
+        const firstImageByPostId = new Map<Id<"generated_posts">, NonNullable<(typeof allFirstImages)[0]>>();
         for (let i = 0; i < postIdsNeedingImage.length; i++) {
-            if (allFirstImages[i]) {
-                firstImageByPostId.set(postIdsNeedingImage[i], allFirstImages[i]);
+            const postId = postIdsNeedingImage[i];
+            const img = allFirstImages[i];
+            if (postId && img) {
+                firstImageByPostId.set(postId, img);
             }
         }
 
@@ -585,17 +597,21 @@ export const listByUser = query({
         // Create URL lookup map
         const urlByStorageId = new Map<string, string | null>();
         for (let i = 0; i < storageIdsToResolve.length; i++) {
-            urlByStorageId.set(storageIdsToResolve[i], storageUrls[i]);
+            const storageId = storageIdsToResolve[i];
+            const url = storageUrls[i];
+            if (storageId !== undefined) {
+                urlByStorageId.set(storageId, url ?? null);
+            }
         }
 
         // Map posts with resolved data (no async needed)
         return allPosts.map((post) => {
             const firstImage = firstImageByPostId.get(post._id);
             const postImageUrl = post.imageStorageId
-                ? urlByStorageId.get(post.imageStorageId)
+                ? (urlByStorageId.get(post.imageStorageId) ?? null)
                 : null;
             const firstImageUrl = firstImage
-                ? urlByStorageId.get(firstImage.storageId)
+                ? (urlByStorageId.get(firstImage.storageId) ?? null)
                 : null;
             const imageModel = post.imageModel ?? firstImage?.model;
 
@@ -645,35 +661,46 @@ export const getWithHistory = query({
             return null;
         }
 
-        // Get all generated images
-        const images = await ctx.db
-            .query("generated_images")
-            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
-            .collect();
+        // Fetch images and messages in parallel
+        const [images, messages] = await Promise.all([
+            ctx.db
+                .query("generated_images")
+                .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+                .collect(),
+            ctx.db
+                .query("chat_messages")
+                .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
+                .order("asc")
+                .collect(),
+        ]);
 
-        const imagesWithUrls = await Promise.all(
-            images.map(async (img) => ({
-                ...img,
-                url: await ctx.storage.getUrl(img.storageId),
-            }))
-        );
-
-        // Get chat messages (history)
-        const messages = await ctx.db
-            .query("chat_messages")
-            .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", args.id))
-            .order("asc")
-            .collect();
-
-        // Resolve main image URL
-        let imageUrl: string | null = null;
+        // Collect all storage IDs to resolve in one batch
+        const storageIds: Id<"_storage">[] = images.map((img) => img.storageId);
         if (post.imageStorageId) {
-            imageUrl = await ctx.storage.getUrl(post.imageStorageId);
+            storageIds.push(post.imageStorageId);
         }
+
+        // Batch resolve all storage URLs
+        const urls = await Promise.all(storageIds.map((id) => ctx.storage.getUrl(id)));
+
+        // Build URL lookup map
+        const urlByStorageId = new Map<Id<"_storage">, string | null>();
+        for (let i = 0; i < storageIds.length; i++) {
+            const storageId = storageIds[i];
+            if (storageId !== undefined) {
+                urlByStorageId.set(storageId, urls[i] ?? null);
+            }
+        }
+
+        // Map images with URLs
+        const imagesWithUrls = images.map((img) => ({
+            ...img,
+            url: urlByStorageId.get(img.storageId) ?? null,
+        }));
 
         return {
             ...post,
-            imageUrl,
+            imageUrl: post.imageStorageId ? urlByStorageId.get(post.imageStorageId) ?? null : null,
             images: imagesWithUrls,
             messages,
         };

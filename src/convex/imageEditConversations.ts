@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // Get a single conversation with source image URL and original post data
 export const get = query({
@@ -357,38 +358,70 @@ export const listBySourceImage = query({
             .withIndex("by_source_image", (q) => q.eq("sourceImageId", args.sourceImageId))
             .collect();
 
-        // Filter out deleted and enrich with turn counts and thumbnails
+        // Filter out deleted conversations
         const activeConversations = conversations.filter((conv) => !conv.deletedAt);
 
-        return Promise.all(
-            activeConversations.map(async (conv) => {
-                // Get turn count
-                const turns = await ctx.db
-                    .query("image_edit_turns")
-                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
-                    .collect();
+        if (activeConversations.length === 0) {
+            return [];
+        }
 
-                // Get latest output for thumbnail
-                const latestOutput = await ctx.db
-                    .query("image_edit_outputs")
-                    .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
-                    .order("desc")
-                    .first();
+        // Batch fetch all turns and outputs for all conversations in parallel
+        const conversationIds = activeConversations.map((conv) => conv._id);
 
-                let thumbnailUrl: string | null = null;
-                if (latestOutput) {
-                    thumbnailUrl = await ctx.storage.getUrl(latestOutput.storageId);
-                } else {
-                    thumbnailUrl = await ctx.storage.getUrl(conv.sourceStorageId);
+        const [allTurns, allOutputs] = await Promise.all([
+            Promise.all(
+                conversationIds.map((convId) =>
+                    ctx.db
+                        .query("image_edit_turns")
+                        .withIndex("by_conversation", (q) => q.eq("conversationId", convId))
+                        .collect()
+                )
+            ),
+            Promise.all(
+                conversationIds.map((convId) =>
+                    ctx.db
+                        .query("image_edit_outputs")
+                        .withIndex("by_conversation", (q) => q.eq("conversationId", convId))
+                        .order("desc")
+                        .first()
+                )
+            ),
+        ]);
+
+        // Build lookup maps
+        const turnCountByConvId = new Map<Id<"image_edit_conversations">, number>();
+        const latestOutputByConvId = new Map<Id<"image_edit_conversations">, NonNullable<typeof allOutputs[0]>>();
+
+        for (let i = 0; i < conversationIds.length; i++) {
+            const convId = conversationIds[i];
+            const turns = allTurns[i];
+            const output = allOutputs[i];
+            if (convId && turns) {
+                turnCountByConvId.set(convId, turns.length);
+                if (output) {
+                    latestOutputByConvId.set(convId, output);
                 }
+            }
+        }
 
-                return {
-                    ...conv,
-                    turnCount: turns.length,
-                    thumbnailUrl,
-                };
-            })
+        // Collect all storage IDs needed for thumbnails
+        const storageIdsToResolve: Id<"_storage">[] = [];
+        for (const conv of activeConversations) {
+            const latestOutput = latestOutputByConvId.get(conv._id);
+            storageIdsToResolve.push(latestOutput?.storageId ?? conv.sourceStorageId);
+        }
+
+        // Batch resolve all storage URLs
+        const thumbnailUrls = await Promise.all(
+            storageIdsToResolve.map((id) => ctx.storage.getUrl(id))
         );
+
+        // Build final result
+        return activeConversations.map((conv, i) => ({
+            ...conv,
+            turnCount: turnCountByConvId.get(conv._id) ?? 0,
+            thumbnailUrl: thumbnailUrls[i],
+        }));
     },
 });
 

@@ -77,7 +77,7 @@
 
 	// Queries
 	const projectsQuery = useQuery(api.projects.list, () => ({}));
-	const postsQuery = useQuery(api.generatedPosts.listByUser, () => filterProjectId ? "skip" : { limit: 50 });
+	const postsQuery = useQuery(api.generatedPosts.listByUser, () => filterProjectId ? "skip" : {});
 	const projectPostsQuery = useQuery(
 		api.generatedPosts.listByProject,
 		() => filterProjectId ? { projectId: filterProjectId } : "skip"
