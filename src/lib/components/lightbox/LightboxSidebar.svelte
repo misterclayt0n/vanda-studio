@@ -7,19 +7,31 @@
     import LightboxThumbnail from "./LightboxThumbnail.svelte";
     import LightboxConversationCard from "./LightboxConversationCard.svelte";
 
+    interface PostData {
+        _id: Id<"generated_posts">;
+        caption: string;
+        createdAt: number;
+        images?: Array<{
+            _id: Id<"generated_images">;
+            storageId: Id<"_storage">;
+            model: string;
+            url: string | null;
+            prompt: string;
+            width: number;
+            height: number;
+        }>;
+    }
+
     interface Props {
         postId: Id<"generated_posts">;
+        post?: PostData | null;
         selectedImageId?: string | null;
         onselectimage: (imageId: string) => void;
         ondownload: () => void;
         onrefine: () => void;
     }
 
-    let { postId, selectedImageId, onselectimage, ondownload, onrefine }: Props = $props();
-
-    // Fetch full post data with images
-    const postQuery = useQuery(api.generatedPosts.getWithHistory, () => ({ id: postId }));
-    let post = $derived(postQuery.data);
+    let { postId, post, selectedImageId, onselectimage, ondownload, onrefine }: Props = $props();
 
     // Current image (default to first if none selected)
     let currentImage = $derived(
@@ -78,7 +90,7 @@
 <aside
     class="flex w-[400px] shrink-0 flex-col overflow-y-auto border-l border-white/10 bg-background"
 >
-    {#if postQuery.isLoading}
+    {#if !post}
         <!-- Loading state -->
         <div class="flex flex-1 items-center justify-center">
             <svg

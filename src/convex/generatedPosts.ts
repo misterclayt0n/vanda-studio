@@ -516,7 +516,7 @@ export const listByUser = query({
             return [];
         }
 
-        const limit = args.limit ?? 50;
+        const limit = args.limit ?? 20;
 
         // Get posts by userId (standalone posts)
         const standalonePosts = await ctx.db
@@ -547,10 +547,12 @@ export const listByUser = query({
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, limit);
 
-        // Batch fetch first images for all posts
-        const postIds = allPosts.map((p) => p._id);
+        // Only fetch first images for posts WITHOUT imageStorageId
+        const postsNeedingFirstImage = allPosts.filter((p) => !p.imageStorageId);
+        const postIdsNeedingImage = postsNeedingFirstImage.map((p) => p._id);
+
         const allFirstImages = await Promise.all(
-            postIds.map((postId) =>
+            postIdsNeedingImage.map((postId) =>
                 ctx.db
                     .query("generated_images")
                     .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", postId))
@@ -558,11 +560,11 @@ export const listByUser = query({
             )
         );
 
-        // Create lookup map: postId -> firstImage
+        // Create lookup map only for posts that needed it
         const firstImageByPostId = new Map<Id<"generated_posts">, (typeof allFirstImages)[0]>();
-        for (let i = 0; i < postIds.length; i++) {
+        for (let i = 0; i < postIdsNeedingImage.length; i++) {
             if (allFirstImages[i]) {
-                firstImageByPostId.set(postIds[i], allFirstImages[i]);
+                firstImageByPostId.set(postIdsNeedingImage[i], allFirstImages[i]);
             }
         }
 
