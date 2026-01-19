@@ -114,7 +114,7 @@
 <svelte:window onpaste={handlePaste} />
 
 <div class="space-y-3">
-    <Label class="text-sm font-medium">Imagens de Referencia</Label>
+    <Label class="text-sm font-medium">Imagens de Referência</Label>
 
     <!-- Drop zone -->
     <div

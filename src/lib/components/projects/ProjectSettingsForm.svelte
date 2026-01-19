@@ -215,14 +215,14 @@
             {/if}
         </button>
         <div>
-            <h1 class="text-2xl font-bold">Configuracoes do Projeto</h1>
-            <p class="text-muted-foreground">Configure o contexto da marca para geracao de conteudo</p>
+            <h1 class="text-2xl font-bold">Configurações do Projeto</h1>
+            <p class="text-muted-foreground">Configure o contexto da marca para geração de conteúdo</p>
         </div>
     </div>
 
     <!-- Basic Info Section -->
     <section class="border border-border bg-card p-6">
-        <h2 class="text-lg font-semibold mb-4">Informacoes Basicas</h2>
+        <h2 class="text-lg font-semibold mb-4">Informações Básicas</h2>
         <div class="space-y-4">
             <div class="space-y-2">
                 <Label for="name" class="text-sm font-medium">Nome do Projeto</Label>
@@ -260,7 +260,7 @@
                 <Textarea
                     id="account-description"
                     bind:value={accountDescription}
-                    placeholder="Descreva do que se trata esta conta. Qual e o nicho? Quem e o publico-alvo? Qual e a proposta de valor?"
+                    placeholder="Descreva do que se trata esta conta. Qual é o nicho? Quem é o público-alvo? Qual é a proposta de valor?"
                     class="min-h-[100px] resize-none bg-background"
                 />
                 <p class="text-xs text-muted-foreground">
@@ -282,7 +282,7 @@
                 <Textarea
                     id="additional-context"
                     bind:value={additionalContext}
-                    placeholder="Informacoes adicionais que podem ser uteis para a geracao de conteudo. Ex: datas importantes, campanhas ativas, restricoes, preferencias de linguagem..."
+                    placeholder="Informações adicionais que podem ser úteis para a geração de conteúdo. Ex: datas importantes, campanhas ativas, restrições, preferências de linguagem..."
                     class="min-h-[100px] resize-none bg-background"
                 />
             </div>
