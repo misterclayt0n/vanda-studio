@@ -11,6 +11,24 @@
 
 	const client = useConvexClient();
 
+	// View mode state - initialized from URL (using 'tab' to avoid conflict with lightbox 'view' param)
+	type ViewMode = 'posts' | 'conversations';
+	let viewMode = $state<ViewMode>(
+		($page.url.searchParams.get('tab') as ViewMode) || 'posts'
+	);
+
+	// Update URL when viewMode changes
+	function setViewMode(mode: ViewMode) {
+		viewMode = mode;
+		const url = new URL($page.url);
+		if (mode === 'posts') {
+			url.searchParams.delete('tab');
+		} else {
+			url.searchParams.set('tab', mode);
+		}
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
 	// Search state
 	let searchQuery = $state("");
 	let searchInputEl: HTMLInputElement;
@@ -115,6 +133,12 @@
 	const searchResultsQuery = useQuery(
 		api.generatedPosts.search,
 		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
+	);
+
+	// Conversations query - only active when viewing conversations
+	const conversationsQuery = useQuery(
+		api.imageEditConversations.listByUser,
+		() => viewMode === 'conversations' ? {} : "skip"
 	);
 
 	// Load more posts (infinite scroll)
@@ -330,8 +354,26 @@
 					</div>
 				</div>
 
-				<!-- Project Filter -->
-				{#if projects.length > 0}
+				<!-- View Mode Toggle -->
+				<div class="flex h-9 overflow-hidden rounded-md border border-border">
+					<button
+						type="button"
+						class="px-3 text-sm transition-colors {viewMode === 'posts' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}"
+						onclick={() => setViewMode('posts')}
+					>
+						Posts
+					</button>
+					<button
+						type="button"
+						class="px-3 text-sm transition-colors {viewMode === 'conversations' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}"
+						onclick={() => setViewMode('conversations')}
+					>
+						Conversas
+					</button>
+				</div>
+
+				<!-- Project Filter (only show when viewing posts) -->
+				{#if projects.length > 0 && viewMode === 'posts'}
 					<Popover bind:open={projectFilterOpen}>
 						<PopoverTrigger>
 							<button
@@ -426,7 +468,9 @@
 				{/if}
 
 				<span class="text-sm text-muted-foreground">
-					{#if searchQuery.trim()}
+					{#if viewMode === 'conversations'}
+						{conversationsQuery.data?.length ?? 0} conversa{(conversationsQuery.data?.length ?? 0) !== 1 ? 's' : ''}
+					{:else if searchQuery.trim()}
 						{posts().length} resultado{posts().length !== 1 ? 's' : ''} para "{searchQuery}"
 					{:else if filterProjectId && selectedProject}
 						{posts().length} post{posts().length !== 1 ? 's' : ''} em {selectedProject.name}
@@ -465,7 +509,84 @@
 		</SignedOut>
 
 		<SignedIn>
-			{#if isLoading}
+			{#if viewMode === 'conversations'}
+				<!-- Conversations View -->
+				{#if conversationsQuery.isLoading}
+					<div class="flex items-center justify-center py-20">
+						<div class="flex flex-col items-center gap-4">
+							<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<p class="text-sm text-muted-foreground">Carregando conversas...</p>
+						</div>
+					</div>
+				{:else if !conversationsQuery.data || conversationsQuery.data.length === 0}
+					<div class="flex flex-col items-center justify-center py-20">
+						<div class="flex h-20 w-20 items-center justify-center rounded-none border-2 border-dashed border-border bg-muted/50">
+							<svg class="h-10 w-10 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+							</svg>
+						</div>
+						<h3 class="mt-6 text-lg font-medium">Nenhuma conversa ainda</h3>
+						<p class="mt-2 text-sm text-muted-foreground">
+							Refine uma imagem para criar sua primeira conversa
+						</p>
+						<Button class="mt-6" variant="outline" onclick={() => viewMode = 'posts'}>
+							Ver Posts
+						</Button>
+					</div>
+				{:else}
+					<!-- Conversations grid -->
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+						{#each conversationsQuery.data as conversation (conversation._id)}
+							<div
+								class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
+								onclick={() => goto(`/posts/edit/${conversation._id}?from=gallery&tab=conversations`)}
+								onkeydown={(e) => e.key === 'Enter' && goto(`/posts/edit/${conversation._id}?from=gallery&tab=conversations`)}
+								role="button"
+								tabindex="0"
+							>
+								<!-- Image -->
+								<div class="relative aspect-square overflow-hidden bg-muted">
+									{#if conversation.latestOutputUrl || conversation.sourceImageUrl}
+										<img
+											src={conversation.latestOutputUrl ?? conversation.sourceImageUrl}
+											alt={conversation.title}
+											class="h-full w-full object-cover transition-transform group-hover:scale-105"
+										/>
+									{:else}
+										<div class="flex h-full w-full items-center justify-center">
+											<svg class="h-12 w-12 text-muted-foreground/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+											</svg>
+										</div>
+									{/if}
+
+									<!-- Turn count badge -->
+									<div class="absolute bottom-2 left-2">
+										<Badge variant="secondary" class="bg-black/60 text-white text-[10px] backdrop-blur-sm">
+											{conversation.turnCount} {conversation.turnCount === 1 ? 'turno' : 'turnos'}
+										</Badge>
+									</div>
+								</div>
+
+								<!-- Title and date -->
+								<div class="flex flex-1 flex-col p-4">
+									<p class="line-clamp-3 text-sm leading-relaxed">
+										{truncateCaption(conversation.title, 120)}
+									</p>
+									<div class="mt-auto pt-3">
+										<span class="text-xs text-muted-foreground">
+											{formatDate(conversation.createdAt)}
+										</span>
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{:else if isLoading}
 				<div class="flex items-center justify-center py-20">
 					<div class="flex flex-col items-center gap-4">
 						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

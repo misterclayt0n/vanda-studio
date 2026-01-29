@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, ImageSkeleton, EditableCaption } from "$lib/components/studio";
+	import { EditOutputLightbox } from "$lib/components/lightbox";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../../convex/_generated/api.js";
@@ -12,9 +13,13 @@
 	// Convex client
 	const client = useConvexClient();
 
-	// Get conversation ID and turnId from URL
+	// Get conversation ID and URL params
 	let conversationId = $derived($page.params.conversationId as Id<"image_edit_conversations">);
 	let pendingTurnId = $derived($page.url.searchParams.get('turnId') as Id<"image_edit_turns"> | null);
+
+	// Navigation context for back button
+	let fromPage = $derived($page.url.searchParams.get('from'));
+	let returnTab = $derived($page.url.searchParams.get('tab'));
 
 	// Track if we've triggered generation for the pending turn
 	let generationTriggered = $state(false);
@@ -60,6 +65,40 @@
 	let allOutputs = $derived(allOutputsQuery.data ?? []);
 	let turnCount = $derived(turns.length);
 	let isLoading = $derived(!conversation && conversationQuery.isLoading);
+
+	// Lightbox state
+	let lightboxOpen = $state(false);
+	let lightboxIndex = $state(0);
+
+	// Prepare images for lightbox (all outputs with URLs)
+	let lightboxImages = $derived(
+		allOutputs
+			.filter(o => o.url)
+			.map(o => ({
+				id: o._id,
+				url: o.url!,
+				model: o.model,
+				width: o.width,
+				height: o.height,
+				createdAt: o.createdAt
+			}))
+	);
+
+	function openLightbox(outputId: string) {
+		const index = lightboxImages.findIndex(img => img.id === outputId);
+		if (index !== -1) {
+			lightboxIndex = index;
+			lightboxOpen = true;
+		}
+	}
+
+	function closeLightbox() {
+		lightboxOpen = false;
+	}
+
+	function navigateLightbox(index: number) {
+		lightboxIndex = index;
+	}
 
 	// Caption sidebar state
 	let currentCaption = $derived(conversation?.originalPost?.caption ?? "");
@@ -204,6 +243,15 @@
 	// Check if any turn is still generating
 	let isAnyGenerating = $derived(turns.some(t => t.status === "generating" || (t.pendingModels && t.pendingModels.length > 0)));
 
+	// Handle back navigation with context
+	function handleBack() {
+		if (fromPage === 'gallery' && returnTab) {
+			goto(`/gallery?tab=${returnTab}`);
+		} else {
+			history.back();
+		}
+	}
+
 	// Download image
 	async function downloadImage(url: string, model: string) {
 		try {
@@ -247,7 +295,7 @@
 				<button
 					type="button"
 					class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-					onclick={() => history.back()}
+					onclick={handleBack}
 				>
 					<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -339,13 +387,24 @@
 							{/if}
 							<!-- All outputs -->
 							{#each allOutputs as output, index}
-								<div class="group relative h-16 w-16 shrink-0 overflow-hidden border border-border bg-background hover:border-primary transition-colors">
+								<button
+									type="button"
+									class="group relative h-16 w-16 shrink-0 overflow-hidden border border-border bg-background hover:border-primary transition-colors cursor-pointer"
+									onclick={() => output.url && openLightbox(output._id)}
+									disabled={!output.url}
+								>
 									{#if output.url}
-										<img 
-											src={output.url} 
-											alt="Edição {index + 1}" 
+										<img
+											src={output.url}
+											alt="Edição {index + 1}"
 											class="h-full w-full object-cover"
 										/>
+										<!-- Expand icon on hover -->
+										<div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+											<svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+											</svg>
+										</div>
 									{:else}
 										<div class="flex h-full w-full items-center justify-center bg-muted">
 											<svg class="h-4 w-4 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -354,20 +413,7 @@
 											</svg>
 										</div>
 									{/if}
-									<!-- Download button on hover -->
-									{#if output.url}
-										<button
-											type="button"
-											aria-label="Baixar imagem"
-											class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-											onclick={() => downloadImage(output.url!, output.model)}
-										>
-											<svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-											</svg>
-										</button>
-									{/if}
-								</div>
+								</button>
 							{/each}
 						</div>
 					</div>
@@ -393,26 +439,24 @@
 								<!-- Generated images -->
 								<div class="flex flex-wrap gap-4">
 									{#each turn.outputs as output}
-										<div class="group relative overflow-hidden border border-border bg-background" style="width: 200px; aspect-ratio: {output.width} / {output.height};">
+										<button
+											type="button"
+											class="group relative overflow-hidden border border-border bg-background cursor-pointer transition-all hover:border-primary"
+											style="width: 200px; aspect-ratio: {output.width} / {output.height};"
+											onclick={() => output.url && openLightbox(output._id)}
+											disabled={!output.url}
+										>
 											{#if output.url}
-												<img 
-													src={output.url} 
-													alt="Resultado" 
+												<img
+													src={output.url}
+													alt="Resultado"
 													class="h-full w-full object-cover"
 												/>
-												<!-- Overlay with model name and download -->
-												<div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-													<span class="text-xs text-white">{modelDisplayNames[output.model] ?? output.model}</span>
-													<button
-														type="button"
-														aria-label="Baixar imagem"
-														class="flex h-8 w-8 items-center justify-center bg-white/20 text-white hover:bg-white/30"
-														onclick={() => downloadImage(output.url!, output.model)}
-													>
-														<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-															<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-														</svg>
-													</button>
+												<!-- Hover overlay -->
+												<div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+													<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+													</svg>
 												</div>
 											{:else}
 												<div class="flex h-full w-full items-center justify-center bg-muted">
@@ -428,7 +472,7 @@
 													{modelDisplayNames[output.model] ?? output.model.split("/").pop()}
 												</Badge>
 											</div>
-										</div>
+										</button>
 									{/each}
 									<!-- Skeletons for pending models -->
 									{#each turn.pendingModels ?? [] as model}
@@ -625,3 +669,13 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Lightbox -->
+{#if lightboxOpen && lightboxImages.length > 0}
+	<EditOutputLightbox
+		images={lightboxImages}
+		currentIndex={lightboxIndex}
+		onclose={closeLightbox}
+		onnavigate={navigateLightbox}
+	/>
+{/if}
