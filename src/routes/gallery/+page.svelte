@@ -19,6 +19,32 @@
 	let filterProjectId = $state<Id<"projects"> | null>(null);
 	let projectFilterOpen = $state(false);
 
+	// Infinite scroll state
+	type Post = {
+		_id: Id<"generated_posts">;
+		_creationTime: number;
+		caption: string;
+		imageUrl: string | null;
+		imageModel?: string;
+		createdAt: number;
+		projectId?: Id<"projects">;
+		userId?: Id<"users">;
+		status: string;
+		deletedAt?: number;
+		imageStorageId?: Id<"_storage">;
+		imagePrompt?: string;
+		model?: string;
+		sourcePostIds?: Id<"instagram_posts">[];
+		reasoning?: string;
+		updatedAt: number;
+	};
+	let allPosts = $state<Post[]>([]);
+	let cursor = $state<string | null>(null);
+	let hasMore = $state(true);
+	let loadingMore = $state(false);
+	let initialLoadDone = $state(false);
+	let sentinelEl: HTMLDivElement;
+
 	// Lightbox state from URL params
 	let lightboxPostId = $derived($page.url.searchParams.get('view'));
 	let lightboxImageId = $derived($page.url.searchParams.get('img'));
@@ -77,7 +103,11 @@
 
 	// Queries
 	const projectsQuery = useQuery(api.projects.list, () => ({}));
-	const postsQuery = useQuery(api.generatedPosts.listByUser, () => filterProjectId ? "skip" : {});
+	// Initial query - only used for the first load when no filters are active
+	const initialPostsQuery = useQuery(
+		api.generatedPosts.listByUser,
+		() => (filterProjectId || searchQuery.trim()) ? "skip" : { limit: 30 }
+	);
 	const projectPostsQuery = useQuery(
 		api.generatedPosts.listByProject,
 		() => filterProjectId ? { projectId: filterProjectId } : "skip"
@@ -86,6 +116,66 @@
 		api.generatedPosts.search,
 		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
 	);
+
+	// Load more posts (infinite scroll)
+	async function loadMore() {
+		if (loadingMore || !hasMore || filterProjectId || searchQuery.trim()) return;
+
+		loadingMore = true;
+		try {
+			const args: { limit: number; cursor?: string } = { limit: 30 };
+			if (cursor) {
+				args.cursor = cursor;
+			}
+			const result = await client.query(api.generatedPosts.listByUser, args);
+			allPosts = [...allPosts, ...result.posts];
+			cursor = result.nextCursor;
+			hasMore = result.hasMore;
+		} catch (err) {
+			console.error("Failed to load more posts:", err);
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	// Reset infinite scroll state when filters change
+	$effect(() => {
+		// When filter or search changes, reset accumulated posts
+		if (filterProjectId || searchQuery.trim()) {
+			allPosts = [];
+			cursor = null;
+			hasMore = true;
+			initialLoadDone = false;
+		}
+	});
+
+	// Initialize posts from initial query
+	$effect(() => {
+		if (initialPostsQuery.data && !filterProjectId && !searchQuery.trim() && !initialLoadDone) {
+			allPosts = initialPostsQuery.data.posts;
+			cursor = initialPostsQuery.data.nextCursor;
+			hasMore = initialPostsQuery.data.hasMore;
+			initialLoadDone = true;
+		}
+	});
+
+	// Intersection Observer for infinite scroll
+	$effect(() => {
+		if (!sentinelEl) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[0];
+				if (entry?.isIntersecting && hasMore && !loadingMore && !filterProjectId && !searchQuery.trim()) {
+					loadMore();
+				}
+			},
+			{ rootMargin: "200px" }
+		);
+
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
 
 	// Derived data
 	let projects = $derived(projectsQuery.data ?? []);
@@ -97,10 +187,11 @@
 		if (filterProjectId) {
 			return projectPostsQuery.data ?? [];
 		}
-		return postsQuery.data ?? [];
+		// Use accumulated posts for infinite scroll
+		return allPosts;
 	});
 	let isLoading = $derived(
-		postsQuery.isLoading ||
+		(initialPostsQuery.isLoading && !initialLoadDone) ||
 		(filterProjectId && projectPostsQuery.isLoading) ||
 		(searchQuery.trim() && searchResultsQuery.isLoading)
 	);
@@ -519,6 +610,24 @@
 						</div>
 					{/each}
 				</div>
+
+				<!-- Infinite scroll sentinel and loading indicator -->
+				{#if !filterProjectId && !searchQuery.trim()}
+					<div bind:this={sentinelEl} class="h-1" aria-hidden="true"></div>
+					{#if loadingMore}
+						<div class="flex items-center justify-center py-8">
+							<svg class="h-6 w-6 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<span class="ml-2 text-sm text-muted-foreground">Carregando mais...</span>
+						</div>
+					{:else if !hasMore && allPosts.length > 0}
+						<div class="flex items-center justify-center py-8">
+							<span class="text-sm text-muted-foreground">Todas as gerações foram carregadas</span>
+						</div>
+					{/if}
+				{/if}
 			{/if}
 		</SignedIn>
 	</main>

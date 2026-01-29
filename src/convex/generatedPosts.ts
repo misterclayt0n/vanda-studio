@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 // Get a single generated post with resolved image URL
@@ -497,15 +497,16 @@ export const remove = mutation({
 // Gallery & History Queries
 // ============================================================================
 
-// List all posts for current user (not deleted)
+// List all posts for current user (not deleted) with cursor-based pagination
 export const listByUser = query({
     args: {
+        cursor: v.optional(v.string()),
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            return [];
+            return { posts: [], nextCursor: null, hasMore: false };
         }
 
         const user = await ctx.db
@@ -514,48 +515,20 @@ export const listByUser = query({
             .unique();
 
         if (!user) {
-            return [];
+            return { posts: [], nextCursor: null, hasMore: false };
         }
 
-        const limit = args.limit ?? 20;
+        const limit = args.limit ?? 30;
 
-        // Get posts by userId (standalone posts)
-        const standalonePosts = await ctx.db
+        // Single paginated query using by_user_created index
+        const result = await ctx.db
             .query("generated_posts")
-            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
             .order("desc")
-            .take(limit);
+            .paginate({ cursor: args.cursor ?? null, numItems: limit });
 
-        // Get posts via projects
-        const userProjects = await ctx.db
-            .query("projects")
-            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
-            .collect();
-
-        const projectPostsPromises = userProjects.map((project) =>
-            ctx.db
-                .query("generated_posts")
-                .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
-                .order("desc")
-                .take(limit)
-        );
-        const projectPostsArrays = await Promise.all(projectPostsPromises);
-        const projectPosts = projectPostsArrays.flat();
-
-        // Combine and deduplicate by _id (a post can have both userId AND projectId)
-        const combinedPosts = [...standalonePosts, ...projectPosts];
-        const seenIds = new Set<string>();
-        const uniquePosts = combinedPosts.filter((post) => {
-            if (seenIds.has(post._id)) return false;
-            seenIds.add(post._id);
-            return true;
-        });
-
-        // Filter out deleted, sort by createdAt desc, and limit
-        const allPosts = uniquePosts
-            .filter((post) => !post.deletedAt)
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, limit);
+        // Filter out deleted posts
+        const allPosts = result.page.filter((post) => !post.deletedAt);
 
         // Only fetch first images for posts WITHOUT imageStorageId
         const postsNeedingFirstImage = allPosts.filter((p) => !p.imageStorageId);
@@ -605,7 +578,7 @@ export const listByUser = query({
         }
 
         // Map posts with resolved data (no async needed)
-        return allPosts.map((post) => {
+        const posts = allPosts.map((post) => {
             const firstImage = firstImageByPostId.get(post._id);
             const postImageUrl = post.imageStorageId
                 ? (urlByStorageId.get(post.imageStorageId) ?? null)
@@ -621,6 +594,12 @@ export const listByUser = query({
                 ...(imageModel && { imageModel }),
             };
         });
+
+        return {
+            posts,
+            nextCursor: result.continueCursor,
+            hasMore: !result.isDone,
+        };
     },
 });
 
@@ -1014,7 +993,7 @@ export const search = query({
                     .query("generated_images")
                     .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", post._id))
                     .take(1);
-                
+
                 let imageUrl: string | null = null;
                 const firstImage = images[0];
                 if (firstImage) {
@@ -1029,5 +1008,55 @@ export const search = query({
                 };
             })
         );
+    },
+});
+
+// ============================================================================
+// Migration: Backfill userId on posts that only have projectId
+// ============================================================================
+
+// Internal mutation to backfill userId on posts that only have projectId
+export const backfillUserIdOnPosts = internalMutation({
+    args: {
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const batchSize = args.batchSize ?? 100;
+
+        // Get posts that have projectId but no userId
+        const postsToFix = await ctx.db
+            .query("generated_posts")
+            .filter((q) => q.eq(q.field("userId"), undefined))
+            .take(batchSize);
+
+        let fixed = 0;
+        let skipped = 0;
+
+        for (const post of postsToFix) {
+            if (!post.projectId) {
+                // Post has neither projectId nor userId - skip
+                skipped++;
+                continue;
+            }
+
+            const project = await ctx.db.get(post.projectId);
+            if (!project) {
+                // Project not found - skip
+                skipped++;
+                continue;
+            }
+
+            // Set userId from project owner
+            await ctx.db.patch(post._id, {
+                userId: project.userId,
+            });
+            fixed++;
+        }
+
+        return {
+            fixed,
+            skipped,
+            hasMore: postsToFix.length === batchSize,
+        };
     },
 });
