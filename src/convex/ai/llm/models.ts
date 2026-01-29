@@ -36,6 +36,44 @@ export type ImageModelName = (typeof IMAGE_MODELS)[keyof typeof IMAGE_MODELS];
 export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.NANO_BANANA_PRO;
 
 /**
+ * Model capabilities for image generation
+ */
+export const IMAGE_MODEL_CAPABILITIES: Record<
+    ImageModelName,
+    {
+        supportsImageSize: boolean;
+        type: "multimodal" | "dedicated";
+        outputModalities: ["image"] | ["image", "text"];
+    }
+> = {
+    [IMAGE_MODELS.NANO_BANANA]: {
+        supportsImageSize: true,
+        type: "multimodal",
+        outputModalities: ["image", "text"],
+    },
+    [IMAGE_MODELS.NANO_BANANA_PRO]: {
+        supportsImageSize: true,
+        type: "multimodal",
+        outputModalities: ["image", "text"],
+    },
+    [IMAGE_MODELS.SEEDREAM_4_5]: {
+        supportsImageSize: false,
+        type: "dedicated",
+        outputModalities: ["image"], // Image only - no text output
+    },
+    [IMAGE_MODELS.FLUX_2_FLEX]: {
+        supportsImageSize: false,
+        type: "dedicated",
+        outputModalities: ["image"], // Image only - no text output
+    },
+    [IMAGE_MODELS.GPT_IMAGE_1_5]: {
+        supportsImageSize: false,
+        type: "multimodal",
+        outputModalities: ["image", "text"],
+    },
+};
+
+/**
  * Model metadata for UI display
  */
 export const IMAGE_MODEL_INFO: Record<

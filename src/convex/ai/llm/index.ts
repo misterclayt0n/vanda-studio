@@ -40,6 +40,7 @@ export {
     IMAGE_MODELS,
     DEFAULT_IMAGE_MODEL,
     IMAGE_MODEL_INFO,
+    IMAGE_MODEL_CAPABILITIES,
 } from "./models";
 export type { ModelName, ImageModelName } from "./models";
 

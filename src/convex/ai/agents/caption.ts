@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { TextGeneration, MODELS, runAiEffectOrThrow } from "../llm/index";
+import { TextGeneration, MODELS, runAiEffectOrThrow, type ModelName } from "../llm/index";
 
 // ============================================================================
 // System Prompt
@@ -138,7 +138,7 @@ ${input.userMessage}`;
             const textGen = yield* TextGeneration;
             return yield* textGen.generateCaption({
                 messages,
-                model: input.model ?? MODELS.GPT_4_1,
+                model: (input.model as ModelName) ?? MODELS.GPT_4_1,
                 temperature: 0.8,
                 maxTokens: 1024,
             });
