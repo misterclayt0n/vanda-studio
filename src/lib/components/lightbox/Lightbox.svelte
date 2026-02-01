@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import EditImageModal from "$lib/components/studio/EditImageModal.svelte";
+    import { ScheduleModal } from "$lib/components/calendar";
     import { useQuery } from "convex-svelte";
     import { api } from "../../../convex/_generated/api.js";
     import LightboxImage from "./LightboxImage.svelte";
@@ -71,6 +72,17 @@
         editModalImage = null;
     }
 
+    // Schedule modal state
+    let scheduleModalOpen = $state(false);
+
+    function openScheduleModal() {
+        scheduleModalOpen = true;
+    }
+
+    function closeScheduleModal() {
+        scheduleModalOpen = false;
+    }
+
     // Navigation handlers
     function handlePrev() {
         const prevPost = posts[currentIndex - 1];
@@ -118,8 +130,8 @@
 
     // Keyboard handling
     function handleKeydown(e: KeyboardEvent) {
-        // Don't handle if edit modal is open
-        if (editModalOpen) return;
+        // Don't handle if modals are open
+        if (editModalOpen || scheduleModalOpen) return;
 
         // Don't handle if user is typing in a textarea (editing caption)
         if (e.target instanceof HTMLTextAreaElement) return;
@@ -218,6 +230,7 @@
                 onselectimage={handleSelectImage}
                 ondownload={handleDownload}
                 onrefine={openEditModal}
+                onschedule={openScheduleModal}
             />
         {/if}
     </div>
@@ -226,4 +239,15 @@
 <!-- Edit Image Modal (rendered on top) -->
 {#if editModalImage}
     <EditImageModal image={editModalImage} open={editModalOpen} onclose={closeEditModal} />
+{/if}
+
+<!-- Schedule Modal -->
+{#if currentPost}
+    <ScheduleModal
+        open={scheduleModalOpen}
+        onclose={closeScheduleModal}
+        postId={currentPost._id}
+        caption={fullPost?.caption ?? currentPost.caption}
+        imageUrl={currentImage?.url ?? currentPost.imageUrl}
+    />
 {/if}

@@ -118,12 +118,21 @@ export default defineSchema({
             referenceText: v.optional(v.string()),
             referenceImageIds: v.optional(v.array(v.id("_storage"))),
         })),
+
+        // ============================================================================
+        // Scheduling fields
+        // ============================================================================
+        scheduledFor: v.optional(v.number()), // Unix timestamp when the post should be published
+        schedulingStatus: v.optional(v.string()), // "scheduled" | "posted" | "missed"
+        reminderMinutes: v.optional(v.number()), // Reminder before scheduled time (e.g., 30)
     }).index("by_project_id", ["projectId"])
       .index("by_created_at", ["createdAt"])
       .index("by_user_id", ["userId"])
       .index("by_user_created", ["userId", "createdAt"])
       .index("by_source_output", ["sourceOutputId"])
-      .index("by_parent_post", ["parentPostId"]),
+      .index("by_parent_post", ["parentPostId"])
+      .index("by_scheduled_for", ["scheduledFor"])
+      .index("by_scheduling_status", ["schedulingStatus"]),
 
     // Reference images uploaded by user for generation
     reference_images: defineTable({
@@ -276,4 +285,57 @@ export default defineSchema({
         createdAt: v.number(),
     }).index("by_turn", ["turnId"])
       .index("by_conversation", ["conversationId"]),
+
+    // ============================================================================
+    // Calendar & Scheduling
+    // ============================================================================
+
+    // Google Calendar OAuth connections
+    google_calendar_connections: defineTable({
+        userId: v.id("users"),
+        accessToken: v.string(),
+        refreshToken: v.string(),
+        expiresAt: v.number(), // Token expiration timestamp
+        calendarId: v.string(), // Which Google Calendar to sync to (e.g., "primary")
+        syncEnabled: v.boolean(),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_user_id", ["userId"]),
+
+    // Calendar events for tracking synced posts
+    calendar_events: defineTable({
+        userId: v.id("users"),
+        postId: v.id("generated_posts"),
+        googleEventId: v.optional(v.string()), // Google Calendar event ID (if synced)
+        scheduledFor: v.number(),
+        reminderMinutes: v.optional(v.number()), // e.g., 30 minutes before
+        status: v.string(), // "pending" | "synced" | "reminded" | "completed" | "missed" | "sync_failed"
+        lastSyncAt: v.optional(v.number()), // Last time synced with Google Calendar
+        createdAt: v.number(),
+        updatedAt: v.number(),
+        // Retry tracking fields
+        syncAttempts: v.optional(v.number()), // Number of sync attempts (for retry logic)
+        nextRetryAt: v.optional(v.number()), // When to retry next (exponential backoff)
+        lastErrorCode: v.optional(v.string()), // Last error code for debugging
+    }).index("by_user_id", ["userId"])
+      .index("by_post_id", ["postId"])
+      .index("by_scheduled_for", ["scheduledFor"])
+      .index("by_status", ["status"])
+      .index("by_next_retry", ["nextRetryAt"]),
+
+    // Sync error tracking for debugging
+    sync_errors: defineTable({
+        eventId: v.id("calendar_events"),
+        postId: v.id("generated_posts"),
+        userId: v.id("users"),
+        errorCode: v.string(), // TOKEN_EXPIRED | RATE_LIMITED | API_ERROR | NETWORK_ERROR | INVALID_GRANT | UNKNOWN
+        errorMessage: v.string(),
+        httpStatus: v.optional(v.number()),
+        retryable: v.boolean(),
+        syncAttempt: v.number(), // Which attempt failed
+        createdAt: v.number(),
+    }).index("by_event_id", ["eventId"])
+      .index("by_user_id", ["userId"])
+      .index("by_error_code", ["errorCode"])
+      .index("by_created_at", ["createdAt"]),
 });

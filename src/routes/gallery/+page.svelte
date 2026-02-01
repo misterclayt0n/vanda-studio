@@ -55,6 +55,9 @@
 		sourcePostIds?: Id<"instagram_posts">[];
 		reasoning?: string;
 		updatedAt: number;
+		// Scheduling fields
+		scheduledFor?: number;
+		schedulingStatus?: string;
 	};
 	let allPosts = $state<Post[]>([]);
 	let cursor = $state<string | null>(null);
@@ -261,6 +264,35 @@
 			month: 'short',
 			year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
 		});
+	}
+
+	// Format scheduled date/time
+	function formatScheduledDate(timestamp: number): string {
+		const date = new Date(timestamp);
+		return date.toLocaleString('pt-BR', {
+			day: '2-digit',
+			month: 'short',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
+	// Get scheduling status badge style
+	function getSchedulingBadgeClass(status: string | undefined): string {
+		switch (status) {
+			case 'posted': return 'bg-green-500/80 text-white';
+			case 'missed': return 'bg-red-500/80 text-white';
+			default: return 'bg-blue-500/80 text-white';
+		}
+	}
+
+	// Get scheduling status label
+	function getSchedulingLabel(status: string | undefined): string {
+		switch (status) {
+			case 'posted': return 'Postado';
+			case 'missed': return 'Perdido';
+			default: return 'Agendado';
+		}
 	}
 
 	// Truncate caption
@@ -712,6 +744,15 @@
 									<div class="absolute bottom-2 left-2">
 										<Badge variant="secondary" class="bg-black/60 text-white text-[10px] backdrop-blur-sm">
 											{modelDisplayNames[post.imageModel] ?? post.imageModel.split("/").pop()}
+										</Badge>
+									</div>
+								{/if}
+
+								<!-- Scheduled badge -->
+								{#if (post as Post).scheduledFor}
+									<div class="absolute top-2 right-2">
+										<Badge variant="secondary" class="{getSchedulingBadgeClass((post as Post).schedulingStatus)} text-[10px] backdrop-blur-sm">
+											{getSchedulingLabel((post as Post).schedulingStatus)}: {formatScheduledDate((post as Post).scheduledFor!)}
 										</Badge>
 									</div>
 								{/if}

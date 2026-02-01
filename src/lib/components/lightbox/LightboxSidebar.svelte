@@ -29,9 +29,10 @@
         onselectimage: (imageId: string) => void;
         ondownload: () => void;
         onrefine: () => void;
+        onschedule: () => void;
     }
 
-    let { postId, post, selectedImageId, onselectimage, ondownload, onrefine }: Props = $props();
+    let { postId, post, selectedImageId, onselectimage, ondownload, onrefine, onschedule }: Props = $props();
 
     // Current image (default to first if none selected)
     let currentImage = $derived(
@@ -169,8 +170,8 @@
             </div>
 
             <!-- Actions -->
-            <div class="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" class="flex-1" onclick={ondownload}>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onclick={ondownload}>
                     <svg
                         class="h-4 w-4"
                         xmlns="http://www.w3.org/2000/svg"
@@ -187,7 +188,7 @@
                     </svg>
                     Baixar
                 </Button>
-                <Button variant="outline" size="sm" class="flex-1" onclick={onrefine}>
+                <Button variant="outline" size="sm" onclick={onrefine}>
                     <svg
                         class="h-4 w-4"
                         xmlns="http://www.w3.org/2000/svg"
@@ -203,6 +204,23 @@
                         />
                     </svg>
                     Refinar
+                </Button>
+                <Button variant="outline" size="sm" class="col-span-2" onclick={onschedule}>
+                    <svg
+                        class="h-4 w-4"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                        />
+                    </svg>
+                    Agendar post
                 </Button>
             </div>
 

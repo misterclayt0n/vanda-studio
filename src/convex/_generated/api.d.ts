@@ -26,10 +26,12 @@ import type * as billing_usage from "../billing/usage.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
 import type * as contextImages from "../contextImages.js";
+import type * as crons from "../crons.js";
 import type * as files from "../files.js";
 import type * as generatedImages from "../generatedImages.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as generationHistory from "../generationHistory.js";
+import type * as googleCalendar from "../googleCalendar.js";
 import type * as imageEditConversations from "../imageEditConversations.js";
 import type * as imageEditOutputs from "../imageEditOutputs.js";
 import type * as imageEditTurns from "../imageEditTurns.js";
@@ -37,6 +39,7 @@ import type * as instagram from "../instagram.js";
 import type * as instagramPosts from "../instagramPosts.js";
 import type * as projects from "../projects.js";
 import type * as referenceImages from "../referenceImages.js";
+import type * as scheduledPosts from "../scheduledPosts.js";
 import type * as users from "../users.js";
 
 import type {
@@ -64,10 +67,12 @@ declare const fullApi: ApiFromModules<{
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
   contextImages: typeof contextImages;
+  crons: typeof crons;
   files: typeof files;
   generatedImages: typeof generatedImages;
   generatedPosts: typeof generatedPosts;
   generationHistory: typeof generationHistory;
+  googleCalendar: typeof googleCalendar;
   imageEditConversations: typeof imageEditConversations;
   imageEditOutputs: typeof imageEditOutputs;
   imageEditTurns: typeof imageEditTurns;
@@ -75,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   instagramPosts: typeof instagramPosts;
   projects: typeof projects;
   referenceImages: typeof referenceImages;
+  scheduledPosts: typeof scheduledPosts;
   users: typeof users;
 }>;
 

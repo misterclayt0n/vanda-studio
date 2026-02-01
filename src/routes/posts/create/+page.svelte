@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
 	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal, EditableCaption, ProjectSelector } from "$lib/components/studio";
+	import { ScheduleModal } from "$lib/components/calendar";
 	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
@@ -138,6 +139,17 @@
 	function closeEditModal() {
 		editModalOpen = false;
 		editModalImage = null;
+	}
+
+	// Schedule modal state
+	let scheduleModalOpen = $state(false);
+
+	function openScheduleModal() {
+		scheduleModalOpen = true;
+	}
+
+	function closeScheduleModal() {
+		scheduleModalOpen = false;
 	}
 
 	// Sync subscription data to state
@@ -1076,7 +1088,7 @@
 								<Button variant="outline" class="flex-1">
 									Salvar Rascunho
 								</Button>
-								<Button class="flex-1">
+								<Button class="flex-1" onclick={openScheduleModal} disabled={!generatedPostId || isGenerating}>
 									Agendar Post
 								</Button>
 							</div>
@@ -1094,5 +1106,17 @@
 		image={editModalImage}
 		open={editModalOpen}
 		onclose={closeEditModal}
+	/>
+{/if}
+
+<!-- Schedule Modal -->
+{#if generatedPostId}
+	<ScheduleModal
+		open={scheduleModalOpen}
+		onclose={closeScheduleModal}
+		postId={generatedPostId}
+		caption={generatedCaption}
+		imageUrl={selectedImage?.url ?? null}
+		projectName={selectedProject?.name}
 	/>
 {/if}
