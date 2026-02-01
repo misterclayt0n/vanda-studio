@@ -72,3 +72,4 @@ In the future we need payments, so either:
 - [ ] Trocar o hero text por algo mais descritivo sobre o que fazemos: "Automatize o seu instagram com um click"
 - [ ] Adicionar mais metadados sobre conteúdo dos projetos.
 - [ ] After scraping -> Tool call pra db.
+# Trigger rebuild
