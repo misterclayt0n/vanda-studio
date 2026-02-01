@@ -1,5 +1,5 @@
 import type { RequestHandler } from '@sveltejs/kit';
-import { redirect } from '@sveltejs/kit';
+import { redirect, isRedirect } from '@sveltejs/kit';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../../../convex/_generated/api.js';
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
@@ -85,6 +85,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		// Success - redirect to calendar page
 		redirect(303, '/calendar?google_connected=true');
 	} catch (err) {
+		// Re-throw redirects (they're not actual errors)
+		if (isRedirect(err)) {
+			throw err;
+		}
 		console.error('Google Calendar connection failed:', err);
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 		redirect(303, `/calendar?google_error=${encodeURIComponent(errorMessage)}`);
