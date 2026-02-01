@@ -3,6 +3,7 @@
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 	import { ExternalLink, Check, X, RefreshCw } from "lucide-svelte";
+	import { env } from "$env/dynamic/public";
 
 	const client = useConvexClient();
 
@@ -15,8 +16,7 @@
 	let isDisconnecting = $state(false);
 
 	// Get Google OAuth URL
-	// Note: This will be configured after you set up Google Cloud Console
-	const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+	const GOOGLE_CLIENT_ID = env.PUBLIC_GOOGLE_CLIENT_ID ?? '';
 	const REDIRECT_URI = typeof window !== 'undefined' 
 		? `${window.location.origin}/api/auth/google/callback`
 		: '';

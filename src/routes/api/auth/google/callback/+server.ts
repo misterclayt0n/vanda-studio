@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../../../convex/_generated/api.js';
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
-import { GOOGLE_CLIENT_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
@@ -31,8 +31,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	try {
 		// Get client ID from environment
-		const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-		if (!clientId || !GOOGLE_CLIENT_SECRET) {
+		const clientId = env.GOOGLE_CLIENT_ID;
+		const clientSecret = env.GOOGLE_CLIENT_SECRET;
+		if (!clientId || !clientSecret) {
 			throw new Error('Google OAuth credentials not configured');
 		}
 
@@ -47,7 +48,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			},
 			body: new URLSearchParams({
 				client_id: clientId,
-				client_secret: GOOGLE_CLIENT_SECRET,
+				client_secret: clientSecret,
 				code,
 				grant_type: 'authorization_code',
 				redirect_uri: redirectUri,
