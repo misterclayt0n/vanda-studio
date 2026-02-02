@@ -22,6 +22,7 @@ import type * as ai_llm_services_ImageGeneration from "../ai/llm/services/ImageG
 import type * as ai_llm_services_TextGeneration from "../ai/llm/services/TextGeneration.js";
 import type * as ai_llm_types from "../ai/llm/types.js";
 import type * as ai_profileAnalysis from "../ai/profileAnalysis.js";
+import type * as billing_abacatepay from "../billing/abacatepay.js";
 import type * as billing_usage from "../billing/usage.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
@@ -32,6 +33,7 @@ import type * as generatedImages from "../generatedImages.js";
 import type * as generatedPosts from "../generatedPosts.js";
 import type * as generationHistory from "../generationHistory.js";
 import type * as googleCalendar from "../googleCalendar.js";
+import type * as http from "../http.js";
 import type * as imageEditConversations from "../imageEditConversations.js";
 import type * as imageEditOutputs from "../imageEditOutputs.js";
 import type * as imageEditTurns from "../imageEditTurns.js";
@@ -63,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   "ai/llm/services/TextGeneration": typeof ai_llm_services_TextGeneration;
   "ai/llm/types": typeof ai_llm_types;
   "ai/profileAnalysis": typeof ai_profileAnalysis;
+  "billing/abacatepay": typeof billing_abacatepay;
   "billing/usage": typeof billing_usage;
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
@@ -73,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   generatedPosts: typeof generatedPosts;
   generationHistory: typeof generationHistory;
   googleCalendar: typeof googleCalendar;
+  http: typeof http;
   imageEditConversations: typeof imageEditConversations;
   imageEditOutputs: typeof imageEditOutputs;
   imageEditTurns: typeof imageEditTurns;

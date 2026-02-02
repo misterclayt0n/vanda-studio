@@ -3,14 +3,27 @@ import { mutation, query, internalMutation } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 
 // Plan configurations
+// Prices in cents (BRL)
 export const PLANS = {
     free: {
-        promptsLimit: 10,
+        promptsLimit: 5,
         name: "Free",
+        price: 0,
     },
-    pro: {
-        promptsLimit: 100,
-        name: "Pro",
+    sub1: {
+        promptsLimit: 75,
+        name: "Basico",
+        price: 8700, // R$ 87,00
+    },
+    sub2: {
+        promptsLimit: 150,
+        name: "Profissional",
+        price: 14900, // R$ 149,00
+    },
+    sub3: {
+        promptsLimit: 300,
+        name: "Ilimitado",
+        price: 24900, // R$ 249,00
     },
 } as const;
 
