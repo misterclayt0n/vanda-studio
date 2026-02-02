@@ -367,7 +367,7 @@ export default defineSchema({
         methods: v.array(v.string()), // ["PIX", "CARD"]
         amount: v.number(), // Amount in cents
         checkoutUrl: v.string(), // URL for hosted checkout
-        plan: v.string(), // "sub1" | "sub2" | "sub3"
+        plan: v.optional(v.string()), // "sub1" | "sub2" | "sub3" - optional for legacy records
         // Subscription tracking
         nextBillingDate: v.optional(v.number()),
         // Metadata

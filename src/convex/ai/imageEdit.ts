@@ -74,7 +74,15 @@ export const startConversation = action({
             throw new Error("Usuario nao encontrado");
         }
 
-        // 3. Get source image data
+        // 3. Check quota before starting (1 credit per image model)
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || quota.remaining < args.selectedModels.length) {
+            throw new Error(
+                `Creditos insuficientes. Voce tem ${quota?.remaining ?? 0} creditos, mas precisa de ${args.selectedModels.length} para gerar ${args.selectedModels.length} imagem(ns).`
+            );
+        }
+
+        // 4. Get source image data
         const sourceImage = await ctx.runQuery(api.generatedImages.get, {
             id: args.sourceImageId,
         });
@@ -177,10 +185,14 @@ export const startConversation = action({
                         model,
                     });
 
+                    // Consume 1 credit for this successful image
+                    await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+
                     console.log(`[IMAGE_EDIT] Successfully generated with ${model}`);
                 } catch (err) {
                     console.error(`[IMAGE_EDIT] Generation failed for ${model}:`, err);
                     // Still remove from pending on failure
+                    // Note: NO credit consumed on failure
                     await ctx.runMutation(internal.imageEditTurns.removeFromPending, {
                         id: turnId,
                         model,
@@ -230,7 +242,15 @@ export const sendEdit = action({
             throw new Error("Usuario nao encontrado");
         }
 
-        // 3. Get conversation (now includes originalPost for caption)
+        // 3. Check quota before starting (1 credit per image model)
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || quota.remaining < args.selectedModels.length) {
+            throw new Error(
+                `Creditos insuficientes. Voce tem ${quota?.remaining ?? 0} creditos, mas precisa de ${args.selectedModels.length} para gerar ${args.selectedModels.length} imagem(ns).`
+            );
+        }
+
+        // 4. Get conversation (now includes originalPost for caption)
         const conversation = await ctx.runQuery(api.imageEditConversations.get, {
             id: args.conversationId,
         });
@@ -340,10 +360,14 @@ export const sendEdit = action({
                         model,
                     });
 
+                    // Consume 1 credit for this successful image
+                    await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+
                     console.log(`[IMAGE_EDIT] Successfully generated with ${model}`);
                 } catch (err) {
                     console.error(`[IMAGE_EDIT] Generation failed for ${model}:`, err);
                     // Still remove from pending on failure
+                    // Note: NO credit consumed on failure
                     await ctx.runMutation(internal.imageEditTurns.removeFromPending, {
                         id: turnId,
                         model,
@@ -408,7 +432,15 @@ export const generateForTurn = action({
             throw new Error("Turno nao encontrado");
         }
 
-        // 5. Build reference URLs
+        // 5. Check quota before starting (1 credit per image model)
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || quota.remaining < turn.selectedModels.length) {
+            throw new Error(
+                `Creditos insuficientes. Voce tem ${quota?.remaining ?? 0} creditos, mas precisa de ${turn.selectedModels.length} para gerar ${turn.selectedModels.length} imagem(ns).`
+            );
+        }
+
+        // 6. Build reference URLs
         const referenceUrls: string[] = [];
 
         // Source image is the primary reference for first turn
@@ -491,9 +523,13 @@ export const generateForTurn = action({
                         model,
                     });
 
+                    // Consume 1 credit for this successful image
+                    await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+
                     console.log(`[IMAGE_EDIT] Successfully generated with ${model}`);
                 } catch (err) {
                     console.error(`[IMAGE_EDIT] Generation failed for ${model}:`, err);
+                    // Note: NO credit consumed on failure
                     await ctx.runMutation(internal.imageEditTurns.removeFromPending, {
                         id: args.turnId,
                         model,

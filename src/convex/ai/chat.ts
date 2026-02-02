@@ -164,13 +164,22 @@ export const generate = action({
             }
         }
 
-        // 3. Parse studio settings
+        // 3. Check quota before starting (1 credit per image model)
+        const imageModelsCount = (args.imageModels ?? [DEFAULT_IMAGE_MODEL]).length;
+        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
+        if (!quota || quota.remaining < imageModelsCount) {
+            throw new Error(
+                `Creditos insuficientes. Voce tem ${quota?.remaining ?? 0} creditos, mas precisa de ${imageModelsCount} para gerar ${imageModelsCount} imagem(ns).`
+            );
+        }
+
+        // 5. Parse studio settings
         const imageModels = args.imageModels ?? [DEFAULT_IMAGE_MODEL];
         const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
         const resolution = (args.resolution ?? "standard") as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 4. Create the generated_post record with progressive state
+        // 6. Create the generated_post record with progressive state
         const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
             ...(args.projectId && { projectId: args.projectId }),
             caption: "", // Will be updated after caption generation
@@ -262,10 +271,14 @@ export const generate = action({
                         model,
                     });
 
+                    // Consume 1 credit for this successful image
+                    await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+
                     console.log(`[GENERATE] Successfully generated image with ${model}`);
                 } catch (err) {
                     console.error(`[GENERATE] Image generation failed for ${model}:`, err);
                     // Still remove from pending on failure so UI doesn't hang
+                    // Note: NO credit consumed on failure
                     await ctx.runMutation(api.generatedPosts.removeFromPending, {
                         id: generatedPostId,
                         model,

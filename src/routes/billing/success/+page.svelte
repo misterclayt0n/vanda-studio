@@ -38,7 +38,7 @@
 
 			<h1 class="mb-2 text-2xl font-bold">Pagamento confirmado!</h1>
 			<p class="mb-6 text-muted-foreground">
-				Seu plano Pro ja esta ativo. Aproveite 100 prompts por mes!
+				Seu plano ja esta ativo. Aproveite suas novas imagens!
 			</p>
 
 			<div class="flex justify-center gap-4">
