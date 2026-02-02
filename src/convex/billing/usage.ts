@@ -12,17 +12,17 @@ export const PLANS = {
     },
     sub1: {
         promptsLimit: 75,
-        name: "Basico",
+        name: "Básico",
         price: 8700, // R$ 87,00
     },
     sub2: {
         promptsLimit: 150,
-        name: "Profissional",
+        name: "Mediano",
         price: 14900, // R$ 149,00
     },
     sub3: {
         promptsLimit: 300,
-        name: "Ilimitado",
+        name: "Profissional",
         price: 24900, // R$ 249,00
     },
 } as const;

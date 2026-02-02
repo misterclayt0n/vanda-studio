@@ -16,9 +16,9 @@ export type PurchasablePlan = "sub1" | "sub2" | "sub3";
 
 // Plan display info
 export const PLAN_INFO: Record<PurchasablePlan, { name: string; description: string }> = {
-    sub1: { name: "Vanda Studio Basico", description: "75 imagens por mes" },
-    sub2: { name: "Vanda Studio Profissional", description: "150 imagens por mes" },
-    sub3: { name: "Vanda Studio Ilimitado", description: "300 imagens por mes" },
+    sub1: { name: "Vanda Studio Básico", description: "75 imagens por mes" },
+    sub2: { name: "Vanda Studio Mediano", description: "150 imagens por mes" },
+    sub3: { name: "Vanda Studio Profissional", description: "300 imagens por mes" },
 };
 
 // ============================================================================
