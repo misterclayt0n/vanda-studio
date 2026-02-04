@@ -41,19 +41,13 @@
 			product.status === "active" || product.status === "trialing"
 		);
 
-		const planMap: Record<string, string> = {
-			basico: "sub1",
-			mediano: "sub2",
-			profissional: "sub3",
-		};
-
 		const feature = customerData.features?.images_generated;
 		const used = feature?.usage ?? 0;
 		const limit = feature?.included_usage ?? feature?.usage_limit ?? feature?.balance ?? 0;
 
 		subscriptionData = {
 			subscription: {
-				plan: activeProduct ? (planMap[activeProduct.id] ?? activeProduct.id) : "free",
+				plan: activeProduct?.id ?? "",
 				promptsUsed: used,
 				promptsLimit: limit,
 				periodEnd: activeProduct?.current_period_end ?? undefined,
@@ -75,20 +69,7 @@
 	// Plan configurations
 	const plans = [
 		{
-			id: "free" as const,
-			name: "Free",
-			description: "Para experimentar",
-			price: 0,
-			images: 5,
-			features: [
-				"5 imagens por mes",
-				"Geracao de legendas com IA",
-				"Modelos basicos",
-			],
-			highlight: false,
-		},
-		{
-			id: "sub1" as const,
+			id: "basico" as const,
 			name: "Básico",
 			description: "Para criadores iniciantes",
 			price: 87,
@@ -97,12 +78,13 @@
 				"75 imagens por mes",
 				"Geracao de legendas com IA",
 				"Todos os modelos de imagem",
+				"Teste gratis de 7 dias",
 				"Suporte por email",
 			],
 			highlight: true,
 		},
 		{
-			id: "sub2" as const,
+			id: "mediano" as const,
 			name: "Mediano",
 			description: "Para criadores serios",
 			price: 149,
@@ -117,7 +99,7 @@
 			highlight: false,
 		},
 		{
-			id: "sub3" as const,
+			id: "profissional" as const,
 			name: "Profissional",
 			description: "Para agencias e times",
 			price: 249,
@@ -135,16 +117,28 @@
 	];
 
 	// Handle upgrade click
-	async function handleUpgrade(planId: "sub1" | "sub2" | "sub3") {
+	async function handleUpgrade(planId: "basico" | "mediano" | "profissional") {
 		isUpgrading = planId;
 		upgradeError = null;
 
 		try {
-			const result = await client.action(api.billing.abacatepay.createCheckoutSession, {
-				plan: planId,
+			const result = await client.action((api as any).billing.autumn.startCheckout, {
+				planId,
 			});
-			// Redirect to AbacatePay checkout
-			window.location.href = result.checkoutUrl;
+			if (result?.checkoutUrl) {
+				window.location.href = result.checkoutUrl;
+				return;
+			}
+
+			const attachResult = await client.action((api as any).billing.autumn.attachPlan, {
+				planId,
+			});
+			if (attachResult?.checkoutUrl) {
+				window.location.href = attachResult.checkoutUrl;
+				return;
+			}
+
+			goto('/billing/success');
 		} catch (err) {
 			upgradeError = err instanceof Error ? err.message : "Erro ao iniciar checkout";
 			isUpgrading = null;
@@ -162,16 +156,16 @@
 
 	// Check if user is on a specific plan
 	function isCurrentPlan(planId: string): boolean {
-		if (!subscriptionData?.subscription) {
-			return planId === "free";
-		}
-		return subscriptionData.subscription.plan === planId;
+		return subscriptionData?.subscription?.plan === planId;
 	}
 
 	// Check if plan is an upgrade from current
 	function isUpgrade(planId: string): boolean {
-		const currentPlan = subscriptionData?.subscription?.plan || "free";
-		const planOrder = ["free", "sub1", "sub2", "sub3"];
+		const currentPlan = subscriptionData?.subscription?.plan;
+		if (!currentPlan) {
+			return true;
+		}
+		const planOrder = ["basico", "mediano", "profissional"];
 		return planOrder.indexOf(planId) > planOrder.indexOf(currentPlan);
 	}
 </script>
@@ -277,15 +271,7 @@
 									{/each}
 								</ul>
 
-								{#if plan.id === "free"}
-									{#if isCurrentPlan("free")}
-										<Badge variant="outline" class="w-full justify-center py-2">Plano atual</Badge>
-									{:else}
-										<Button variant="outline" class="w-full" disabled>
-											Plano gratuito
-										</Button>
-									{/if}
-								{:else if isCurrentPlan(plan.id)}
+								{#if isCurrentPlan(plan.id)}
 									<div class="space-y-2">
 										<Badge class="w-full justify-center py-2 bg-green-500/10 text-green-600 hover:bg-green-500/10">
 											Plano ativo
@@ -300,7 +286,7 @@
 									<Button
 										class="w-full {plan.highlight ? '' : ''}"
 										variant={plan.highlight ? "default" : "outline"}
-										onclick={() => handleUpgrade(plan.id as "sub1" | "sub2" | "sub3")}
+										onclick={() => handleUpgrade(plan.id as "basico" | "mediano" | "profissional")}
 										disabled={isUpgrading !== null}
 									>
 										{#if isUpgrading === plan.id}
