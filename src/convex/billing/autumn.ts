@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { action, query } from "../_generated/server";
 import { autumn } from "../autumn";
 
 const BASE_URL = process.env.PUBLIC_APP_URL || "http://localhost:5173";
@@ -91,5 +91,23 @@ export const getBillingPortalUrl = action({
         }
 
         return { url: result.data?.url ?? "" };
+    },
+});
+
+export const getAutumnCustomer = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const result = await autumn.customers.get(ctx);
+
+        if (result.error) {
+            throw new Error(result.error.message || "Failed to load customer");
+        }
+
+        return result.data;
     },
 });

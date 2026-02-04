@@ -170,7 +170,7 @@ Live
 - [ ] Add per-user `fingerprint` generation (hash of device or IP).
 - [x] Create Convex actions: `startCheckout(planId)`, `attachPlan(productId)`.
 - [x] Create Convex action: `getBillingPortalUrl()`.
-- [ ] Create Convex query: `getAutumnCustomer()` for UI state.
+- [x] Create Convex query: `getAutumnCustomer()` for UI state.
 - [ ] Replace legacy subscription queries in UI with Autumn data.
 - [ ] Update pricing page to call `startCheckout` and handle preview/attach flow.
 - [ ] Update billing page to show plan, balance, reset date, and billing portal link.
