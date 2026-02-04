@@ -175,9 +175,9 @@ Live
 - [x] Update pricing page to call `startCheckout` and handle preview/attach flow.
 - [x] Update billing page to show plan, balance, reset date, and billing portal link.
 - [x] Update success page to call a server action that refreshes Autumn customer state.
-- [ ] Update image generation actions to gate with `check` before work.
-- [ ] Update image generation actions to `track` on success and refund on failure.
-- [ ] Add server-side enforcement for batch generation (reserve N images).
+- [x] Update image generation actions to gate with `check` before work.
+- [x] Update image generation actions to `track` on success and refund on failure.
+- [x] Add server-side enforcement for batch generation (reserve N images).
 - [ ] Remove AbacatePay client-side code, routes, and UI wiring (if any remain).
 - [ ] Remove AbacatePay Convex actions, webhooks, and helpers.
 - [ ] Remove AbacatePay tables and fields from Convex schema.

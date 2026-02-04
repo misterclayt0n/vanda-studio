@@ -5,6 +5,7 @@ import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
 import { generateCaption, generateImage, type ChatMessage, type ProjectContext } from "./agents/index";
+import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
 import {
     MODELS,
     IMAGE_MODELS,
@@ -164,62 +165,68 @@ export const generate = action({
             }
         }
 
-        // 3. Check quota before starting (1 credit per image model)
-        const imageModelsCount = (args.imageModels ?? [DEFAULT_IMAGE_MODEL]).length;
-        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
-        if (!quota || quota.remaining < imageModelsCount) {
-            throw new Error(
-                `Creditos insuficientes. Voce tem ${quota?.remaining ?? 0} creditos, mas precisa de ${imageModelsCount} para gerar ${imageModelsCount} imagem(ns).`
-            );
-        }
-
-        // 5. Parse studio settings
+        // 3. Parse studio settings
         const imageModels = args.imageModels ?? [DEFAULT_IMAGE_MODEL];
         const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
         const resolution = (args.resolution ?? "standard") as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 6. Create the generated_post record with progressive state
-        const generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
-            ...(args.projectId && { projectId: args.projectId }),
-            caption: "", // Will be updated after caption generation
-            status: "generating_caption",
-            pendingImageModels: imageModels,
-            totalImageModels: imageModels.length,
-        });
-
-        // 5. Save user message
-        await ctx.runMutation(internal.chatMessages.saveMessage, {
-            generatedPostId,
-            role: "user",
-            content: args.message,
-            action: "initial",
-            ...(args.attachments && { attachments: args.attachments }),
-        });
-
-        // 6. Build reference text from attachments
-        const referenceText = buildReferenceText(args.attachments);
-
-        // 7. Generate caption
-        console.log(`[GENERATE] Generating caption with model: ${args.captionModel ?? MODELS.GPT_4_1}`);
-        const captionResult = await generateCaption({
-            conversationHistory: [],
-            userMessage: args.message,
-            ...(referenceText && { referenceText }),
-            ...(args.captionModel && { model: args.captionModel }),
-            ...(args.projectContext && { projectContext: args.projectContext }),
-        });
-
-        // 8. Update post with caption, change status to "generating_images"
-        // This triggers subscription update so frontend shows caption immediately
+        // 4. Reserve usage for all requested images
+        const reservedCount = await reserveImageUsage(ctx, imageModels.length);
         const captionModel = args.captionModel ?? MODELS.GPT_4_1;
-        await ctx.runMutation(api.generatedPosts.updateFromChat, {
-            id: generatedPostId,
-            caption: captionResult.caption,
-            model: captionModel,
-            status: "generating_images",
-        });
-        console.log(`[GENERATE] Caption saved, starting image generation...`);
+
+        let generatedPostId: Id<"generated_posts"> | null = null;
+        let captionResult: { caption: string; explanation: string } | null = null;
+
+        try {
+            // 5. Create the generated_post record with progressive state
+            generatedPostId = await ctx.runMutation(api.generatedPosts.create, {
+                ...(args.projectId && { projectId: args.projectId }),
+                caption: "", // Will be updated after caption generation
+                status: "generating_caption",
+                pendingImageModels: imageModels,
+                totalImageModels: imageModels.length,
+            });
+
+            // 6. Save user message
+            await ctx.runMutation(internal.chatMessages.saveMessage, {
+                generatedPostId,
+                role: "user",
+                content: args.message,
+                action: "initial",
+                ...(args.attachments && { attachments: args.attachments }),
+            });
+
+            // 7. Build reference text from attachments
+            const referenceText = buildReferenceText(args.attachments);
+
+            // 8. Generate caption
+            console.log(`[GENERATE] Generating caption with model: ${captionModel}`);
+            captionResult = await generateCaption({
+                conversationHistory: [],
+                userMessage: args.message,
+                ...(referenceText && { referenceText }),
+                ...(args.captionModel && { model: args.captionModel }),
+                ...(args.projectContext && { projectContext: args.projectContext }),
+            });
+
+            // 9. Update post with caption, change status to "generating_images"
+            // This triggers subscription update so frontend shows caption immediately
+            await ctx.runMutation(api.generatedPosts.updateFromChat, {
+                id: generatedPostId,
+                caption: captionResult.caption,
+                model: captionModel,
+                status: "generating_images",
+            });
+            console.log(`[GENERATE] Caption saved, starting image generation...`);
+        } catch (err) {
+            await refundImageUsage(ctx, reservedCount);
+            throw err;
+        }
+
+        if (!generatedPostId || !captionResult) {
+            throw new Error("Falha ao preparar a geracao");
+        }
 
         // 9. Collect reference images (from attachments + brand context)
         const referenceImageUrls = await collectReferenceImageUrls(
@@ -232,7 +239,7 @@ export const generate = action({
         // Each image saves to DB when done, removing from pendingImageModels
         console.log(`[GENERATE] Starting parallel image generation for ${imageModels.length} models`);
 
-        await Promise.all(
+        const results = await Promise.all(
             imageModels.map(async (model) => {
                 try {
                     console.log(`[GENERATE] Generating image with model: ${model}`);
@@ -271,21 +278,24 @@ export const generate = action({
                         model,
                     });
 
-                    // Consume 1 credit for this successful image
-                    await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
-
                     console.log(`[GENERATE] Successfully generated image with ${model}`);
+                    return true;
                 } catch (err) {
                     console.error(`[GENERATE] Image generation failed for ${model}:`, err);
                     // Still remove from pending on failure so UI doesn't hang
-                    // Note: NO credit consumed on failure
                     await ctx.runMutation(api.generatedPosts.removeFromPending, {
                         id: generatedPostId,
                         model,
                     });
+                    return false;
                 }
             })
         );
+
+        const failedCount = results.filter((success) => !success).length;
+        if (failedCount > 0) {
+            await refundImageUsage(ctx, failedCount);
+        }
 
         // 11. Get all successful images for final state
         const allImages = await ctx.runQuery(api.generatedImages.listByPost, {
@@ -356,15 +366,7 @@ export const regenerateCaption = action({
             throw new Error("Post nao encontrado");
         }
 
-        // 3. Check quota (1 credit for caption only)
-        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
-        if (!quota || quota.remaining < 1) {
-            throw new Error(
-                `Creditos insuficientes. Necessario: 1. Disponivel: ${quota?.remaining ?? 0}`
-            );
-        }
-
-        // 4. Load conversation history
+        // 3. Load conversation history
         const messages = await ctx.runQuery(api.chatMessages.getMessages, {
             generatedPostId: args.generatedPostId,
         });
@@ -414,9 +416,6 @@ export const regenerateCaption = action({
             creditsUsed: 1,
         });
 
-        // 10. Consume credit
-        await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
-
         return {
             success: true,
             caption: captionResult.caption,
@@ -449,13 +448,8 @@ export const regenerateImage = action({
             throw new Error("Post nao encontrado");
         }
 
-        // 3. Check quota (1 credit for image only)
-        const quota = await ctx.runQuery(api.billing.usage.checkQuota, {});
-        if (!quota || quota.remaining < 1) {
-            throw new Error(
-                `Creditos insuficientes. Necessario: 1. Disponivel: ${quota?.remaining ?? 0}`
-            );
-        }
+        // 3. Reserve usage for the new image
+        const reservedCount = await reserveImageUsage(ctx, 1);
 
         // 4. Save user message
         await ctx.runMutation(internal.chatMessages.saveMessage, {
@@ -466,55 +460,61 @@ export const regenerateImage = action({
             ...(args.attachments && { attachments: args.attachments }),
         });
 
-        // 5. Collect reference images (from attachments + brand context)
-        const referenceImageUrls = await collectReferenceImageUrls(
-            ctx,
-            args.attachments,
-            args.projectContext?.contextImageUrls
-        );
+        let imageStorageId: Id<"_storage"> | null = null;
+        let imagePrompt = "";
 
-        // 6. Generate new image
-        let imageStorageId: Id<"_storage">;
-        let imagePrompt: string;
+        try {
+            // 5. Collect reference images (from attachments + brand context)
+            const referenceImageUrls = await collectReferenceImageUrls(
+                ctx,
+                args.attachments,
+                args.projectContext?.contextImageUrls
+            );
 
-        const imageResult = await generateImage({
-            caption: post.caption,
-            instructions: args.message,
-            ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
-        });
-
-        imagePrompt = imageResult.prompt;
-        const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) =>
-            c.charCodeAt(0)
-        );
-        const blob = new Blob([binaryData], { type: imageResult.mimeType });
-        imageStorageId = await ctx.storage.store(blob);
-
-        // 7. Update post
-        await ctx.runMutation(api.generatedPosts.updateFromChat, {
-            id: args.generatedPostId,
-            imageStorageId,
-            imagePrompt,
-            imageModel: MODELS.GEMINI_3_PRO_IMAGE,
-            status: "regenerated",
-        });
-
-        // 8. Save assistant message with snapshot
-        await ctx.runMutation(internal.chatMessages.saveMessage, {
-            generatedPostId: args.generatedPostId,
-            role: "assistant",
-            content: "Regenerei a imagem com as novas instrucoes!",
-            snapshot: {
+            // 6. Generate new image
+            const imageResult = await generateImage({
                 caption: post.caption,
+                instructions: args.message,
+                ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
+            });
+
+            imagePrompt = imageResult.prompt;
+            const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) =>
+                c.charCodeAt(0)
+            );
+            const blob = new Blob([binaryData], { type: imageResult.mimeType });
+            imageStorageId = await ctx.storage.store(blob);
+
+            // 7. Update post
+            await ctx.runMutation(api.generatedPosts.updateFromChat, {
+                id: args.generatedPostId,
                 imageStorageId,
                 imagePrompt,
-            },
-            imageModel: MODELS.GEMINI_3_PRO_IMAGE,
-            creditsUsed: 1,
-        });
+                imageModel: MODELS.GEMINI_3_PRO_IMAGE,
+                status: "regenerated",
+            });
 
-        // 9. Consume credit
-        await ctx.runMutation(api.billing.usage.consumePrompt, { count: 1 });
+            // 8. Save assistant message with snapshot
+            await ctx.runMutation(internal.chatMessages.saveMessage, {
+                generatedPostId: args.generatedPostId,
+                role: "assistant",
+                content: "Regenerei a imagem com as novas instrucoes!",
+                snapshot: {
+                    caption: post.caption,
+                    imageStorageId,
+                    imagePrompt,
+                },
+                imageModel: MODELS.GEMINI_3_PRO_IMAGE,
+                creditsUsed: 1,
+            });
+        } catch (err) {
+            await refundImageUsage(ctx, reservedCount);
+            throw err;
+        }
+
+        if (!imageStorageId) {
+            throw new Error("Falha ao regenerar imagem");
+        }
 
         // 10. Get image URL
         const imageUrl = await ctx.storage.getUrl(imageStorageId);
