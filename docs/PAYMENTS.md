@@ -168,7 +168,7 @@ Live
 - [x] Add Autumn Convex component and initialization (`convex/convex.config.ts`, `convex/autumn.ts`).
 - [x] Implement `identify` mapping (Clerk subject → customerId, include name/email).
 - [ ] Add per-user `fingerprint` generation (hash of device or IP).
-- [ ] Create Convex actions: `startCheckout(planId)`, `attachPlan(productId)`.
+- [x] Create Convex actions: `startCheckout(planId)`, `attachPlan(productId)`.
 - [ ] Create Convex action: `getBillingPortalUrl()`.
 - [ ] Create Convex query: `getAutumnCustomer()` for UI state.
 - [ ] Replace legacy subscription queries in UI with Autumn data.
