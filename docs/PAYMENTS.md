@@ -178,10 +178,10 @@ Live
 - [x] Update image generation actions to gate with `check` before work.
 - [x] Update image generation actions to `track` on success and refund on failure.
 - [x] Add server-side enforcement for batch generation (reserve N images).
-- [ ] Remove AbacatePay client-side code, routes, and UI wiring (if any remain).
-- [ ] Remove AbacatePay Convex actions, webhooks, and helpers.
-- [ ] Remove AbacatePay tables and fields from Convex schema.
-- [ ] Replace legacy `user_subscriptions` access logic with Autumn checks.
+- [x] Remove AbacatePay client-side code, routes, and UI wiring (if any remain).
+- [x] Remove AbacatePay Convex actions, webhooks, and helpers.
+- [x] Remove AbacatePay tables and fields from Convex schema.
+- [x] Replace legacy `user_subscriptions` access logic with Autumn checks.
 - [ ] Update tests to cover Autumn usage checks and trial flow.
 - [ ] Add a sandbox end‑to‑end test for checkout + entitlement update.
 - [ ] Add a live smoke test script/checklist for production release.

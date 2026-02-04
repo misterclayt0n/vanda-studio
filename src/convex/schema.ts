@@ -60,21 +60,6 @@ export default defineSchema({
         engagementScore: v.optional(v.float64()),
     }).index("by_project_id", ["projectId"]),
 
-    // User subscription & quota tracking
-    user_subscriptions: defineTable({
-        userId: v.id("users"),
-        plan: v.string(), // "free" | "pro"
-        promptsLimit: v.number(),
-        promptsUsed: v.number(),
-        periodStart: v.number(),
-        periodEnd: v.number(),
-        createdAt: v.number(),
-        // AbacatePay integration fields
-        abacateBillingId: v.optional(v.string()), // Active billing ID from AbacatePay
-        subscriptionSource: v.optional(v.string()), // "manual" | "abacatepay"
-    }).index("by_user_id", ["userId"])
-      .index("by_abacate_billing_id", ["abacateBillingId"]),
-
     // AI-generated posts
     generated_posts: defineTable({
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
@@ -343,50 +328,4 @@ export default defineSchema({
       .index("by_error_code", ["errorCode"])
       .index("by_created_at", ["createdAt"]),
 
-    // ============================================================================
-    // AbacatePay Payment Integration
-    // ============================================================================
-
-    // AbacatePay customer records (links users to AbacatePay customers)
-    abacatepay_customers: defineTable({
-        userId: v.id("users"),
-        abacateCustomerId: v.string(), // e.g., "cust_xxx" from AbacatePay
-        email: v.string(),
-        name: v.string(),
-        createdAt: v.number(),
-    }).index("by_user_id", ["userId"])
-      .index("by_abacate_customer_id", ["abacateCustomerId"]),
-
-    // AbacatePay billing/payment records
-    abacatepay_billings: defineTable({
-        userId: v.id("users"),
-        customerId: v.id("abacatepay_customers"),
-        abacateBillingId: v.string(), // e.g., "bill_xxx" from AbacatePay
-        status: v.string(), // "PENDING" | "PAID" | "EXPIRED" | "CANCELLED"
-        frequency: v.string(), // "ONE_TIME" | "MULTIPLE_PAYMENTS"
-        methods: v.array(v.string()), // ["PIX", "CARD"]
-        amount: v.number(), // Amount in cents
-        checkoutUrl: v.string(), // URL for hosted checkout
-        plan: v.optional(v.string()), // "sub1" | "sub2" | "sub3" - optional for legacy records
-        // Subscription tracking
-        nextBillingDate: v.optional(v.number()),
-        // Metadata
-        createdAt: v.number(),
-        updatedAt: v.number(),
-        paidAt: v.optional(v.number()),
-    }).index("by_user_id", ["userId"])
-      .index("by_abacate_billing_id", ["abacateBillingId"])
-      .index("by_status", ["status"]),
-
-    // Webhook event log for debugging and idempotency
-    abacatepay_webhook_events: defineTable({
-        eventId: v.string(), // Unique event ID from webhook
-        eventType: v.string(), // "billing.paid", etc.
-        billingId: v.string(), // AbacatePay billing ID
-        payload: v.string(), // JSON stringified payload
-        processedAt: v.number(),
-        success: v.boolean(),
-        errorMessage: v.optional(v.string()),
-    }).index("by_event_id", ["eventId"])
-      .index("by_billing_id", ["billingId"]),
 });
