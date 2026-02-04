@@ -3,10 +3,19 @@
 	import { goto } from "$app/navigation";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { onMount } from "svelte";
+	import { useConvexClient } from "convex-svelte";
+	import { api } from "../../../convex/_generated/api.js";
 
 	let countdown = $state(5);
+	const client = useConvexClient();
 
 	onMount(() => {
+		void client
+			.action((api as any).billing.autumn.refreshCustomer, {})
+			.catch((error: unknown) => {
+				console.error("Failed to refresh billing state:", error);
+			});
+
 		const interval = setInterval(() => {
 			countdown -= 1;
 			if (countdown <= 0) {

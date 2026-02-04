@@ -111,3 +111,21 @@ export const getAutumnCustomer = query({
         return result.data;
     },
 });
+
+export const refreshCustomer = action({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const result = await autumn.customers.get(ctx);
+
+        if (result.error) {
+            throw new Error(result.error.message || "Failed to refresh customer");
+        }
+
+        return { success: true };
+    },
+});

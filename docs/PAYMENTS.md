@@ -174,7 +174,7 @@ Live
 - [x] Replace legacy subscription queries in UI with Autumn data.
 - [x] Update pricing page to call `startCheckout` and handle preview/attach flow.
 - [x] Update billing page to show plan, balance, reset date, and billing portal link.
-- [ ] Update success page to call a server action that refreshes Autumn customer state.
+- [x] Update success page to call a server action that refreshes Autumn customer state.
 - [ ] Update image generation actions to gate with `check` before work.
 - [ ] Update image generation actions to `track` on success and refund on failure.
 - [ ] Add server-side enforcement for batch generation (reserve N images).
