@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import { DEFAULT_IMAGE_MODEL, IMAGE_MODEL_CAPABILITIES, type ImageModelName } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
 import {
@@ -328,6 +328,12 @@ export const ImageGenerationLive = Layer.effect(
                 "X-Title": "Vanda Studio",
             },
         });
+        const getModel = (
+            model: string,
+            options?: Parameters<typeof openrouter.chat>[1]
+        ): LanguageModel =>
+            // Workaround for AI SDK/OpenRouter typing mismatch under exactOptionalPropertyTypes.
+            openrouter.chat(model, options) as unknown as LanguageModel;
 
         return {
             generateImage: (params) =>
@@ -404,7 +410,7 @@ export const ImageGenerationLive = Layer.effect(
 
                         // Use generateText with extraBody for image generation
                         const result = await generateText({
-                            model: openrouter.chat(model, {
+                            model: getModel(model, {
                                 extraBody: {
                                     modalities: outputModalities,
                                     image_config: imageConfig,
@@ -468,4 +474,3 @@ export const ImageGenerationLive = Layer.effect(
         };
     })
 );
-

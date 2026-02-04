@@ -225,7 +225,7 @@
         {#if currentPost}
             <LightboxSidebar
                 postId={currentPost._id}
-                post={fullPost}
+                post={fullPost ?? null}
                 selectedImageId={currentImageId}
                 onselectimage={handleSelectImage}
                 ondownload={handleDownload}

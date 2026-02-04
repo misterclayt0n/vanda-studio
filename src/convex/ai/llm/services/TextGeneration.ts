@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText, Output } from "ai";
+import { generateText, Output, type LanguageModel } from "ai";
 import { z } from "zod";
 import { MODELS, type ModelName } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
@@ -141,6 +141,9 @@ export const TextGenerationLive = Layer.effect(
                 "X-Title": "Vanda Studio",
             },
         });
+        const getModel = (model: ModelName): LanguageModel =>
+            // Workaround for AI SDK/OpenRouter typing mismatch under exactOptionalPropertyTypes.
+            openrouter.chat(model) as unknown as LanguageModel;
 
         return {
             generateCaption: (params) =>
@@ -157,7 +160,7 @@ export const TextGenerationLive = Layer.effect(
                         );
 
                         const { experimental_output } = await generateText({
-                            model: openrouter.chat(model),
+                            model: getModel(model),
                             ...(systemMessage?.content && { system: systemMessage.content }),
                             messages: userMessages.map((m) => ({
                                 role: m.role as "user" | "assistant",
@@ -188,7 +191,7 @@ export const TextGenerationLive = Layer.effect(
                         );
 
                         const { experimental_output } = await generateText({
-                            model: openrouter.chat(model),
+                            model: getModel(model),
                             ...(systemMessage?.content && { system: systemMessage.content }),
                             messages: userMessages.map((m) => ({
                                 role: m.role as "user" | "assistant",
@@ -219,7 +222,7 @@ export const TextGenerationLive = Layer.effect(
                         );
 
                         const { text } = await generateText({
-                            model: openrouter.chat(model),
+                            model: getModel(model),
                             ...(systemMessage?.content && { system: systemMessage.content }),
                             messages: userMessages.map((m) => ({
                                 role: m.role as "user" | "assistant",

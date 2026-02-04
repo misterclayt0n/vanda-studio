@@ -7,7 +7,7 @@
         _id: Id<"image_edit_conversations">;
         title: string;
         turnCount: number;
-        thumbnailUrl: string | null;
+        thumbnailUrl: string | null | undefined;
         createdAt: number;
     }
 

@@ -250,13 +250,15 @@ export const checkBillingStatus = action({
         );
 
         // Update local billing record
+        const paidAt = response.status === "PAID" ? Date.now() : undefined;
+        const nextBillingDate = response.nextBilling
+            ? new Date(response.nextBilling).getTime()
+            : undefined;
         await ctx.runMutation(internal.billing.abacatepay.updateBillingStatus, {
             abacateBillingId: args.billingId,
             status: response.status,
-            paidAt: response.status === "PAID" ? Date.now() : undefined,
-            nextBillingDate: response.nextBilling
-                ? new Date(response.nextBilling).getTime()
-                : undefined,
+            ...(paidAt !== undefined && { paidAt }),
+            ...(nextBillingDate !== undefined && { nextBillingDate }),
         });
 
         return {
@@ -422,7 +424,11 @@ export const processPaymentConfirmed = internalMutation({
         });
 
         // Get the plan config from the billing record
-        const planKey = billing.plan as keyof typeof PLANS;
+        const plan = billing.plan;
+        if (!plan) {
+            throw new Error(`Billing missing plan: ${billing._id}`);
+        }
+        const planKey = plan as keyof typeof PLANS;
         const planConfig = PLANS[planKey];
 
         if (!planConfig) {
@@ -441,7 +447,7 @@ export const processPaymentConfirmed = internalMutation({
 
         if (subscription) {
             await ctx.db.patch(subscription._id, {
-                plan: billing.plan,
+                plan,
                 promptsLimit: planConfig.promptsLimit,
                 promptsUsed: 0, // Reset on upgrade/renewal
                 periodStart: now,

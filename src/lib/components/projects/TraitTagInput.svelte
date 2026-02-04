@@ -57,7 +57,10 @@
             addTrait(inputValue);
         }
         if (event.key === "Backspace" && !inputValue && value.length > 0) {
-            removeTrait(value[value.length - 1]);
+            const lastTrait = value[value.length - 1];
+            if (lastTrait) {
+                removeTrait(lastTrait);
+            }
         }
     }
 

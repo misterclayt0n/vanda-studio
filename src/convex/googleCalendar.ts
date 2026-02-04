@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, action, internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
@@ -21,6 +22,14 @@ interface ClassifiedError {
     message: string;
     httpStatus?: number;
     retryable: boolean;
+}
+
+type PostForSync = Doc<"generated_posts"> & { projectName?: string };
+type CalendarConnection = Doc<"google_calendar_connections">;
+type CalendarEvent = Doc<"calendar_events">;
+
+function withHttpStatus(httpStatus?: number): { httpStatus?: number } {
+    return httpStatus === undefined ? {} : { httpStatus };
 }
 
 const RETRY_CONFIG = {
@@ -69,7 +78,7 @@ function classifyError(error: unknown, httpStatus?: number): ClassifiedError {
         return { code: 'TOKEN_EXPIRED', message, retryable: true };
     }
 
-    return { code: 'UNKNOWN', message, httpStatus, retryable: true };
+    return { code: 'UNKNOWN', message, retryable: true, ...withHttpStatus(httpStatus) };
 }
 
 function calculateNextRetryDelay(attempt: number): number {
@@ -256,20 +265,24 @@ export const createCalendarEvent = action({
     args: {
         postId: v.id("generated_posts"),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<{ success: true; googleEventId: string }> => {
         // Get the post
         const post = await ctx.runQuery(internal.googleCalendar.getPostForSync, {
             postId: args.postId,
-        });
+        }) as PostForSync | null;
 
         if (!post) {
             throw new Error("Post not found or not scheduled");
         }
+        const userId = post.userId;
+        if (!userId) {
+            throw new Error("Post missing user id");
+        }
 
         // Get user's Google Calendar connection
         let connection = await ctx.runQuery(internal.googleCalendar.getConnectionForUser, {
-            userId: post.userId,
-        });
+            userId,
+        }) as CalendarConnection | null;
 
         if (!connection || !connection.syncEnabled) {
             throw new Error("Google Calendar not connected or sync disabled");
@@ -285,7 +298,7 @@ export const createCalendarEvent = action({
 
             try {
                 const refreshResult = await ctx.runAction(internal.googleCalendar.refreshAccessToken, {
-                    userId: post.userId,
+                    userId,
                 });
                 accessToken = refreshResult.accessToken;
             } catch (refreshError) {
@@ -316,7 +329,7 @@ export const createCalendarEvent = action({
         };
 
         try {
-            const response = await fetch(
+            const response: Response = await fetch(
                 `https://www.googleapis.com/calendar/v3/calendars/${connection.calendarId}/events`,
                 {
                     method: 'POST',
@@ -333,13 +346,17 @@ export const createCalendarEvent = action({
                 throw new Error(`Google Calendar API error: ${error.error?.message || 'Unknown error'}`);
             }
 
-            const createdEvent = await response.json();
+            const createdEvent = await response.json() as { id?: string };
 
             // Update calendar_events with Google event ID
             await ctx.runMutation(internal.googleCalendar.updateCalendarEventWithGoogleId, {
                 postId: args.postId,
-                googleEventId: createdEvent.id,
+                googleEventId: createdEvent.id ?? "",
             });
+
+            if (!createdEvent.id) {
+                throw new Error("Google Calendar API response missing event id");
+            }
 
             return { success: true, googleEventId: createdEvent.id };
         } catch (error) {
@@ -372,10 +389,14 @@ export const deleteCalendarEvent = action({
         if (!post) {
             return { success: true };
         }
+        const userId = post.userId;
+        if (!userId) {
+            return { success: true };
+        }
 
         // Get connection
         const connection = await ctx.runQuery(internal.googleCalendar.getConnectionForUser, {
-            userId: post.userId,
+            userId,
         });
 
         if (!connection) {
@@ -489,10 +510,10 @@ export const refreshAccessToken = internalAction({
     args: {
         userId: v.id("users"),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<{ accessToken: string }> => {
         const connection = await ctx.runQuery(internal.googleCalendar.getConnectionForUser, {
             userId: args.userId,
-        });
+        }) as CalendarConnection | null;
 
         if (!connection || !connection.refreshToken) {
             throw new Error("No refresh token available");
@@ -506,7 +527,7 @@ export const refreshAccessToken = internalAction({
             throw new Error("Google OAuth credentials not configured");
         }
 
-        const response = await fetch(GOOGLE_TOKEN_URL, {
+        const response: Response = await fetch(GOOGLE_TOKEN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
@@ -523,7 +544,10 @@ export const refreshAccessToken = internalAction({
             throw new Error('Failed to refresh token');
         }
 
-        const data = await response.json();
+        const data = await response.json() as {
+            access_token: string;
+            expires_in: number;
+        };
 
         // Update stored tokens
         await ctx.runMutation(internal.googleCalendar.updateTokens, {
@@ -602,8 +626,10 @@ export const syncPendingEvents = internalMutation({
             const eventsToProcess = userEvents.slice(0, RATE_LIMIT_CONFIG.MAX_PER_USER_PER_RUN);
             skippedRateLimit += userEvents.length - eventsToProcess.length;
 
-            for (let i = 0; i < eventsToProcess.length; i++) {
-                const event = eventsToProcess[i];
+            for (const [i, event] of eventsToProcess.entries()) {
+                if (!event) {
+                    continue;
+                }
 
                 // Check if user has Google Calendar connected
                 const connection = await ctx.db
@@ -671,7 +697,7 @@ export const syncSingleEvent = internalAction({
             // Extract HTTP status if available from error message
             let httpStatus: number | undefined;
             const statusMatch = String(error).match(/status[:\s]+(\d{3})/i);
-            if (statusMatch) {
+            if (statusMatch && statusMatch[1]) {
                 httpStatus = parseInt(statusMatch[1], 10);
             }
 
@@ -691,7 +717,7 @@ export const syncSingleEvent = internalAction({
                 userId: calendarEvent.userId,
                 errorCode: classified.code,
                 errorMessage: classified.message,
-                httpStatus: classified.httpStatus,
+                ...(classified.httpStatus !== undefined && { httpStatus: classified.httpStatus }),
                 retryable: classified.retryable,
                 syncAttempt: currentAttempt,
             });
@@ -729,20 +755,24 @@ export const createCalendarEventInternal = internalAction({
     args: {
         postId: v.id("generated_posts"),
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<{ success: true; googleEventId: string }> => {
         // Get the post
         const post = await ctx.runQuery(internal.googleCalendar.getPostForSync, {
             postId: args.postId,
-        });
+        }) as PostForSync | null;
 
         if (!post) {
             throw new Error("Post not found or not scheduled");
         }
+        const userId = post.userId;
+        if (!userId) {
+            throw new Error("Post missing user id");
+        }
 
         // Get user's Google Calendar connection
         const connection = await ctx.runQuery(internal.googleCalendar.getConnectionForUser, {
-            userId: post.userId,
-        });
+            userId,
+        }) as CalendarConnection | null;
 
         if (!connection || !connection.syncEnabled) {
             throw new Error("Google Calendar not connected or sync disabled");
@@ -757,7 +787,7 @@ export const createCalendarEventInternal = internalAction({
 
             try {
                 const refreshResult = await ctx.runAction(internal.googleCalendar.refreshAccessToken, {
-                    userId: post.userId,
+                    userId,
                 });
                 accessToken = refreshResult.accessToken;
             } catch {
@@ -787,7 +817,7 @@ export const createCalendarEventInternal = internalAction({
             },
         };
 
-        const response = await fetch(
+        const response: Response = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/${connection.calendarId}/events`,
             {
                 method: 'POST',
@@ -804,13 +834,17 @@ export const createCalendarEventInternal = internalAction({
             throw new Error(`Google Calendar API error: ${error.error?.message || 'Unknown error'}`);
         }
 
-        const createdEvent = await response.json();
+        const createdEvent = await response.json() as { id?: string };
 
         // Update calendar_events with Google event ID
         await ctx.runMutation(internal.googleCalendar.updateCalendarEventWithGoogleId, {
             postId: args.postId,
-            googleEventId: createdEvent.id,
+            googleEventId: createdEvent.id ?? "",
         });
+
+        if (!createdEvent.id) {
+            throw new Error("Google Calendar API response missing event id");
+        }
 
         return { success: true, googleEventId: createdEvent.id };
     },
@@ -849,7 +883,7 @@ export const logSyncError = internalMutation({
             userId: args.userId,
             errorCode: args.errorCode,
             errorMessage: args.errorMessage,
-            httpStatus: args.httpStatus,
+            ...(args.httpStatus !== undefined && { httpStatus: args.httpStatus }),
             retryable: args.retryable,
             syncAttempt: args.syncAttempt,
             createdAt: Date.now(),
