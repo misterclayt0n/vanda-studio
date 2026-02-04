@@ -20,6 +20,7 @@
 			promptsLimit: number;
 			periodEnd?: number;
 			trialEndsAt?: number;
+			resetAt?: number;
 		};
 		accessStatus: AccessStatus;
 		trialEligible: boolean;
@@ -52,6 +53,7 @@
 				promptsLimit: limit,
 				periodEnd: activeProduct?.current_period_end ?? undefined,
 				trialEndsAt: activeProduct?.trial_ends_at ?? undefined,
+				resetAt: feature?.next_reset_at ?? undefined,
 			},
 			accessStatus: activeProduct?.status === "trialing"
 				? "trialing"
@@ -65,6 +67,8 @@
 	// Upgrade state
 	let isUpgrading = $state<string | null>(null);
 	let upgradeError = $state<string | null>(null);
+	let isOpeningPortal = $state(false);
+	let portalError = $state<string | null>(null);
 
 	// Plan configurations
 	const plans = [
@@ -145,6 +149,23 @@
 		}
 	}
 
+	async function handleManageBilling() {
+		isOpeningPortal = true;
+		portalError = null;
+
+		try {
+			const result = await client.action((api as any).billing.autumn.getBillingPortalUrl, {});
+			if (result?.url) {
+				window.location.href = result.url;
+				return;
+			}
+			throw new Error("Nao foi possivel abrir o portal de cobranca");
+		} catch (err) {
+			portalError = err instanceof Error ? err.message : "Erro ao abrir cobranca";
+			isOpeningPortal = false;
+		}
+	}
+
 	// Format date
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp).toLocaleDateString('pt-BR', {
@@ -212,6 +233,12 @@
 				{#if upgradeError}
 					<div class="mb-6 border border-red-500/30 bg-red-500/10 p-4 text-center">
 						<p class="text-red-600">{upgradeError}</p>
+					</div>
+				{/if}
+
+				{#if portalError}
+					<div class="mb-6 border border-red-500/30 bg-red-500/10 p-4 text-center">
+						<p class="text-red-600">{portalError}</p>
 					</div>
 				{/if}
 
@@ -325,6 +352,11 @@
 										{subscriptionData.subscription.promptsUsed} / {subscriptionData.subscription.promptsLimit}
 									</p>
 									<p class="text-sm text-muted-foreground">imagens geradas este mes</p>
+									{#if subscriptionData.subscription.resetAt}
+										<p class="text-xs text-muted-foreground">
+											Reseta em {formatDate(subscriptionData.subscription.resetAt)}
+										</p>
+									{/if}
 								</div>
 								<div class="h-2 w-48 overflow-hidden bg-muted">
 									<div
@@ -332,6 +364,19 @@
 										style="width: {Math.min(100, (subscriptionData.subscription.promptsUsed / subscriptionData.subscription.promptsLimit) * 100)}%"
 									></div>
 								</div>
+							</div>
+							<div class="mt-4">
+								<Button variant="outline" class="w-full" onclick={handleManageBilling} disabled={isOpeningPortal}>
+									{#if isOpeningPortal}
+										<svg class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+										</svg>
+										Abrindo portal...
+									{:else}
+										Gerenciar cobranca
+									{/if}
+								</Button>
 							</div>
 						</div>
 					{/if}

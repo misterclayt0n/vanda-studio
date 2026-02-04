@@ -173,7 +173,7 @@ Live
 - [x] Create Convex query: `getAutumnCustomer()` for UI state.
 - [x] Replace legacy subscription queries in UI with Autumn data.
 - [x] Update pricing page to call `startCheckout` and handle preview/attach flow.
-- [ ] Update billing page to show plan, balance, reset date, and billing portal link.
+- [x] Update billing page to show plan, balance, reset date, and billing portal link.
 - [ ] Update success page to call a server action that refreshes Autumn customer state.
 - [ ] Update image generation actions to gate with `check` before work.
 - [ ] Update image generation actions to `track` on success and refund on failure.
