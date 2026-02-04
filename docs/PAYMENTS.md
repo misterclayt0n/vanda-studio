@@ -165,8 +165,8 @@ Live
 - [ ] Create Autumn plans `basico`, `mediano`, `profissional` with prices and monthly limits.
 - [ ] Enable 7‑day card-required trial on `basico`.
 - [ ] Add `AUTUMN_SECRET_KEY` to Convex env and local `.env`.
-- [ ] Add Autumn Convex component and initialization (`convex/convex.config.ts`, `convex/autumn.ts`).
-- [ ] Implement `identify` mapping (Clerk subject → customerId, include name/email).
+- [x] Add Autumn Convex component and initialization (`convex/convex.config.ts`, `convex/autumn.ts`).
+- [x] Implement `identify` mapping (Clerk subject → customerId, include name/email).
 - [ ] Add per-user `fingerprint` generation (hash of device or IP).
 - [ ] Create Convex actions: `startCheckout(planId)`, `attachPlan(productId)`.
 - [ ] Create Convex action: `getBillingPortalUrl()`.
