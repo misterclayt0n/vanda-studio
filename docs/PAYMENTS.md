@@ -169,7 +169,7 @@ Live
 - [x] Implement `identify` mapping (Clerk subject → customerId, include name/email).
 - [ ] Add per-user `fingerprint` generation (hash of device or IP).
 - [x] Create Convex actions: `startCheckout(planId)`, `attachPlan(productId)`.
-- [ ] Create Convex action: `getBillingPortalUrl()`.
+- [x] Create Convex action: `getBillingPortalUrl()`.
 - [ ] Create Convex query: `getAutumnCustomer()` for UI state.
 - [ ] Replace legacy subscription queries in UI with Autumn data.
 - [ ] Update pricing page to call `startCheckout` and handle preview/attach flow.

@@ -74,3 +74,22 @@ export const attachPlan = action({
         };
     },
 });
+
+export const getBillingPortalUrl = action({
+    args: {},
+    handler: async (ctx): Promise<{ url: string }> => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const returnUrl = `${BASE_URL}/billing`;
+        const result = await autumn.customers.billingPortal(ctx, { returnUrl });
+
+        if (result.error) {
+            throw new Error(result.error.message || "Failed to open billing portal");
+        }
+
+        return { url: result.data?.url ?? "" };
+    },
+});
