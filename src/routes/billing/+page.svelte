@@ -12,10 +12,61 @@
 	// Check for URL params
 	let expired = $derived($page.url.searchParams.get('expired') === 'true');
 
-	// Query subscription status
-	const subscriptionQuery = useQuery(api.billing.abacatepay.getSubscriptionWithPayment, () => ({}));
-	let subscriptionData = $derived(subscriptionQuery.data);
-	let isLoading = $derived(subscriptionQuery.isLoading);
+	type AccessStatus = "trialing" | "active" | "expired" | "trial_eligible" | "none";
+	type SubscriptionData = {
+		subscription: {
+			plan: string;
+			promptsUsed: number;
+			promptsLimit: number;
+			periodEnd?: number;
+			trialEndsAt?: number;
+		};
+		accessStatus: AccessStatus;
+		trialEligible: boolean;
+	};
+
+	// Query Autumn customer state
+	const customerQuery = useQuery((api as any).billing.autumn.getAutumnCustomer, () => ({}));
+	let customerData = $derived(customerQuery.data);
+	let isLoading = $derived(customerQuery.isLoading);
+	let subscriptionData = $state<SubscriptionData | null>(null);
+
+	$effect(() => {
+		if (!customerData) {
+			subscriptionData = null;
+			return;
+		}
+
+		const activeProduct = customerData.products?.find((product: any) =>
+			product.status === "active" || product.status === "trialing"
+		);
+
+		const planMap: Record<string, string> = {
+			basico: "sub1",
+			mediano: "sub2",
+			profissional: "sub3",
+		};
+
+		const feature = customerData.features?.images_generated;
+		const used = feature?.usage ?? 0;
+		const limit = feature?.included_usage ?? feature?.usage_limit ?? feature?.balance ?? 0;
+
+		subscriptionData = {
+			subscription: {
+				plan: activeProduct ? (planMap[activeProduct.id] ?? activeProduct.id) : "free",
+				promptsUsed: used,
+				promptsLimit: limit,
+				periodEnd: activeProduct?.current_period_end ?? undefined,
+				trialEndsAt: activeProduct?.trial_ends_at ?? undefined,
+			},
+			accessStatus: activeProduct?.status === "trialing"
+				? "trialing"
+				: activeProduct
+					? "active"
+					: "trial_eligible",
+			trialEligible: !activeProduct,
+		};
+	});
 
 	// Upgrade state
 	let isUpgrading = $state<string | null>(null);
