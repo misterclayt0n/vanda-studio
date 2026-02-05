@@ -26,7 +26,7 @@
 <header class="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
 	<div class="flex h-14 items-center justify-between px-4">
 		<div class="flex items-center gap-4">
-			<a href="/" class="transition-opacity hover:opacity-80">
+			<a href="/app" class="transition-opacity hover:opacity-80">
 				<Logo />
 			</a>
 

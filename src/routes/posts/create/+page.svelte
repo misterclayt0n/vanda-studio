@@ -103,8 +103,8 @@
 
 		if (normalized.includes("creditos insuficientes") || normalized.includes("créditos insuficientes")) {
 			return {
-				title: "Sem créditos disponíveis",
-				message: "Seu plano não tem saldo suficiente para gerar imagens agora.",
+				title: "Seus créditos acabaram",
+				message: "Você não tem créditos suficientes para gerar imagens. Assine um plano ou adquira mais créditos para continuar criando.",
 				detail: raw,
 				action: "billing",
 			};
@@ -826,26 +826,40 @@
 				<!-- Estado de Erro -->
 				<div class="relative flex flex-1 items-center justify-center overflow-hidden p-8">
 					<div class="pointer-events-none absolute inset-0">
-						<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-destructive/10 blur-3xl"></div>
+						{#if errorPresentation?.action === "billing"}
+							<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"></div>
+						{:else}
+							<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-destructive/10 blur-3xl"></div>
+						{/if}
 						<div class="absolute -bottom-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
 					</div>
 					<div class="relative w-full max-w-xl overflow-hidden rounded-none border border-border/60 bg-card/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
 						<div class="flex items-start gap-4">
-							<div class="flex h-12 w-12 items-center justify-center rounded-none border border-destructive/40 bg-destructive/10 text-destructive">
-								<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.5 19.5h15a1.5 1.5 0 001.32-2.21l-7.5-13.5a1.5 1.5 0 00-2.64 0l-7.5 13.5A1.5 1.5 0 004.5 19.5z" />
-								</svg>
-							</div>
+							{#if errorPresentation?.action === "billing"}
+								<!-- Credits icon for billing errors -->
+								<div class="flex h-12 w-12 items-center justify-center rounded-none border border-primary/40 bg-primary/10 text-primary">
+									<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+									</svg>
+								</div>
+							{:else}
+								<!-- Warning icon for other errors -->
+								<div class="flex h-12 w-12 items-center justify-center rounded-none border border-destructive/40 bg-destructive/10 text-destructive">
+									<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.5 19.5h15a1.5 1.5 0 001.32-2.21l-7.5-13.5a1.5 1.5 0 00-2.64 0l-7.5 13.5A1.5 1.5 0 004.5 19.5z" />
+									</svg>
+								</div>
+							{/if}
 							<div class="min-w-0 flex-1">
 								<p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-									Tentativa interrompida
+									{errorPresentation?.action === "billing" ? "Créditos esgotados" : "Tentativa interrompida"}
 								</p>
 								<h3 class="mt-2 text-xl font-semibold">{errorPresentation?.title}</h3>
 								<p class="mt-2 text-sm text-muted-foreground">
 									{errorPresentation?.message}
 								</p>
 
-								{#if errorPresentation?.detail}
+								{#if errorPresentation?.detail && errorPresentation?.action !== "billing"}
 									<button
 										type="button"
 										class="mt-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -862,12 +876,19 @@
 								{/if}
 
 								<div class="mt-5 flex flex-wrap gap-3">
-									<Button variant="outline" onclick={() => error = null}>
-										Tentar novamente
-									</Button>
 									{#if errorPresentation?.action === "billing"}
 										<Button onclick={() => goto('/billing')}>
-											Ver meu plano
+											<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+											</svg>
+											Ver planos
+										</Button>
+										<Button variant="outline" onclick={() => error = null}>
+											Voltar
+										</Button>
+									{:else}
+										<Button variant="outline" onclick={() => error = null}>
+											Tentar novamente
 										</Button>
 									{/if}
 								</div>
