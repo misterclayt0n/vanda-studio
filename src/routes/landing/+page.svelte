@@ -71,55 +71,55 @@
 				</div>
 
 				<!-- Right - Stacked cards with real posts -->
-				<div class="relative h-[500px] hidden lg:block">
+				<div class="relative h-[600px] hidden lg:block">
 					<!-- Back card -->
-					<div class="absolute top-0 right-0 w-64 border border-border bg-card shadow-xl transform translate-x-6 translate-y-6 hover:translate-x-3 hover:translate-y-3 transition-transform overflow-hidden">
+					<div class="absolute -top-8 right-0 w-80 border border-border bg-card shadow-xl transform translate-x-8 translate-y-8 hover:translate-x-4 hover:translate-y-4 transition-transform overflow-hidden">
 						<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary z-10"></div>
 						<img
-							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&q=80"
+							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80"
 							alt="AI generated abstract art"
 							class="w-full aspect-square object-cover"
 						/>
 						<div class="p-4 space-y-2">
-							<p class="text-xs text-muted-foreground line-clamp-2">Explorando novas fronteiras da criatividade digital ✨</p>
-							<div class="flex gap-1">
-								<span class="text-[10px] text-primary">#arte</span>
-								<span class="text-[10px] text-primary">#design</span>
-								<span class="text-[10px] text-primary">#ai</span>
+							<p class="text-sm text-muted-foreground line-clamp-2">Explorando novas fronteiras da criatividade digital ✨</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#arte</span>
+								<span class="text-xs text-primary">#design</span>
+								<span class="text-xs text-primary">#ai</span>
 							</div>
 						</div>
 					</div>
 
 					<!-- Middle card -->
-					<div class="absolute top-12 right-12 w-64 border border-border bg-card shadow-lg transform hover:translate-x-1 hover:translate-y-1 transition-transform overflow-hidden">
+					<div class="absolute top-16 right-16 w-80 border border-border bg-card shadow-lg transform hover:translate-x-1 hover:translate-y-1 transition-transform overflow-hidden">
 						<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground z-10"></div>
 						<img
-							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=400&fit=crop&q=80"
+							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80"
 							alt="AI generated colorful design"
 							class="w-full aspect-square object-cover"
 						/>
 						<div class="p-4 space-y-2">
-							<p class="text-xs text-muted-foreground line-clamp-2">O futuro do conteúdo está aqui 🚀</p>
-							<div class="flex gap-1">
-								<span class="text-[10px] text-primary">#criativo</span>
-								<span class="text-[10px] text-primary">#marketing</span>
+							<p class="text-sm text-muted-foreground line-clamp-2">O futuro do conteúdo está aqui 🚀</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#criativo</span>
+								<span class="text-xs text-primary">#marketing</span>
 							</div>
 						</div>
 					</div>
 
 					<!-- Front card -->
-					<div class="absolute top-24 right-24 w-64 border border-primary/50 bg-card shadow-md overflow-hidden">
+					<div class="absolute top-40 right-32 w-80 border border-primary/50 bg-card shadow-md overflow-hidden">
 						<img
-							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=400&h=400&fit=crop&q=80"
+							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80"
 							alt="AI generated gradient art"
 							class="w-full aspect-square object-cover"
 						/>
 						<div class="p-4 space-y-2">
-							<p class="text-xs text-muted-foreground line-clamp-2">Transformando ideias em realidade visual 💡</p>
-							<div class="flex gap-1">
-								<span class="text-[10px] text-primary">#branding</span>
-								<span class="text-[10px] text-primary">#visual</span>
-								<span class="text-[10px] text-primary">#inovação</span>
+							<p class="text-sm text-muted-foreground line-clamp-2">Transformando ideias em realidade visual 💡</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#branding</span>
+								<span class="text-xs text-primary">#visual</span>
+								<span class="text-xs text-primary">#inovação</span>
 							</div>
 						</div>
 					</div>
