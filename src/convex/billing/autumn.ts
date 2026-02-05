@@ -94,7 +94,7 @@ export const getBillingPortalUrl = action({
     },
 });
 
-export const getAutumnCustomer = query({
+export const getAutumnCustomer = action({
     args: {},
     handler: async (ctx) => {
         const identity = await ctx.auth.getUserIdentity();

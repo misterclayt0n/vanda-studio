@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button, Badge } from "$lib/components/ui";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
-	import { useConvexClient, useQuery } from "convex-svelte";
+import { useConvexClient } from "convex-svelte";
 	import { api } from "../../convex/_generated/api.js";
 	import { page } from "$app/stores";
 	import { goto } from "$app/navigation";
@@ -26,10 +26,28 @@
 		trialEligible: boolean;
 	};
 
-	// Query Autumn customer state
-	const customerQuery = useQuery((api as any).billing.autumn.getAutumnCustomer, () => ({}));
-	let customerData = $derived(customerQuery.data);
-	let isLoading = $derived(customerQuery.isLoading);
+	// Load Autumn customer state via action
+	let customerData = $state<any | null>(null);
+	let isLoading = $state(true);
+	let loadError = $state<string | null>(null);
+
+	async function loadCustomer() {
+		isLoading = true;
+		loadError = null;
+		try {
+			const data = await client.action((api as any).billing.autumn.getAutumnCustomer, {});
+			customerData = data ?? null;
+		} catch (err) {
+			loadError = err instanceof Error ? err.message : "Erro ao carregar assinatura";
+			customerData = null;
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	$effect(() => {
+		void loadCustomer();
+	});
 	let subscriptionData = $state<SubscriptionData | null>(null);
 
 	$effect(() => {
