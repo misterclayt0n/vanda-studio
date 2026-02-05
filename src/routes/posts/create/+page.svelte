@@ -8,6 +8,7 @@
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { page } from "$app/stores";
+	import { goto } from "$app/navigation";
 
 	// Type definitions for studio settings
 	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
@@ -88,6 +89,49 @@
 	let isGenerating = $state(false);
 	let hasGenerated = $state(false);
 	let error = $state<string | null>(null);
+	let showErrorDetails = $state(false);
+
+	type ErrorPresentation = {
+		title: string;
+		message: string;
+		detail?: string;
+		action?: "billing";
+	};
+
+	function getErrorPresentation(raw: string): ErrorPresentation {
+		const normalized = raw.toLowerCase();
+
+		if (normalized.includes("creditos insuficientes") || normalized.includes("créditos insuficientes")) {
+			return {
+				title: "Sem créditos disponíveis",
+				message: "Seu plano não tem saldo suficiente para gerar imagens agora.",
+				detail: raw,
+				action: "billing",
+			};
+		}
+
+		if (normalized.includes("temporariamente indisponivel") || normalized.includes("temporariamente indisponível")) {
+			return {
+				title: "Serviço instável",
+				message: "Nosso provedor de IA está com instabilidade. Tente novamente em alguns minutos.",
+				detail: raw,
+			};
+		}
+
+		return {
+			title: "Não foi possível gerar",
+			message: "Ocorreu um problema inesperado. Se persistir, tente novamente mais tarde.",
+			detail: raw,
+		};
+	}
+
+	let errorPresentation = $derived(error ? getErrorPresentation(error) : null);
+
+	$effect(() => {
+		if (error) {
+			showErrorDetails = false;
+		}
+	});
 
 	// Studio settings (declared early for derived state references)
 	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
@@ -780,20 +824,55 @@
 				</div>
 			{:else if error && !isGenerating}
 				<!-- Estado de Erro -->
-				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-destructive/50 bg-destructive/10">
-						<svg class="h-8 w-8 text-destructive" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-						</svg>
+				<div class="relative flex flex-1 items-center justify-center overflow-hidden p-8">
+					<div class="pointer-events-none absolute inset-0">
+						<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-destructive/10 blur-3xl"></div>
+						<div class="absolute -bottom-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
 					</div>
-					<div class="text-center">
-						<h3 class="text-lg font-medium text-destructive">Erro na geracao</h3>
-						<p class="mt-1 max-w-md text-sm text-muted-foreground">
-							{error}
-						</p>
-						<Button variant="outline" class="mt-4" onclick={() => error = null}>
-							Tentar novamente
-						</Button>
+					<div class="relative w-full max-w-xl overflow-hidden rounded-none border border-border/60 bg-card/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
+						<div class="flex items-start gap-4">
+							<div class="flex h-12 w-12 items-center justify-center rounded-none border border-destructive/40 bg-destructive/10 text-destructive">
+								<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.5 19.5h15a1.5 1.5 0 001.32-2.21l-7.5-13.5a1.5 1.5 0 00-2.64 0l-7.5 13.5A1.5 1.5 0 004.5 19.5z" />
+								</svg>
+							</div>
+							<div class="min-w-0 flex-1">
+								<p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+									Tentativa interrompida
+								</p>
+								<h3 class="mt-2 text-xl font-semibold">{errorPresentation?.title}</h3>
+								<p class="mt-2 text-sm text-muted-foreground">
+									{errorPresentation?.message}
+								</p>
+
+								{#if errorPresentation?.detail}
+									<button
+										type="button"
+										class="mt-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+										onclick={() => showErrorDetails = !showErrorDetails}
+									>
+										<span>{showErrorDetails ? "Ocultar detalhes" : "Ver detalhes"}</span>
+										<svg class="h-3 w-3 transition-transform {showErrorDetails ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 9.75L12 17.25 4.5 9.75" />
+										</svg>
+									</button>
+									{#if showErrorDetails}
+										<pre class="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-none border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground">{errorPresentation.detail}</pre>
+									{/if}
+								{/if}
+
+								<div class="mt-5 flex flex-wrap gap-3">
+									<Button variant="outline" onclick={() => error = null}>
+										Tentar novamente
+									</Button>
+									{#if errorPresentation?.action === "billing"}
+										<Button onclick={() => goto('/billing')}>
+											Ver meu plano
+										</Button>
+									{/if}
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			{:else if !hasGenerated && !isGenerating && !generatedPostId}
