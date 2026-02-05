@@ -70,33 +70,57 @@
 					</div>
 				</div>
 
-				<!-- Right - Stacked cards -->
+				<!-- Right - Stacked cards with real posts -->
 				<div class="relative h-[500px] hidden lg:block">
-					<div class="absolute top-0 right-0 w-64 h-80 border border-border bg-card shadow-xl transform translate-x-6 translate-y-6 hover:translate-x-3 hover:translate-y-3 transition-transform">
-						<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary"></div>
-						<div class="h-2/3 bg-gradient-to-br from-primary/20 to-transparent"></div>
-						<div class="p-5 space-y-2">
-							<div class="h-2 w-full bg-foreground/10 rounded-full"></div>
-							<div class="h-2 w-3/4 bg-foreground/10 rounded-full"></div>
-							<div class="h-2 w-1/2 bg-foreground/10 rounded-full"></div>
+					<!-- Back card -->
+					<div class="absolute top-0 right-0 w-64 border border-border bg-card shadow-xl transform translate-x-6 translate-y-6 hover:translate-x-3 hover:translate-y-3 transition-transform overflow-hidden">
+						<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary z-10"></div>
+						<img
+							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&q=80"
+							alt="AI generated abstract art"
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2">
+							<p class="text-xs text-muted-foreground line-clamp-2">Explorando novas fronteiras da criatividade digital ✨</p>
+							<div class="flex gap-1">
+								<span class="text-[10px] text-primary">#arte</span>
+								<span class="text-[10px] text-primary">#design</span>
+								<span class="text-[10px] text-primary">#ai</span>
+							</div>
 						</div>
 					</div>
 
-					<div class="absolute top-12 right-12 w-64 h-80 border border-border bg-card shadow-lg transform hover:translate-x-1 hover:translate-y-1 transition-transform">
-						<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground"></div>
-						<div class="h-2/3 bg-gradient-to-tr from-primary/30 to-primary/5"></div>
-						<div class="p-5 space-y-2">
-							<div class="h-2 w-full bg-foreground/10 rounded-full"></div>
-							<div class="h-2 w-2/3 bg-foreground/10 rounded-full"></div>
+					<!-- Middle card -->
+					<div class="absolute top-12 right-12 w-64 border border-border bg-card shadow-lg transform hover:translate-x-1 hover:translate-y-1 transition-transform overflow-hidden">
+						<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground z-10"></div>
+						<img
+							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=400&fit=crop&q=80"
+							alt="AI generated colorful design"
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2">
+							<p class="text-xs text-muted-foreground line-clamp-2">O futuro do conteúdo está aqui 🚀</p>
+							<div class="flex gap-1">
+								<span class="text-[10px] text-primary">#criativo</span>
+								<span class="text-[10px] text-primary">#marketing</span>
+							</div>
 						</div>
 					</div>
 
-					<div class="absolute top-24 right-24 w-64 h-80 border border-primary/50 bg-card shadow-md">
-						<div class="h-2/3 bg-gradient-to-bl from-primary/40 to-primary/10"></div>
-						<div class="p-5 space-y-2">
-							<div class="h-2 w-full bg-foreground/10 rounded-full"></div>
-							<div class="h-2 w-4/5 bg-foreground/10 rounded-full"></div>
-							<div class="h-2 w-1/2 bg-foreground/10 rounded-full"></div>
+					<!-- Front card -->
+					<div class="absolute top-24 right-24 w-64 border border-primary/50 bg-card shadow-md overflow-hidden">
+						<img
+							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=400&h=400&fit=crop&q=80"
+							alt="AI generated gradient art"
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2">
+							<p class="text-xs text-muted-foreground line-clamp-2">Transformando ideias em realidade visual 💡</p>
+							<div class="flex gap-1">
+								<span class="text-[10px] text-primary">#branding</span>
+								<span class="text-[10px] text-primary">#visual</span>
+								<span class="text-[10px] text-primary">#inovação</span>
+							</div>
 						</div>
 					</div>
 				</div>
