@@ -1,6 +1,91 @@
 <script lang="ts">
 	import { SignInButton } from "svelte-clerk";
 	import Logo from "$lib/components/Logo.svelte";
+	import { onMount } from "svelte";
+
+	// Carousel state for stacked cards
+	let cardOrder = $state([0, 1, 2]);
+	let animatingCard = $state<number | null>(null);
+	let isAnimating = $state(false);
+	let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
+
+	const cards = [
+		{
+			image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80",
+			alt: "AI generated abstract art",
+			caption: "Explorando novas fronteiras da criatividade digital ✨",
+			tags: ["#arte", "#design", "#ai"]
+		},
+		{
+			image: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80",
+			alt: "AI generated colorful design",
+			caption: "O futuro do conteúdo está aqui 🚀",
+			tags: ["#criativo", "#marketing"]
+		},
+		{
+			image: "https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80",
+			alt: "AI generated gradient art",
+			caption: "Transformando ideias em realidade visual 💡",
+			tags: ["#branding", "#visual", "#inovação"]
+		}
+	];
+
+	function getCardPosition(cardIndex: number): number {
+		return cardOrder.indexOf(cardIndex);
+	}
+
+	function bringToFront(cardIndex: number) {
+		const currentPosition = getCardPosition(cardIndex);
+		if (currentPosition === 0 || isAnimating) return;
+
+		isAnimating = true;
+		animatingCard = cardIndex;
+
+		// After the sweep-out animation, reorder and animate to front
+		setTimeout(() => {
+			const newOrder = cardOrder.filter(i => i !== cardIndex);
+			cardOrder = [cardIndex, ...newOrder];
+
+			// Reset animation state after settle
+			setTimeout(() => {
+				animatingCard = null;
+				isAnimating = false;
+			}, 400);
+		}, 350);
+	}
+
+	function cycleToNext() {
+		// Bring the back card (last in order) to front
+		const backCard = cardOrder[cardOrder.length - 1];
+		bringToFront(backCard);
+	}
+
+	function startAutoPlay() {
+		if (autoPlayInterval) return;
+		autoPlayInterval = setInterval(cycleToNext, 3000);
+	}
+
+	function stopAutoPlay() {
+		if (autoPlayInterval) {
+			clearInterval(autoPlayInterval);
+			autoPlayInterval = null;
+		}
+	}
+
+	function resetAutoPlay() {
+		stopAutoPlay();
+		startAutoPlay();
+	}
+
+	function handleCardClick(cardIndex: number) {
+		bringToFront(cardIndex);
+		resetAutoPlay(); // Reset timer when user interacts
+	}
+
+	onMount(() => {
+		startAutoPlay();
+		return () => stopAutoPlay();
+	});
 </script>
 
 <svelte:head>
@@ -70,59 +155,42 @@
 					</div>
 				</div>
 
-				<!-- Right - Stacked cards with real posts -->
-				<div class="relative h-[600px] hidden lg:block">
-					<!-- Back card -->
-					<div class="absolute -top-8 right-0 w-80 border border-border bg-card shadow-xl transform translate-x-8 translate-y-8 hover:translate-x-4 hover:translate-y-4 transition-transform overflow-hidden">
-						<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary z-10"></div>
-						<img
-							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80"
-							alt="AI generated abstract art"
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2">
-							<p class="text-sm text-muted-foreground line-clamp-2">Explorando novas fronteiras da criatividade digital ✨</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#arte</span>
-								<span class="text-xs text-primary">#design</span>
-								<span class="text-xs text-primary">#ai</span>
+				<!-- Right - Stacked cards with real posts (carousel) -->
+				<div class="relative h-[600px] hidden lg:block card-stack">
+					{#each cards as card, cardIndex}
+						{@const position = getCardPosition(cardIndex)}
+						{@const isSweeping = animatingCard === cardIndex}
+						<button
+							type="button"
+							onclick={() => handleCardClick(cardIndex)}
+							class="card-item absolute w-80 border bg-card overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+								{position === 0 ? 'card-front border-primary/50 shadow-md' : ''}
+								{position === 1 ? 'card-middle border-border shadow-lg' : ''}
+								{position === 2 ? 'card-back border-border shadow-xl' : ''}
+								{isSweeping ? 'card-sweep-out' : ''}
+							"
+							style="--card-index: {position};"
+						>
+							{#if position === 2 && !isSweeping}
+								<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary z-10"></div>
+							{:else if position === 1 && !isSweeping}
+								<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground z-10"></div>
+							{/if}
+							<img
+								src={card.image}
+								alt={card.alt}
+								class="w-full aspect-square object-cover"
+							/>
+							<div class="p-4 space-y-2 text-left">
+								<p class="text-sm text-muted-foreground line-clamp-2">{card.caption}</p>
+								<div class="flex gap-1.5 flex-wrap">
+									{#each card.tags as tag}
+										<span class="text-xs text-primary">{tag}</span>
+									{/each}
+								</div>
 							</div>
-						</div>
-					</div>
-
-					<!-- Middle card -->
-					<div class="absolute top-16 right-16 w-80 border border-border bg-card shadow-lg transform hover:translate-x-1 hover:translate-y-1 transition-transform overflow-hidden">
-						<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground z-10"></div>
-						<img
-							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80"
-							alt="AI generated colorful design"
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2">
-							<p class="text-sm text-muted-foreground line-clamp-2">O futuro do conteúdo está aqui 🚀</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#criativo</span>
-								<span class="text-xs text-primary">#marketing</span>
-							</div>
-						</div>
-					</div>
-
-					<!-- Front card -->
-					<div class="absolute top-40 right-32 w-80 border border-primary/50 bg-card shadow-md overflow-hidden">
-						<img
-							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80"
-							alt="AI generated gradient art"
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2">
-							<p class="text-sm text-muted-foreground line-clamp-2">Transformando ideias em realidade visual 💡</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#branding</span>
-								<span class="text-xs text-primary">#visual</span>
-								<span class="text-xs text-primary">#inovação</span>
-							</div>
-						</div>
-					</div>
+						</button>
+					{/each}
 				</div>
 			</div>
 		</div>
@@ -270,3 +338,63 @@
 		</div>
 	</footer>
 </div>
+
+<style>
+	/* Card stack positions */
+	.card-stack {
+		perspective: 1000px;
+	}
+
+	.card-item {
+		transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+		transform-style: preserve-3d;
+	}
+
+	/* Front card - closest to viewer */
+	.card-front {
+		top: 160px;
+		right: 128px;
+		z-index: 30;
+		transform: translateZ(0);
+	}
+
+	/* Middle card */
+	.card-middle {
+		top: 64px;
+		right: 64px;
+		z-index: 20;
+		transform: translateZ(-20px) scale(0.98);
+	}
+
+	/* Back card - furthest */
+	.card-back {
+		top: -32px;
+		right: 0px;
+		z-index: 10;
+		transform: translate(32px, 32px) translateZ(-40px) scale(0.96);
+	}
+
+	/* Sweep out animation - card arcs out to the left then comes to front */
+	.card-sweep-out {
+		animation: sweepOut 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+		z-index: 50 !important;
+	}
+
+	@keyframes sweepOut {
+		0% {
+			transform: translateZ(0);
+		}
+		30% {
+			transform: translateX(-120px) translateY(-80px) rotateY(-25deg) rotateZ(-8deg) scale(1.05);
+		}
+		60% {
+			transform: translateX(-60px) translateY(-40px) rotateY(-10deg) rotateZ(-3deg) scale(1.02);
+		}
+		100% {
+			/* End at front position */
+			top: 160px;
+			right: 128px;
+			transform: translateZ(0) rotateY(0) rotateZ(0) scale(1);
+		}
+	}
+</style>
