@@ -23,10 +23,10 @@
 	}
 </script>
 
-<header class="shrink-0 border-b border-border bg-background">
+<header class="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
 	<div class="flex h-14 items-center justify-between px-4">
 		<div class="flex items-center gap-4">
-			<a href="/">
+			<a href="/" class="transition-opacity hover:opacity-80">
 				<Logo />
 			</a>
 
@@ -39,7 +39,7 @@
 						variant={isActive(item.href) ? "secondary" : "ghost"}
 						size="sm"
 						onclick={() => goto(item.href)}
-						class="gap-2"
+						class="gap-2 transition-all {isActive(item.href) ? 'shadow-sm' : ''}"
 					>
 						{#if item.icon === "sparkles"}
 							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -68,7 +68,7 @@
 			<SettingsMenu />
 			<SignedOut>
 				<SignInButton mode="modal">
-					<button class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted">
+					<button class="btn-glow h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted hover:border-primary/50 transition-all">
 						Entrar
 					</button>
 				</SignInButton>

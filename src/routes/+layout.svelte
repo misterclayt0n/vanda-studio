@@ -47,18 +47,20 @@
 <Toaster position="bottom-right" />
 
 <ClerkProvider appearance={clerkAppearance}>
-	{#if env.PUBLIC_CONVEX_URL}
-		<ConvexClerkProvider>
-			{@render children()}
-		</ConvexClerkProvider>
-	{:else}
-		<div class="flex min-h-screen items-center justify-center">
-			<div class="text-center">
-				<h1 class="text-xl font-semibold text-destructive">Missing Configuration</h1>
-				<p class="mt-2 text-sm text-muted-foreground">
-					PUBLIC_CONVEX_URL environment variable is not set.
-				</p>
+	<div class="ambient-glow ambient-noise min-h-screen">
+		{#if env.PUBLIC_CONVEX_URL}
+			<ConvexClerkProvider>
+				{@render children()}
+			</ConvexClerkProvider>
+		{:else}
+			<div class="flex min-h-screen items-center justify-center">
+				<div class="text-center">
+					<h1 class="text-xl font-semibold text-destructive">Missing Configuration</h1>
+					<p class="mt-2 text-sm text-muted-foreground">
+						PUBLIC_CONVEX_URL environment variable is not set.
+					</p>
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </ClerkProvider>

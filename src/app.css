@@ -159,6 +159,197 @@
 	}
 }
 
+/* ============================================
+   AMBIENT GLOW EFFECTS
+   Subtle background gradients that add depth
+   ============================================ */
+
+/* Main ambient glow container - add to your main layout wrapper */
+.ambient-glow {
+	position: relative;
+}
+
+.ambient-glow::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+	background:
+		/* Top-center magenta glow */
+		radial-gradient(
+			ellipse 80% 50% at 50% -20%,
+			oklch(0.59 0.22 1 / 0.08) 0%,
+			transparent 70%
+		),
+		/* Top-right accent glow */
+		radial-gradient(
+			ellipse 50% 40% at 85% 10%,
+			oklch(0.66 0.21 354 / 0.06) 0%,
+			transparent 60%
+		),
+		/* Top-left subtle glow */
+		radial-gradient(
+			ellipse 40% 30% at 15% 5%,
+			oklch(0.73 0.18 350 / 0.04) 0%,
+			transparent 50%
+		);
+}
+
+/* Dark mode - more visible glows */
+.dark .ambient-glow::before {
+	background:
+		/* Top-center magenta glow - stronger in dark */
+		radial-gradient(
+			ellipse 80% 50% at 50% -20%,
+			oklch(0.66 0.21 354 / 0.15) 0%,
+			transparent 70%
+		),
+		/* Top-right accent glow */
+		radial-gradient(
+			ellipse 50% 40% at 85% 10%,
+			oklch(0.59 0.22 1 / 0.10) 0%,
+			transparent 60%
+		),
+		/* Top-left subtle glow */
+		radial-gradient(
+			ellipse 40% 30% at 15% 5%,
+			oklch(0.73 0.18 350 / 0.06) 0%,
+			transparent 50%
+		);
+}
+
+/* Alternative: Noise texture overlay for extra depth */
+.ambient-noise::after {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 1;
+	opacity: 0.015;
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.dark .ambient-noise::after {
+	opacity: 0.03;
+}
+
+/* Glow effect for cards on hover */
+.card-glow {
+	position: relative;
+	transition: all 0.3s ease;
+}
+
+.card-glow::before {
+	content: "";
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	background: linear-gradient(
+		135deg,
+		oklch(0.59 0.22 1 / 0) 0%,
+		oklch(0.59 0.22 1 / 0) 100%
+	);
+	z-index: -1;
+	transition: all 0.3s ease;
+	opacity: 0;
+}
+
+.card-glow:hover::before {
+	inset: -2px;
+	opacity: 1;
+	background: linear-gradient(
+		135deg,
+		oklch(0.59 0.22 1 / 0.15) 0%,
+		oklch(0.66 0.21 354 / 0.1) 50%,
+		oklch(0.73 0.18 350 / 0.05) 100%
+	);
+	filter: blur(8px);
+}
+
+/* Subtle glow for primary buttons */
+.btn-glow {
+	position: relative;
+	transition: all 0.2s ease;
+}
+
+.btn-glow::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: 0 0 0 0 oklch(0.59 0.22 1 / 0);
+	transition: all 0.2s ease;
+}
+
+.btn-glow:hover::after {
+	box-shadow: 0 4px 20px oklch(0.59 0.22 1 / 0.25);
+}
+
+/* Glow border effect for inputs on focus */
+.input-glow:focus {
+	box-shadow:
+		0 0 0 1px oklch(0.59 0.22 1 / 0.3),
+		0 0 20px oklch(0.59 0.22 1 / 0.1);
+}
+
+/* Animated gradient border - for special elements */
+@property --gradient-angle {
+	syntax: "<angle>";
+	initial-value: 0deg;
+	inherits: false;
+}
+
+.gradient-border {
+	position: relative;
+	background: var(--card);
+	border-radius: inherit;
+}
+
+.gradient-border::before {
+	content: "";
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	padding: 1px;
+	background: linear-gradient(
+		var(--gradient-angle),
+		oklch(0.59 0.22 1) 0%,
+		oklch(0.66 0.21 354) 33%,
+		oklch(0.73 0.18 350) 66%,
+		oklch(0.59 0.22 1) 100%
+	);
+	-webkit-mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	animation: gradient-rotate 4s linear infinite;
+}
+
+@keyframes gradient-rotate {
+	to {
+		--gradient-angle: 360deg;
+	}
+}
+
+/* Pulse glow for active/loading states */
+@keyframes pulse-glow {
+	0%, 100% {
+		box-shadow: 0 0 5px oklch(0.59 0.22 1 / 0.2);
+	}
+	50% {
+		box-shadow: 0 0 20px oklch(0.59 0.22 1 / 0.4);
+	}
+}
+
+.pulse-glow {
+	animation: pulse-glow 2s ease-in-out infinite;
+}
+
 /* Accordion animations (for bits-ui) */
 @keyframes accordion-down {
 	from {
