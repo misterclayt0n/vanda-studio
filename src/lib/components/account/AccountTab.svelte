@@ -110,34 +110,26 @@
 		</div>
 	</section>
 
-	<!-- Danger zone -->
+	<!-- Sign out -->
 	<section>
 		<Separator class="mb-6" />
-		<h3 class="text-lg font-semibold mb-1 text-destructive">Zona de perigo</h3>
-		<p class="text-sm text-muted-foreground mb-4">
-			Ações irreversíveis da conta
-		</p>
-
-		<div class="flex flex-wrap gap-3">
-			<Button
-				variant="outline"
-				onclick={handleSignOut}
-				disabled={isSigningOut}
-				class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-			>
-				{#if isSigningOut}
-					<svg class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-					</svg>
-					Saindo...
-				{:else}
-					<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-					</svg>
-					Sair da conta
-				{/if}
-			</Button>
-		</div>
+		<Button
+			variant="outline"
+			onclick={handleSignOut}
+			disabled={isSigningOut}
+		>
+			{#if isSigningOut}
+				<svg class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+				</svg>
+				Saindo...
+			{:else}
+				<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+				</svg>
+				Sair da conta
+			{/if}
+		</Button>
 	</section>
 </div>

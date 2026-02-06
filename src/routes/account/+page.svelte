@@ -59,9 +59,13 @@
 		void loadCustomer();
 	});
 
+	// Scheduled plan (pending downgrade)
+	let scheduledPlan = $state<{ id: string; startsAt: number } | null>(null);
+
 	$effect(() => {
 		if (!customerData) {
 			subscriptionData = null;
+			scheduledPlan = null;
 			return;
 		}
 
@@ -69,6 +73,13 @@
 			(product: any) =>
 				product.status === "active" || product.status === "trialing"
 		);
+
+		const scheduled = customerData.products?.find(
+			(product: any) => product.status === "scheduled"
+		);
+		scheduledPlan = scheduled
+			? { id: scheduled.id, startsAt: scheduled.current_period_start ?? scheduled.started_at }
+			: null;
 
 		const feature = customerData.features?.images_generated;
 		const used = feature?.usage ?? 0;
@@ -280,6 +291,7 @@
 								{subscriptionData}
 								{isLoading}
 								{expired}
+								{scheduledPlan}
 								onUpgrade={handleUpgrade}
 								onManageBilling={handleManageBilling}
 								{isUpgrading}

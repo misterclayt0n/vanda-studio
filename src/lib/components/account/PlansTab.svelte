@@ -18,6 +18,7 @@
 		subscriptionData: SubscriptionData | null;
 		isLoading: boolean;
 		expired: boolean;
+		scheduledPlan: { id: string; startsAt: number } | null;
 		onUpgrade: (planId: "basico" | "mediano" | "profissional") => Promise<void>;
 		onManageBilling: () => Promise<void>;
 		isUpgrading: string | null;
@@ -30,6 +31,7 @@
 		subscriptionData,
 		isLoading,
 		expired,
+		scheduledPlan,
 		onUpgrade,
 		onManageBilling,
 		isUpgrading,
@@ -99,11 +101,25 @@
 		return subscriptionData?.subscription?.plan === planId;
 	}
 
-	function isUpgrade(planId: string): boolean {
+	const planNames: Record<string, string> = {
+		basico: "Básico",
+		mediano: "Mediano",
+		profissional: "Profissional",
+	};
+
+	function planDirection(planId: string): "upgrade" | "downgrade" | "none" {
 		const currentPlan = subscriptionData?.subscription?.plan;
-		if (!currentPlan) return true;
+		if (!currentPlan) return "upgrade";
 		const planOrder = ["basico", "mediano", "profissional"];
-		return planOrder.indexOf(planId) > planOrder.indexOf(currentPlan);
+		const currentIdx = planOrder.indexOf(currentPlan);
+		const targetIdx = planOrder.indexOf(planId);
+		if (targetIdx > currentIdx) return "upgrade";
+		if (targetIdx < currentIdx) return "downgrade";
+		return "none";
+	}
+
+	function isScheduledPlan(planId: string): boolean {
+		return scheduledPlan?.id === planId;
 	}
 </script>
 
@@ -154,7 +170,8 @@
 			{#each plans as plan}
 				<div class="relative flex flex-col border bg-card p-6 transition-all hover:border-primary/30
 					{plan.highlight ? 'border-2 border-primary' : 'border-border'}
-					{isCurrentPlan(plan.id) ? 'ring-2 ring-green-500' : ''}">
+					{isCurrentPlan(plan.id) ? 'ring-2 ring-green-500' : ''}
+					{isScheduledPlan(plan.id) ? 'ring-2 ring-amber-500' : ''}">
 
 					{#if plan.highlight}
 						<div class="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -201,16 +218,32 @@
 							<Badge class="w-full justify-center py-2 bg-green-500/10 text-green-600 hover:bg-green-500/10">
 								Plano ativo
 							</Badge>
-							{#if subscriptionData?.subscription?.periodEnd}
+							{#if scheduledPlan}
+								<p class="text-center text-xs text-muted-foreground">
+									Muda para {planNames[scheduledPlan.id] ?? scheduledPlan.id} em {formatDate(scheduledPlan.startsAt)}
+								</p>
+							{:else if subscriptionData?.subscription?.periodEnd}
 								<p class="text-center text-xs text-muted-foreground">
 									Renova em {formatDate(subscriptionData.subscription.periodEnd)}
 								</p>
 							{/if}
 						</div>
-					{:else if isUpgrade(plan.id)}
+					{:else if isScheduledPlan(plan.id)}
+						<div class="space-y-2">
+							<Badge class="w-full justify-center py-2 bg-amber-500/10 text-amber-600 hover:bg-amber-500/10">
+								Agendado
+							</Badge>
+							{#if scheduledPlan?.startsAt}
+								<p class="text-center text-xs text-muted-foreground">
+									Começa em {formatDate(scheduledPlan.startsAt)}
+								</p>
+							{/if}
+						</div>
+					{:else}
+						{@const direction = planDirection(plan.id)}
 						<Button
 							class="w-full"
-							variant={plan.highlight ? "default" : "outline"}
+							variant={direction === "upgrade" && plan.highlight ? "default" : "outline"}
 							onclick={() => onUpgrade(plan.id)}
 							disabled={isUpgrading !== null}
 						>
@@ -220,13 +253,11 @@
 									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
 								</svg>
 								Processando...
+							{:else if direction === "downgrade"}
+								Mudar para {plan.name}
 							{:else}
 								Assinar {plan.name}
 							{/if}
-						</Button>
-					{:else}
-						<Button variant="outline" class="w-full" disabled>
-							Plano inferior
 						</Button>
 					{/if}
 				</div>
