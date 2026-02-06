@@ -24,7 +24,7 @@ export const startCheckout = action({
         }
 
         const successUrl = `${BASE_URL}/billing/success`;
-        const cancelUrl = `${BASE_URL}/billing?expired=true`;
+        const cancelUrl = `${BASE_URL}/account?expired=true#planos`;
 
         const result = await autumn.checkout(ctx, {
             productId: args.planId as PlanId,
@@ -55,7 +55,7 @@ export const attachPlan = action({
         }
 
         const successUrl = `${BASE_URL}/billing/success`;
-        const cancelUrl = `${BASE_URL}/billing?expired=true`;
+        const cancelUrl = `${BASE_URL}/account?expired=true#planos`;
 
         const result = await autumn.attach(ctx, {
             productId: args.planId as PlanId,
@@ -83,7 +83,7 @@ export const getBillingPortalUrl = action({
             throw new Error("Not authenticated");
         }
 
-        const returnUrl = `${BASE_URL}/billing`;
+        const returnUrl = `${BASE_URL}/account#planos`;
         const result = await autumn.customers.billingPortal(ctx, { returnUrl });
 
         if (result.error) {

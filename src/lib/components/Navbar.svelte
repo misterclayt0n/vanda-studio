@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { Button, Separator } from "$lib/components/ui";
-	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
+	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { page } from "$app/stores";
 	import { goto } from "$app/navigation";
 	import Logo from "./Logo.svelte";
-	import SettingsMenu from "./SettingsMenu.svelte";
+
+	const clerk = useClerkContext();
 
 	// Determine current route for active state
 	let currentPath = $derived($page.url.pathname);
@@ -64,8 +65,7 @@
 			</nav>
 		</div>
 
-		<div class="flex items-center gap-4">
-			<SettingsMenu />
+		<div class="flex items-center gap-3">
 			<SignedOut>
 				<SignInButton mode="modal">
 					<button class="btn-glow h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted hover:border-primary/50 transition-all">
@@ -74,7 +74,26 @@
 				</SignInButton>
 			</SignedOut>
 			<SignedIn>
-				<UserButton />
+				<a
+					href="/account"
+					class="flex h-8 w-8 items-center justify-center border overflow-hidden transition-all
+						{isActive('/account')
+							? 'border-primary shadow-[0_0_0_1px] shadow-primary/20'
+							: 'border-border hover:border-primary/50'}"
+					aria-label="Conta"
+				>
+					{#if clerk.user?.imageUrl}
+						<img
+							src={clerk.user.imageUrl}
+							alt={clerk.user.fullName ?? "Avatar"}
+							class="h-full w-full object-cover"
+						/>
+					{:else}
+						<span class="text-xs font-medium text-muted-foreground">
+							{clerk.user?.firstName?.[0] ?? "?"}
+						</span>
+					{/if}
+				</a>
 			</SignedIn>
 		</div>
 	</div>

@@ -20,7 +20,7 @@
 			countdown -= 1;
 			if (countdown <= 0) {
 				clearInterval(interval);
-				goto('/posts/create');
+				goto('/account#planos');
 			}
 		}, 1000);
 
@@ -57,7 +57,7 @@
 					</svg>
 					Comecar a criar
 				</Button>
-				<Button variant="outline" onclick={() => goto('/billing')}>
+				<Button variant="outline" onclick={() => goto('/account#planos')}>
 					Ver meu plano
 				</Button>
 			</div>
