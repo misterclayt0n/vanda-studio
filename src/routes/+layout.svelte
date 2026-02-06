@@ -6,13 +6,23 @@
 	import { ModeWatcher } from "mode-watcher";
 	import { Toaster } from "svelte-sonner";
 	import ConvexClerkProvider from "$lib/components/convex-clerk-provider.svelte";
+	import CommandPalette from "$lib/components/CommandPalette.svelte";
 	import { goto } from "$app/navigation";
 	import type { Appearance } from "@clerk/types";
 
 	const { children } = $props();
 
+	let commandPaletteOpen = $state(false);
+
 	function handleGlobalKeydown(e: KeyboardEvent) {
 		const meta = e.metaKey || e.ctrlKey;
+
+		// ⌘K — Toggle command palette
+		if (meta && !e.shiftKey && e.key.toLowerCase() === "k") {
+			e.preventDefault();
+			commandPaletteOpen = !commandPaletteOpen;
+			return;
+		}
 
 		// ⌘⇧O — Criar post
 		if (meta && e.shiftKey && e.key.toLowerCase() === "o") {
@@ -65,6 +75,7 @@
 		{#if env.PUBLIC_CONVEX_URL}
 			<ConvexClerkProvider>
 				{@render children()}
+				<CommandPalette open={commandPaletteOpen} onclose={() => commandPaletteOpen = false} />
 			</ConvexClerkProvider>
 		{:else}
 			<div class="flex min-h-screen items-center justify-center">

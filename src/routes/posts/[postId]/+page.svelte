@@ -125,7 +125,7 @@
 
 	// Extract hashtags
 	let hashtags = $derived(
-		post?.caption?.match(/#\w+/g) ?? []
+		post?.caption?.match(/#[\p{L}\p{N}_]+/gu) ?? []
 	);
 </script>
 

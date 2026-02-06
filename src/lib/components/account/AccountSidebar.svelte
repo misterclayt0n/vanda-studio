@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { Badge } from "$lib/components/ui";
 
+	let isMac = $state(false);
+	$effect(() => {
+		isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
+	});
+	let mod = $derived(isMac ? "⌘" : "Ctrl");
+
 	interface SubscriptionData {
 		subscription: {
 			plan: string;
@@ -156,9 +162,16 @@
 		<span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Atalhos</span>
 		<div class="space-y-2.5">
 			<div class="flex items-center justify-between">
+				<span class="text-xs text-foreground/70">Buscar</span>
+				<div class="flex gap-1.5">
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 font-mono text-xs text-foreground">{mod}</kbd>
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 text-xs font-medium text-foreground">K</kbd>
+				</div>
+			</div>
+			<div class="flex items-center justify-between">
 				<span class="text-xs text-foreground/70">Criar post</span>
 				<div class="flex gap-1.5">
-					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 font-mono text-xs text-foreground">⌘</kbd>
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 font-mono text-xs text-foreground">{mod}</kbd>
 					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5">
 						<svg class="h-3.5 w-3.5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M12 19V5" />

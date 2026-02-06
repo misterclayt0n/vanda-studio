@@ -102,7 +102,7 @@
 
 	// Caption sidebar state
 	let currentCaption = $derived(conversation?.originalPost?.caption ?? "");
-	let hashtags = $derived(currentCaption.match(/#\w+/g) ?? []);
+	let hashtags = $derived(currentCaption.match(/#[\p{L}\p{N}_]+/gu) ?? []);
 	let showCopiedFeedback = $state(false);
 
 	function handleCopyCaption() {

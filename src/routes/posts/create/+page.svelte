@@ -483,7 +483,7 @@
 
 	// Extract hashtags from caption
 	let hashtags = $derived(
-		generatedCaption.match(/#\w+/g) ?? []
+		generatedCaption.match(/#[\p{L}\p{N}_]+/gu) ?? []
 	);
 </script>
 
@@ -1150,7 +1150,7 @@
 									<EditableCaption
 										postId={generatedPostId}
 										caption={generatedCaption}
-										showHashtags={true}
+										showHashtags={false}
 										showCharCount={false}
 										onupdate={(newCaption) => generatedCaption = newCaption}
 									/>
