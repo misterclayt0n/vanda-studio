@@ -6,9 +6,21 @@
 	import { ModeWatcher } from "mode-watcher";
 	import { Toaster } from "svelte-sonner";
 	import ConvexClerkProvider from "$lib/components/convex-clerk-provider.svelte";
+	import { goto } from "$app/navigation";
 	import type { Appearance } from "@clerk/types";
 
 	const { children } = $props();
+
+	function handleGlobalKeydown(e: KeyboardEvent) {
+		const meta = e.metaKey || e.ctrlKey;
+
+		// ⌘⇧O — Criar post
+		if (meta && e.shiftKey && e.key.toLowerCase() === "o") {
+			e.preventDefault();
+			goto("/posts/create");
+			return;
+		}
+	}
 
 	// Set up Convex first (without auth)
 	const convexUrl = env.PUBLIC_CONVEX_URL;
@@ -42,6 +54,8 @@
 		},
 	};
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <ModeWatcher defaultMode="light" />
 <Toaster position="bottom-right" />

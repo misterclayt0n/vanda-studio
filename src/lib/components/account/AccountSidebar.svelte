@@ -152,19 +152,17 @@
 	<div class="my-6 h-px bg-border"></div>
 
 	<!-- Keyboard shortcuts -->
-	<div class="space-y-3">
+	<div class="space-y-4">
 		<span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Atalhos</span>
-		<div class="space-y-2">
+		<div class="space-y-3">
 			{#each [
-				{ keys: ["⌘", "N"], label: "Nova imagem" },
-				{ keys: ["⌘", "K"], label: "Buscar" },
-				{ keys: ["⌘", "B"], label: "Barra lateral" },
+				{ keys: ["⌘", "⇧", "O"], label: "Criar post" },
 			] as shortcut}
-				<div class="flex items-center justify-between text-xs">
-					<span class="text-muted-foreground">{shortcut.label}</span>
-					<div class="flex gap-1">
+				<div class="flex items-center justify-between">
+					<span class="text-sm text-foreground/80">{shortcut.label}</span>
+					<div class="flex gap-1.5">
 						{#each shortcut.keys as key}
-							<kbd class="inline-flex h-5 min-w-5 items-center justify-center border border-border bg-muted px-1 font-mono text-[10px] text-muted-foreground">
+							<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-1.5 font-mono text-xs text-foreground/70">
 								{key}
 							</kbd>
 						{/each}
