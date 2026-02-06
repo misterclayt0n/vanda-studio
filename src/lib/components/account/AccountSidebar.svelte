@@ -152,23 +152,22 @@
 	<div class="my-6 h-px bg-border"></div>
 
 	<!-- Keyboard shortcuts -->
-	<div class="space-y-4">
+	<div class="space-y-3">
 		<span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Atalhos</span>
-		<div class="space-y-3">
-			{#each [
-				{ keys: ["⌘", "⇧", "O"], label: "Criar post" },
-			] as shortcut}
-				<div class="flex items-center justify-between">
-					<span class="text-sm text-foreground/80">{shortcut.label}</span>
-					<div class="flex gap-1.5">
-						{#each shortcut.keys as key}
-							<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-1.5 font-mono text-xs text-foreground/70">
-								{key}
-							</kbd>
-						{/each}
-					</div>
+		<div class="space-y-2.5">
+			<div class="flex items-center justify-between">
+				<span class="text-xs text-foreground/70">Criar post</span>
+				<div class="flex gap-1.5">
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 font-mono text-xs text-foreground">⌘</kbd>
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5">
+						<svg class="h-3.5 w-3.5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 19V5" />
+							<path d="M5 12l7-7 7 7" />
+						</svg>
+					</kbd>
+					<kbd class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-foreground/15 bg-foreground/10 px-1.5 text-xs font-medium text-foreground">O</kbd>
 				</div>
-			{/each}
+			</div>
 		</div>
 	</div>
 
