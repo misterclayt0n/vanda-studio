@@ -41,15 +41,15 @@
 	const plans = [
 		{
 			id: "basico" as const,
-			name: "Basico",
+			name: "Básico",
 			description: "Para criadores iniciantes",
 			price: 87,
 			images: 75,
 			features: [
-				"75 imagens por mes",
-				"Geracao de legendas com IA",
+				"75 imagens por mês",
+				"Geração de legendas com IA",
 				"Todos os modelos de imagem",
-				"Teste gratis de 7 dias",
+				"Teste grátis de 7 dias",
 				"Suporte por email",
 			],
 			highlight: true,
@@ -57,14 +57,14 @@
 		{
 			id: "mediano" as const,
 			name: "Mediano",
-			description: "Para criadores serios",
+			description: "Para criadores sérios",
 			price: 149,
 			images: 150,
 			features: [
-				"150 imagens por mes",
-				"Geracao de legendas com IA",
+				"150 imagens por mês",
+				"Geração de legendas com IA",
 				"Todos os modelos de imagem",
-				"Suporte prioritario",
+				"Suporte prioritário",
 				"Acesso antecipado a novidades",
 			],
 			highlight: false,
@@ -72,14 +72,14 @@
 		{
 			id: "profissional" as const,
 			name: "Profissional",
-			description: "Para agencias e times",
+			description: "Para agências e times",
 			price: 249,
 			images: 300,
 			features: [
-				"300 imagens por mes",
-				"Geracao de legendas com IA",
+				"300 imagens por mês",
+				"Geração de legendas com IA",
 				"Todos os modelos de imagem",
-				"Suporte prioritario",
+				"Suporte prioritário",
 				"Acesso antecipado a novidades",
 				"Consultoria de uso",
 			],
@@ -117,7 +117,7 @@
 
 	{#if expired}
 		<div class="border border-amber-500/30 bg-amber-500/10 p-4">
-			<p class="text-sm text-amber-600">Sessao de checkout expirada. Tente novamente.</p>
+			<p class="text-sm text-amber-600">Sessão de checkout expirada. Tente novamente.</p>
 		</div>
 	{/if}
 
@@ -235,7 +235,7 @@
 
 		<!-- Payment info -->
 		<p class="text-center text-sm text-muted-foreground">
-			Pague com PIX ou cartao de credito
+			Pague com PIX ou cartão de crédito
 		</p>
 
 		<!-- Manage billing -->
@@ -245,7 +245,7 @@
 					<div>
 						<h4 class="font-medium">Gerenciar assinatura</h4>
 						<p class="text-sm text-muted-foreground">
-							Alterar metodo de pagamento, cancelar ou ver faturas
+							Alterar método de pagamento, cancelar ou ver faturas
 						</p>
 					</div>
 					<Button variant="outline" onclick={onManageBilling} disabled={isOpeningPortal}>
@@ -259,7 +259,7 @@
 							<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
 							</svg>
-							Gerenciar cobranca
+							Gerenciar cobrança
 						{/if}
 					</Button>
 				</div>

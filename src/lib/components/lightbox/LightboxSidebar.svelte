@@ -294,7 +294,7 @@
                     </div>
                 {:else}
                     <p class="mt-3 text-sm text-muted-foreground">
-                        Nenhuma conversa de edicao ainda
+                        Nenhuma conversa de edição ainda
                     </p>
                 {/if}
 
@@ -326,7 +326,7 @@
     {:else}
         <!-- Error/not found state -->
         <div class="flex flex-1 items-center justify-center p-6">
-            <p class="text-sm text-muted-foreground">Post nao encontrado</p>
+            <p class="text-sm text-muted-foreground">Post não encontrado</p>
         </div>
     {/if}
 </aside>

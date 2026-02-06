@@ -125,7 +125,7 @@
                     class="bg-background"
                 />
                 <p class="text-xs text-muted-foreground">
-                    Cole o link do perfil do Instagram que sera usado como referencia
+                    Cole o link do perfil do Instagram que será usado como referência
                 </p>
             </div>
         </div>

@@ -61,7 +61,7 @@
             {/if}
         </TooltipTrigger>
         <TooltipContent>
-            <p>Nao se preocupe, isso leva alguns segundos</p>
+            <p>Não se preocupe, isso leva alguns segundos</p>
         </TooltipContent>
     </Tooltip>
 </TooltipProvider>

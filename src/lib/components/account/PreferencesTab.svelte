@@ -28,9 +28,9 @@
 <div class="space-y-8">
 	<!-- Appearance -->
 	<section>
-		<h3 class="text-lg font-semibold mb-1">Aparencia</h3>
+		<h3 class="text-lg font-semibold mb-1">Aparência</h3>
 		<p class="text-sm text-muted-foreground mb-4">
-			Personalize como o Vanda Studio aparece para voce
+			Personalize como o Vanda Studio aparece para você
 		</p>
 
 		<div class="grid gap-3 sm:grid-cols-3">
@@ -69,8 +69,8 @@
 						🇧🇷
 					</div>
 					<div>
-						<p class="text-sm font-medium">Portugues (Brasil)</p>
-						<p class="text-xs text-muted-foreground">Idioma padrao</p>
+						<p class="text-sm font-medium">Português (Brasil)</p>
+						<p class="text-xs text-muted-foreground">Idioma padrão</p>
 					</div>
 				</div>
 				<Badge variant="outline" class="text-xs text-muted-foreground">Em breve</Badge>
@@ -80,16 +80,16 @@
 
 	<!-- Notifications -->
 	<section>
-		<h3 class="text-lg font-semibold mb-1">Notificacoes</h3>
+		<h3 class="text-lg font-semibold mb-1">Notificações</h3>
 		<p class="text-sm text-muted-foreground mb-4">
-			Gerencie suas preferencias de notificacao
+			Gerencie suas preferências de notificação
 		</p>
 
 		<div class="border border-border bg-card">
 			{#each [
-				{ label: "Novidades e atualizacoes", description: "Receba emails sobre novos recursos" },
-				{ label: "Lembretes de cobranca", description: "Notificacoes sobre pagamentos e faturas" },
-				{ label: "Dicas de uso", description: "Sugestoes para aproveitar melhor a plataforma" },
+				{ label: "Novidades e atualizações", description: "Receba emails sobre novos recursos" },
+				{ label: "Lembretes de cobrança", description: "Notificações sobre pagamentos e faturas" },
+				{ label: "Dicas de uso", description: "Sugestões para aproveitar melhor a plataforma" },
 			] as notification, i}
 				<div class="flex items-center justify-between p-4 {i < 2 ? 'border-b border-border' : ''}">
 					<div>

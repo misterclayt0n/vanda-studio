@@ -4,10 +4,10 @@ const IMAGE_FEATURE_ID = "images_generated";
 
 function formatInsufficientCredits(required: number, remaining?: number): string {
     if (remaining === undefined) {
-        return `Creditos insuficientes. Necessario: ${required}.`;
+        return `Créditos insuficientes. Necessário: ${required}.`;
     }
 
-    return `Creditos insuficientes. Voce tem ${remaining} credito(s), mas precisa de ${required}.`;
+    return `Créditos insuficientes. Você tem ${remaining} crédito(s), mas precisa de ${required}.`;
 }
 
 function getRemainingBalance(data: any): number | undefined {
@@ -45,7 +45,7 @@ export async function reserveImageUsage(ctx: any, count: number): Promise<number
     });
 
     if (result.error) {
-        throw new Error(result.error.message || "Falha ao verificar creditos");
+        throw new Error(result.error.message || "Falha ao verificar créditos");
     }
 
     if (!result.data?.allowed) {

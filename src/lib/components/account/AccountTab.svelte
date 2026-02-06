@@ -38,7 +38,7 @@
 <div class="space-y-8">
 	<!-- Profile information -->
 	<section>
-		<h3 class="text-lg font-semibold mb-1">Informacoes do perfil</h3>
+		<h3 class="text-lg font-semibold mb-1">Informações do perfil</h3>
 		<p class="text-sm text-muted-foreground mb-4">
 			Seus dados de conta gerenciados pelo Clerk
 		</p>
@@ -115,7 +115,7 @@
 		<Separator class="mb-6" />
 		<h3 class="text-lg font-semibold mb-1 text-destructive">Zona de perigo</h3>
 		<p class="text-sm text-muted-foreground mb-4">
-			Acoes irreversiveis da conta
+			Ações irreversíveis da conta
 		</p>
 
 		<div class="flex flex-wrap gap-3">

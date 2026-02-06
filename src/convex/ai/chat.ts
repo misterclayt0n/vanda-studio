@@ -152,7 +152,7 @@ export const generate = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Verify project access (if projectId provided)
@@ -161,7 +161,7 @@ export const generate = action({
                 projectId: args.projectId,
             });
             if (!project) {
-                throw new Error("Projeto nao encontrado");
+                throw new Error("Projeto não encontrado");
             }
         }
 
@@ -225,7 +225,7 @@ export const generate = action({
         }
 
         if (!generatedPostId || !captionResult) {
-            throw new Error("Falha ao preparar a geracao");
+            throw new Error("Falha ao preparar a geração");
         }
 
         // 9. Collect reference images (from attachments + brand context)
@@ -317,7 +317,7 @@ export const generate = action({
         // 13. Save assistant message with snapshot
         const assistantContent = imageCount > 0
             ? `${captionResult.explanation}\n\nGerei a legenda e ${imageCount} imagem(ns) com sucesso!`
-            : `${captionResult.explanation}\n\n(As imagens nao puderam ser geradas, mas a legenda esta pronta)`;
+            : `${captionResult.explanation}\n\n(As imagens não puderam ser geradas, mas a legenda está pronta)`;
 
         await ctx.runMutation(internal.chatMessages.saveMessage, {
             generatedPostId,
@@ -355,7 +355,7 @@ export const regenerateCaption = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get the post
@@ -363,7 +363,7 @@ export const regenerateCaption = action({
             id: args.generatedPostId,
         });
         if (!post) {
-            throw new Error("Post nao encontrado");
+            throw new Error("Post não encontrado");
         }
 
         // 3. Load conversation history
@@ -437,7 +437,7 @@ export const regenerateImage = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get the post
@@ -445,7 +445,7 @@ export const regenerateImage = action({
             id: args.generatedPostId,
         });
         if (!post) {
-            throw new Error("Post nao encontrado");
+            throw new Error("Post não encontrado");
         }
 
         // 3. Reserve usage for the new image
@@ -498,7 +498,7 @@ export const regenerateImage = action({
             await ctx.runMutation(internal.chatMessages.saveMessage, {
                 generatedPostId: args.generatedPostId,
                 role: "assistant",
-                content: "Regenerei a imagem com as novas instrucoes!",
+                content: "Regenerei a imagem com as novas instruções!",
                 snapshot: {
                     caption: post.caption,
                     imageStorageId,

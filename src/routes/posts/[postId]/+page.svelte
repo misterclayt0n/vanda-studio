@@ -143,7 +143,7 @@
 				<div class="text-center">
 					<h2 class="text-2xl font-bold">Entre para ver este post</h2>
 					<p class="mt-2 text-muted-foreground">
-						Faca login para acessar seus posts
+						Faça login para acessar seus posts
 					</p>
 				</div>
 				<SignInButton mode="modal">
@@ -172,9 +172,9 @@
 							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
 						</svg>
 					</div>
-					<h3 class="mt-6 text-lg font-medium">Post nao encontrado</h3>
+					<h3 class="mt-6 text-lg font-medium">Post não encontrado</h3>
 					<p class="mt-2 text-sm text-muted-foreground">
-						Este post pode ter sido deletado ou voce nao tem acesso
+						Este post pode ter sido deletado ou você não tem acesso
 					</p>
 					<Button class="mt-6" onclick={() => goto('/gallery')}>
 						Voltar para Galeria
@@ -380,14 +380,14 @@
 							{#if post.messages && post.messages.length > 0}
 								<div class="border border-border bg-card">
 									<div class="border-b border-border px-4 py-3">
-										<h3 class="text-sm font-medium">Historico de Geracao</h3>
+										<h3 class="text-sm font-medium">Histórico de Geração</h3>
 									</div>
 									<div class="max-h-64 divide-y divide-border overflow-y-auto">
 										{#each post.messages as message}
 											<div class="px-4 py-3">
 												<div class="flex items-center gap-2">
 													<Badge variant={message.role === 'user' ? 'default' : 'secondary'} class="text-xs">
-														{message.role === 'user' ? 'Voce' : 'IA'}
+														{message.role === 'user' ? 'Você' : 'IA'}
 													</Badge>
 													<span class="text-xs text-muted-foreground">
 														{formatDate(message.createdAt)}

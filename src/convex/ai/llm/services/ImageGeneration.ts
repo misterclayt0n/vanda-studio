@@ -272,7 +272,7 @@ function mapImageGenerationError(error: unknown): AiError {
             message.includes("output modalities")
         ) {
             return new ImageGenerationError({
-                reason: "Modelo nao suporta geracao de imagens neste formato",
+                reason: "Modelo não suporta geração de imagens neste formato",
             });
         }
 
@@ -455,7 +455,7 @@ export const ImageGenerationLive = Layer.effect(
                             console.error("[IMAGE] Files array:", result.files);
 
                             throw new ImageGenerationError({
-                                reason: "O modelo nao retornou uma imagem valida",
+                                reason: "O modelo não retornou uma imagem válida",
                             });
                         }
 

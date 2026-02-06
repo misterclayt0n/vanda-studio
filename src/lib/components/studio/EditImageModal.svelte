@@ -251,7 +251,7 @@
                         />
                     {:else}
                         <div class="flex h-full w-full items-center justify-center bg-muted">
-                            <p class="text-sm text-muted-foreground">Imagem indisponivel</p>
+                            <p class="text-sm text-muted-foreground">Imagem indisponível</p>
                         </div>
                     {/if}
                 </div>
@@ -278,7 +278,7 @@
 
                 <!-- Edit prompt -->
                 <div class="space-y-3">
-                    <Label class="text-sm font-medium">O que voce quer mudar?</Label>
+                    <Label class="text-sm font-medium">O que você quer mudar?</Label>
                     <div class="relative">
                         <Textarea
                             bind:value={editPrompt}

@@ -167,7 +167,7 @@
             <div class="text-center">
                 <h2 class="text-2xl font-bold">Entre para ver este projeto</h2>
                 <p class="mt-2 text-muted-foreground">
-                    Faca login para acessar seus projetos
+                    Faça login para acessar seus projetos
                 </p>
             </div>
             <SignInButton mode="modal">
@@ -196,9 +196,9 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                     </svg>
                 </div>
-                <h3 class="text-lg font-medium">Projeto nao encontrado</h3>
+                <h3 class="text-lg font-medium">Projeto não encontrado</h3>
                 <p class="text-sm text-muted-foreground">
-                    Este projeto pode ter sido excluido ou voce nao tem permissao para acessa-lo.
+                    Este projeto pode ter sido excluído ou você não tem permissão para acessá-lo.
                 </p>
                 <Button variant="outline" onclick={() => goto('/projects')}>
                     Voltar para Projetos
@@ -425,7 +425,7 @@
     <div class="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm border border-border bg-background shadow-xl p-6">
         <h3 class="text-lg font-semibold">Excluir projeto?</h3>
         <p class="mt-2 text-sm text-muted-foreground">
-            Esta acao ira excluir o projeto e todos os {postCount} posts associados permanentemente. Esta acao nao pode ser desfeita.
+            Esta ação irá excluir o projeto e todos os {postCount} posts associados permanentemente. Esta ação não pode ser desfeita.
         </p>
         <div class="mt-6 flex justify-end gap-3">
             <Button variant="outline" onclick={() => showDeleteConfirm = false} disabled={isDeleting}>

@@ -24,7 +24,7 @@
 
 	function getPlanLabel(planId: string): string {
 		const labels: Record<string, string> = {
-			basico: "Basico",
+			basico: "Básico",
 			mediano: "Mediano",
 			profissional: "Profissional",
 		};
@@ -143,7 +143,7 @@
 	{:else}
 		<div class="border border-dashed border-border p-4 text-center">
 			<p class="text-xs text-muted-foreground">
-				Assine um plano para comecar a criar
+				Assine um plano para começar a criar
 			</p>
 		</div>
 	{/if}

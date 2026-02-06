@@ -218,7 +218,7 @@
 </script>
 
 <svelte:head>
-	<title>Calendario - Vanda Studio</title>
+	<title>Calendário - Vanda Studio</title>
 </svelte:head>
 
 <div class="flex h-screen flex-col bg-background">
@@ -227,9 +227,9 @@
 	<SignedOut>
 		<div class="flex flex-1 flex-col items-center justify-center gap-6 py-20">
 			<div class="text-center">
-				<h2 class="text-2xl font-bold">Entre para ver seu calendario</h2>
+				<h2 class="text-2xl font-bold">Entre para ver seu calendário</h2>
 				<p class="mt-2 text-muted-foreground">
-					Faca login para acessar seus posts agendados
+					Faça login para acessar seus posts agendados
 				</p>
 			</div>
 			<SignInButton mode="modal">
@@ -245,7 +245,7 @@
 		<div class="shrink-0 border-b border-border bg-muted/30 px-6 py-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-4">
-					<h1 class="text-xl font-semibold">Calendario</h1>
+					<h1 class="text-xl font-semibold">Calendário</h1>
 					
 					<!-- Stats -->
 					<div class="flex items-center gap-3">
@@ -379,7 +379,7 @@
 	<div class="fixed right-0 top-0 z-50 flex h-full w-96 flex-col border-l border-border bg-background shadow-xl">
 		<!-- Header -->
 		<div class="flex items-center justify-between border-b border-border px-4 py-3">
-			<h3 class="font-medium">Configuracoes do Calendario</h3>
+			<h3 class="font-medium">Configurações do Calendário</h3>
 			<button
 				type="button"
 				class="rounded-none p-1 text-muted-foreground hover:bg-muted hover:text-foreground"

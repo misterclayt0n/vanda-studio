@@ -5,25 +5,25 @@ import { TextGeneration, MODELS, runAiEffectOrThrow, type ModelName } from "../l
 // System Prompt
 // ============================================================================
 
-const SYSTEM_PROMPT = `Voce e um assistente especialista em criar legendas para Instagram em portugues brasileiro.
+const SYSTEM_PROMPT = `Você é um assistente especialista em criar legendas para Instagram em português brasileiro.
 
-Sua tarefa e ajudar o usuario a criar e refinar legendas. Voce pode:
-- Criar legendas do zero baseado em instrucoes
+Sua tarefa é ajudar o usuário a criar e refinar legendas. Você pode:
+- Criar legendas do zero baseado em instruções
 - Modificar legendas existentes baseado em feedback
 - Ajustar tom, tamanho, hashtags conforme solicitado
 
 ## Diretrizes
-- Escreva em portugues brasileiro natural e fluente
-- Use emojis de forma organica quando apropriado
-- Crie conexao emocional com o publico
-- Seja autentico, nunca generico ou robotico
-- Seja conciso nas explicacoes
+- Escreva em português brasileiro natural e fluente
+- Use emojis de forma orgânica quando apropriado
+- Crie conexão emocional com o público
+- Seja autêntico, nunca genérico ou robótico
+- Seja conciso nas explicações
 
 ## Formato de Resposta
-Responda APENAS com JSON valido:
+Responda APENAS com JSON válido:
 {
   "caption": "a legenda completa aqui",
-  "explanation": "breve explicacao do que foi feito (1-2 frases)"
+  "explanation": "breve explicação do que foi feito (1-2 frases)"
 }`;
 
 // ============================================================================
@@ -98,7 +98,7 @@ export async function generateCaption(input: CaptionInput): Promise<CaptionOutpu
         const brandContext = buildBrandContextPrompt(input.projectContext);
         if (brandContext) {
             systemPrompt += `\n\n## Contexto da Marca\n${brandContext}`;
-            systemPrompt += `\nUse este contexto para adaptar o tom, estilo e conteudo da legenda de acordo com a identidade da marca.`;
+            systemPrompt += `\nUse este contexto para adaptar o tom, estilo e conteúdo da legenda de acordo com a identidade da marca.`;
         }
     }
 
@@ -121,7 +121,7 @@ export async function generateCaption(input: CaptionInput): Promise<CaptionOutpu
         userPrompt = `## Legenda Atual
 "${input.currentCaption}"
 
-## Instrucao do Usuario
+## Instrução do Usuário
 ${input.userMessage}`;
     }
 

@@ -112,7 +112,7 @@
 				<div class="mt-4 space-y-3">
 					<!-- Sync Toggle -->
 					<div class="flex items-center justify-between">
-						<span class="text-sm">Sincronizacao automatica</span>
+						<span class="text-sm">Sincronização automática</span>
 						<button
 							type="button"
 							role="switch"
@@ -166,7 +166,7 @@
 						Conectar Google Calendar
 					</Button>
 					<p class="mt-2 text-xs text-muted-foreground">
-						Ao conectar, voce autoriza o Vanda Studio a criar eventos no seu calendario.
+						Ao conectar, você autoriza o Vanda Studio a criar eventos no seu calendário.
 					</p>
 				</div>
 			{/if}

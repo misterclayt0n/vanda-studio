@@ -90,23 +90,23 @@ export const rollback = mutation({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get the message
         const message = await ctx.db.get(args.messageId);
         if (!message) {
-            throw new Error("Mensagem nao encontrada");
+            throw new Error("Mensagem não encontrada");
         }
 
         // 3. Verify it belongs to the correct post
         if (message.generatedPostId !== args.generatedPostId) {
-            throw new Error("Mensagem nao pertence a este post");
+            throw new Error("Mensagem não pertence a este post");
         }
 
         // 4. Check it has a snapshot
         if (!message.snapshot) {
-            throw new Error("Esta mensagem nao tem um estado para restaurar");
+            throw new Error("Esta mensagem não tem um estado para restaurar");
         }
 
         // 5. Update the post with the snapshot state

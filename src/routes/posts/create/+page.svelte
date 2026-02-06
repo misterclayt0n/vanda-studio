@@ -392,7 +392,7 @@
 			// Note: isGenerating will be set to false by the $effect when isCompleted becomes true
 		} catch (err) {
 			console.error("Generation failed:", err);
-			error = err instanceof Error ? err.message : "Erro ao gerar conteudo";
+			error = err instanceof Error ? err.message : "Erro ao gerar conteúdo";
 			isGenerating = false;
 		}
 	}
@@ -808,7 +808,7 @@
 					<div class="text-center">
 						<h3 class="text-lg font-medium">Entre para continuar</h3>
 						<p class="mt-1 max-w-md text-sm text-muted-foreground">
-							Voce precisa estar logado para gerar posts. Faca login ou crie uma conta para comecar.
+							Você precisa estar logado para gerar posts. Faça login ou crie uma conta para começar.
 						</p>
 					</div>
 					<div class="flex gap-3 mt-2">
@@ -921,7 +921,7 @@
 						</svg>
 					</div>
 					<div class="text-center">
-						<h3 class="text-lg font-medium">Iniciando geracao</h3>
+						<h3 class="text-lg font-medium">Iniciando geração</h3>
 						<p class="mt-2 text-xs text-muted-foreground">
 							Preparando arquivos...
 						</p>
@@ -944,9 +944,9 @@
 					</div>
 				</div>
 			{:else if generatedPostId && hasCaption}
-				<!-- Conteudo Gerado (progressivo) -->
+				<!-- Conteúdo Gerado (progressivo) -->
 				<div class="flex flex-1 overflow-hidden">
-					<!-- Secao das Imagens -->
+					<!-- Seção das Imagens -->
 					<div class="flex flex-1 flex-col border-r border-border">
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<div class="flex items-center gap-2">
@@ -1119,7 +1119,7 @@
 						</div>
 					</div>
 
-					<!-- Secao da Legenda -->
+					<!-- Seção da Legenda -->
 					<div class="flex w-[380px] shrink-0 flex-col">
 						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
 							<h3 class="text-sm font-medium">Legenda</h3>

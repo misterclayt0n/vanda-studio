@@ -91,7 +91,7 @@
                 <div class="text-center">
                     <h2 class="text-2xl font-bold">Entre para ver seus projetos</h2>
                     <p class="mt-2 text-muted-foreground">
-                        Faca login para gerenciar suas contas do Instagram
+                        Faça login para gerenciar suas contas do Instagram
                     </p>
                 </div>
                 <SignInButton mode="modal">
@@ -122,7 +122,7 @@
                     </div>
                     <h3 class="mt-6 text-lg font-medium">Nenhum projeto ainda</h3>
                     <p class="mt-2 text-sm text-muted-foreground">
-                        Crie seu primeiro projeto para comecar a organizar seus posts
+                        Crie seu primeiro projeto para começar a organizar seus posts
                     </p>
                     <Button class="mt-6" onclick={() => showCreateModal = true}>
                         <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -168,7 +168,7 @@
     <div class="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm border border-border bg-background shadow-xl p-6">
         <h3 class="text-lg font-semibold">Excluir projeto?</h3>
         <p class="mt-2 text-sm text-muted-foreground">
-            Esta acao ira excluir o projeto e todos os posts associados permanentemente. Esta acao nao pode ser desfeita.
+            Esta ação irá excluir o projeto e todos os posts associados permanentemente. Esta ação não pode ser desfeita.
         </p>
         <div class="mt-6 flex justify-end gap-3">
             <Button variant="outline" onclick={cancelDelete} disabled={isDeleting}>

@@ -318,7 +318,7 @@
                     class="min-h-[100px] resize-none bg-background"
                 />
                 <p class="text-xs text-muted-foreground">
-                    Esta descricao ajuda a IA a entender o proposito da sua conta
+                    Esta descrição ajuda a IA a entender o propósito da sua conta
                 </p>
             </div>
 

@@ -13,7 +13,7 @@
 	// Navigation items
 	const navItems = [
 		{ href: "/posts/create", label: "Criar", icon: "sparkles" },
-		{ href: "/calendar", label: "Calendario", icon: "calendar" },
+		{ href: "/calendar", label: "Calendário", icon: "calendar" },
 		{ href: "/gallery", label: "Galeria", icon: "gallery" },
 		{ href: "/projects", label: "Projetos", icon: "projects" },
 	];

@@ -529,7 +529,7 @@
 				<div class="text-center">
 					<h2 class="text-2xl font-bold">Entre para ver sua galeria</h2>
 					<p class="mt-2 text-muted-foreground">
-						Faca login para acessar suas gerações
+						Faça login para acessar suas gerações
 					</p>
 				</div>
 				<SignInButton mode="modal">
@@ -641,7 +641,7 @@
 						{:else if filterProjectId}
 							Nenhum post neste projeto
 						{:else}
-							Nenhuma geracao ainda
+							Nenhuma geração ainda
 						{/if}
 					</h3>
 					<p class="mt-2 text-sm text-muted-foreground">
@@ -650,7 +650,7 @@
 						{:else if filterProjectId}
 							Crie um post para este projeto ou limpe o filtro
 						{:else}
-							Crie seu primeiro post para comecar
+							Crie seu primeiro post para começar
 						{/if}
 					</p>
 					{#if !searchQuery.trim() && !filterProjectId}

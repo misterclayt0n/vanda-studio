@@ -62,7 +62,7 @@
 	// Permanently delete a post
 	async function handlePermanentDelete(postId: Id<"generated_posts">, event: Event) {
 		event.stopPropagation();
-		if (confirm("Tem certeza que deseja excluir permanentemente? Esta acao nao pode ser desfeita.")) {
+		if (confirm("Tem certeza que deseja excluir permanentemente? Esta ação não pode ser desfeita.")) {
 			await client.mutation(api.generatedPosts.permanentDelete, { id: postId });
 		}
 	}
@@ -71,7 +71,7 @@
 	let isEmptyingTrash = $state(false);
 	async function handleEmptyTrash() {
 		if (deletedPosts.length === 0) return;
-		if (!confirm(`Tem certeza que deseja excluir permanentemente ${deletedPosts.length} item(s)? Esta acao nao pode ser desfeita.`)) {
+		if (!confirm(`Tem certeza que deseja excluir permanentemente ${deletedPosts.length} item(s)? Esta ação não pode ser desfeita.`)) {
 			return;
 		}
 		
@@ -139,7 +139,7 @@
 				<div class="text-center">
 					<h2 class="text-2xl font-bold">Entre para ver a lixeira</h2>
 					<p class="mt-2 text-muted-foreground">
-						Faca login para acessar seus itens excluidos
+						Faça login para acessar seus itens excluídos
 					</p>
 				</div>
 				<SignInButton mode="modal">
@@ -170,7 +170,7 @@
 					</div>
 					<h3 class="mt-6 text-lg font-medium">Lixeira vazia</h3>
 					<p class="mt-2 text-sm text-muted-foreground">
-						Itens excluidos aparecerao aqui
+						Itens excluídos aparecerão aqui
 					</p>
 					<Button class="mt-6" onclick={() => goto('/gallery')}>
 						Voltar para Galeria
@@ -186,7 +186,7 @@
 								{#if post.imageUrl}
 									<img 
 										src={post.imageUrl} 
-										alt="Post excluido" 
+										alt="Post excluído" 
 										class="h-full w-full object-cover grayscale group-hover:grayscale-0 transition-all"
 									/>
 								{:else}
@@ -285,7 +285,7 @@
 						<div>
 							<p class="text-sm font-medium">Itens na lixeira</p>
 							<p class="mt-1 text-sm text-muted-foreground">
-								Os itens excluidos podem ser restaurados a qualquer momento. Use "Esvaziar Lixeira" para excluir permanentemente todos os itens.
+								Os itens excluídos podem ser restaurados a qualquer momento. Use "Esvaziar Lixeira" para excluir permanentemente todos os itens.
 							</p>
 						</div>
 					</div>

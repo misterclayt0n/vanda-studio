@@ -23,40 +23,40 @@ type ProfileAnalysisResult = z.infer<typeof ProfileAnalysisSchema>;
 // System Prompt
 // ============================================================================
 
-const SYSTEM_PROMPT = `Voce e um especialista em analise de perfis de redes sociais. Sua tarefa e analisar os dados de um perfil do Instagram (bio e legendas de posts) para extrair informacoes uteis sobre a marca/conta.
+const SYSTEM_PROMPT = `Você é um especialista em análise de perfis de redes sociais. Sua tarefa é analisar os dados de um perfil do Instagram (bio e legendas de posts) para extrair informações úteis sobre a marca/conta.
 
 ## Sua Tarefa
 
 Analise os dados fornecidos e retorne um JSON com:
 
-1. **accountDescription**: Uma descricao clara e concisa (2-4 frases) sobre:
-   - Qual e o nicho ou area de atuacao da conta
-   - Quem e o publico-alvo
-   - Qual e a proposta de valor ou diferencial
+1. **accountDescription**: Uma descrição clara e concisa (2-4 frases) sobre:
+   - Qual é o nicho ou área de atuação da conta
+   - Quem é o público-alvo
+   - Qual é a proposta de valor ou diferencial
 
-2. **brandTraits**: Uma lista de 3 a 8 caracteristicas que definem o tom e personalidade da marca, baseado nas legendas. Exemplos:
-   - Tom: "profissional", "descontraido", "inspirador", "educativo", "humoristico"
-   - Estilo: "direto", "storytelling", "emocional", "tecnico", "coloquial"
-   - Valores: "autenticidade", "qualidade", "inovacao", "tradicao", "exclusividade"
+2. **brandTraits**: Uma lista de 3 a 8 características que definem o tom e personalidade da marca, baseado nas legendas. Exemplos:
+   - Tom: "profissional", "descontraído", "inspirador", "educativo", "humorístico"
+   - Estilo: "direto", "storytelling", "emocional", "técnico", "coloquial"
+   - Valores: "autenticidade", "qualidade", "inovação", "tradição", "exclusividade"
 
-3. **additionalContext**: Observacoes adicionais uteis para geracao de conteudo:
-   - Padroes de postagem (tipos de conteudo, formatos preferidos)
-   - Temas recorrentes ou topicos frequentes
-   - Estilo de hashtags (se usa muitas, poucas, especificas do nicho)
-   - Chamadas para acao comuns (se houver)
-   - Qualquer outro padrao relevante identificado
+3. **additionalContext**: Observações adicionais úteis para geração de conteúdo:
+   - Padrões de postagem (tipos de conteúdo, formatos preferidos)
+   - Temas recorrentes ou tópicos frequentes
+   - Estilo de hashtags (se usa muitas, poucas, específicas do nicho)
+   - Chamadas para ação comuns (se houver)
+   - Qualquer outro padrão relevante identificado
 
 ## Diretrizes
 
-- Escreva tudo em portugues brasileiro
-- Seja especifico e baseado nos dados fornecidos
-- Se os dados forem insuficientes para algum campo, faca inferencias razoaveis
-- Mantenha as caracteristicas da marca (brandTraits) como palavras/frases curtas
-- A descricao deve ser util para que uma IA entenda o contexto ao gerar legendas
+- Escreva tudo em português brasileiro
+- Seja específico e baseado nos dados fornecidos
+- Se os dados forem insuficientes para algum campo, faça inferências razoáveis
+- Mantenha as características da marca (brandTraits) como palavras/frases curtas
+- A descrição deve ser útil para que uma IA entenda o contexto ao gerar legendas
 
 ## Formato de Resposta
 
-Responda APENAS com JSON valido no formato especificado.`;
+Responda APENAS com JSON válido no formato especificado.`;
 
 // ============================================================================
 // Action
@@ -70,7 +70,7 @@ export const analyzeProfileForConfig = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get project data
@@ -78,7 +78,7 @@ export const analyzeProfileForConfig = action({
             projectId: args.projectId,
         });
         if (!project) {
-            throw new Error("Projeto nao encontrado");
+            throw new Error("Projeto não encontrado");
         }
 
         // 3. Get Instagram posts
@@ -98,7 +98,7 @@ export const analyzeProfileForConfig = action({
 
         if (!bio && captions.length === 0) {
             throw new Error(
-                "Dados insuficientes para analise. Certifique-se de que o perfil do Instagram foi sincronizado."
+                "Dados insuficientes para análise. Certifique-se de que o perfil do Instagram foi sincronizado."
             );
         }
 

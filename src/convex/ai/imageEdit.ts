@@ -66,13 +66,13 @@ export const startConversation = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get current user
         const user = await ctx.runQuery(api.users.current, {});
         if (!user) {
-            throw new Error("Usuario nao encontrado");
+            throw new Error("Usuário não encontrado");
         }
 
         // 3. Get source image data
@@ -80,7 +80,7 @@ export const startConversation = action({
             id: args.sourceImageId,
         });
         if (!sourceImage) {
-            throw new Error("Imagem de origem nao encontrada");
+            throw new Error("Imagem de origem não encontrada");
         }
 
         // 4. Get original post data (for caption inheritance)
@@ -88,7 +88,7 @@ export const startConversation = action({
             id: sourceImage.generatedPostId,
         });
         if (!originalPost) {
-            throw new Error("Post original nao encontrado");
+            throw new Error("Post original não encontrado");
         }
 
         // 5. Reserve usage before starting generation
@@ -123,7 +123,7 @@ export const startConversation = action({
             const conversationIdValue = conversationId;
             const turnIdValue = turnId;
             if (!conversationIdValue || !turnIdValue) {
-                throw new Error("Falha ao iniciar a conversa de edicao");
+                throw new Error("Falha ao iniciar a conversa de edição");
             }
 
             // 7. Build reference URLs
@@ -210,7 +210,7 @@ export const startConversation = action({
         }
 
         if (!conversationId || !turnId) {
-            throw new Error("Falha ao iniciar a conversa de edicao");
+            throw new Error("Falha ao iniciar a conversa de edição");
         }
 
         const failedCount = results.filter((success) => !success).length;
@@ -250,13 +250,13 @@ export const sendEdit = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get current user
         const user = await ctx.runQuery(api.users.current, {});
         if (!user) {
-            throw new Error("Usuario nao encontrado");
+            throw new Error("Usuário não encontrado");
         }
 
         // 3. Get conversation (now includes originalPost for caption)
@@ -264,11 +264,11 @@ export const sendEdit = action({
             id: args.conversationId,
         });
         if (!conversation) {
-            throw new Error("Conversa nao encontrada");
+            throw new Error("Conversa não encontrada");
         }
         const originalPost = conversation.originalPost;
         if (!originalPost) {
-            throw new Error("Post original nao encontrado");
+            throw new Error("Post original não encontrado");
         }
 
         // 4. Get previous turn's outputs (auto-references)
@@ -301,7 +301,7 @@ export const sendEdit = action({
 
             const turnIdValue = turnId;
             if (!turnIdValue) {
-                throw new Error("Falha ao criar o turno de edicao");
+                throw new Error("Falha ao criar o turno de edição");
             }
 
             // 8. Build reference URLs from previous turn's outputs
@@ -400,7 +400,7 @@ export const sendEdit = action({
         }
 
         if (!turnId) {
-            throw new Error("Falha ao criar o turno de edicao");
+            throw new Error("Falha ao criar o turno de edição");
         }
 
         const failedCount = results.filter((success) => !success).length;
@@ -435,13 +435,13 @@ export const generateForTurn = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         // 2. Get current user
         const user = await ctx.runQuery(api.users.current, {});
         if (!user) {
-            throw new Error("Usuario nao encontrado");
+            throw new Error("Usuário não encontrado");
         }
 
         // 3. Get conversation (includes originalPost for caption)
@@ -449,11 +449,11 @@ export const generateForTurn = action({
             id: args.conversationId,
         });
         if (!conversation) {
-            throw new Error("Conversa nao encontrada");
+            throw new Error("Conversa não encontrada");
         }
         const originalPost = conversation.originalPost;
         if (!originalPost) {
-            throw new Error("Post original nao encontrado");
+            throw new Error("Post original não encontrado");
         }
 
         // 4. Get the turn
@@ -461,7 +461,7 @@ export const generateForTurn = action({
             id: args.turnId,
         });
         if (!turn) {
-            throw new Error("Turno nao encontrado");
+            throw new Error("Turno não encontrado");
         }
 
         // 5. Reserve usage before starting generation

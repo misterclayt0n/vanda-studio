@@ -109,7 +109,7 @@
 				} catch (syncErr) {
 					// Non-blocking: post is scheduled, but Google sync failed
 					console.warn('Google Calendar sync failed:', syncErr);
-					syncWarning = "Post agendado, mas a sincronizacao com Google Calendar falhou.";
+					syncWarning = "Post agendado, mas a sincronização com Google Calendar falhou.";
 					// Don't close immediately so user sees the warning
 					setTimeout(() => onclose(), 2000);
 					return;
@@ -267,7 +267,7 @@
 
 				<!-- Time Selection -->
 				<div class="space-y-2">
-					<Label>Horario</Label>
+					<Label>Horário</Label>
 					<div class="relative">
 						<Clock class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 						<Input

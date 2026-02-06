@@ -580,12 +580,12 @@ export const fetchPost = action({
     handler: async (ctx, args): Promise<FetchedInstagramPost> => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Voce precisa estar autenticado");
+            throw new Error("Você precisa estar autenticado");
         }
 
         const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
         if (!token) {
-            throw new Error("Token Apify nao configurado");
+            throw new Error("Token Apify não configurado");
         }
 
         const client = new ApifyClient({ token });
@@ -599,19 +599,19 @@ export const fetchPost = action({
         });
 
         if (!run.defaultDatasetId) {
-            throw new Error("Apify nao retornou dados");
+            throw new Error("Apify não retornou dados");
         }
 
         const { items } = await client.dataset(run.defaultDatasetId).listItems({ clean: true });
         const datasetItems = (items as RawInstagramItem[]) ?? [];
 
         if (datasetItems.length === 0) {
-            throw new Error("Post nao encontrado");
+            throw new Error("Post não encontrado");
         }
 
         const item = datasetItems[0];
         if (!item) {
-            throw new Error("Post nao encontrado");
+            throw new Error("Post não encontrado");
         }
 
         // Extract image URLs
