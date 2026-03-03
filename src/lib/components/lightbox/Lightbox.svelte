@@ -9,6 +9,7 @@
 
     interface GalleryPost {
         _id: Id<"generated_posts">;
+        galleryImageId?: Id<"generated_images">;
         imageUrl: string | null;
         caption: string;
         imageModel?: string;
@@ -38,8 +39,19 @@
     let { posts, currentPostId, currentImageId = null, onclose, onnavigate }: Props = $props();
 
     // Find current index in posts array
-    let currentIndex = $derived(posts.findIndex((p) => p._id === currentPostId));
-    let currentPost = $derived(posts[currentIndex]);
+    let currentIndex = $derived.by(() => {
+        if (currentImageId) {
+            const exactIndex = posts.findIndex(
+                (p) => p._id === currentPostId && p.galleryImageId === currentImageId
+            );
+            if (exactIndex !== -1) {
+                return exactIndex;
+            }
+        }
+
+        return posts.findIndex((p) => p._id === currentPostId);
+    });
+    let currentPost = $derived(currentIndex >= 0 ? posts[currentIndex] : undefined);
     let canPrev = $derived(currentIndex > 0);
     let canNext = $derived(currentIndex < posts.length - 1);
 
@@ -87,14 +99,14 @@
     function handlePrev() {
         const prevPost = posts[currentIndex - 1];
         if (canPrev && prevPost) {
-            onnavigate(prevPost._id, null);
+            onnavigate(prevPost._id, prevPost.galleryImageId ?? null);
         }
     }
 
     function handleNext() {
         const nextPost = posts[currentIndex + 1];
         if (canNext && nextPost) {
-            onnavigate(nextPost._id, null);
+            onnavigate(nextPost._id, nextPost.galleryImageId ?? null);
         }
     }
 

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
+import type { Id, Doc } from "./_generated/dataModel";
 
 // Get a single generated post with resolved image URL
 export const get = query({
@@ -497,6 +498,91 @@ export const remove = mutation({
 // Gallery & History Queries
 // ============================================================================
 
+type GalleryEntry = Doc<"generated_posts"> & {
+    imageUrl: string | null;
+    imageModel?: string;
+    galleryImageId?: Id<"generated_images">;
+};
+
+async function buildGalleryEntries(
+    ctx: QueryCtx,
+    posts: Doc<"generated_posts">[]
+): Promise<GalleryEntry[]> {
+    // Fetch all images for each post in parallel
+    const postImages = await Promise.all(
+        posts.map((post) =>
+            ctx.db
+                .query("generated_images")
+                .withIndex("by_generated_post_id", (q) => q.eq("generatedPostId", post._id))
+                .collect()
+        )
+    );
+
+    const imagesByPostId = new Map<Id<"generated_posts">, Doc<"generated_images">[]>();
+    for (let i = 0; i < posts.length; i++) {
+        const post = posts[i];
+        const images = postImages[i];
+        if (post) {
+            imagesByPostId.set(post._id, images ?? []);
+        }
+    }
+
+    // Resolve all storage URLs in one batch
+    const storageIdsToResolve: Id<"_storage">[] = [];
+    for (const post of posts) {
+        if (post.imageStorageId) {
+            storageIdsToResolve.push(post.imageStorageId);
+        }
+    }
+    for (const images of postImages) {
+        for (const image of images ?? []) {
+            storageIdsToResolve.push(image.storageId);
+        }
+    }
+
+    const uniqueStorageIds = Array.from(new Set(storageIdsToResolve));
+    const storageUrls = await Promise.all(
+        uniqueStorageIds.map((storageId) => ctx.storage.getUrl(storageId))
+    );
+
+    const urlByStorageId = new Map<Id<"_storage">, string | null>();
+    for (let i = 0; i < uniqueStorageIds.length; i++) {
+        const storageId = uniqueStorageIds[i];
+        if (storageId !== undefined) {
+            urlByStorageId.set(storageId, storageUrls[i] ?? null);
+        }
+    }
+
+    // Build one gallery entry per image output; fallback to one entry for legacy posts
+    const entries: GalleryEntry[] = [];
+    for (const post of posts) {
+        const images = imagesByPostId.get(post._id) ?? [];
+
+        if (images.length > 0) {
+            const sortedImages = [...images].sort((a, b) => b.createdAt - a.createdAt);
+            for (const image of sortedImages) {
+                entries.push({
+                    ...post,
+                    imageUrl: urlByStorageId.get(image.storageId) ?? null,
+                    imageModel: image.model,
+                    galleryImageId: image._id,
+                });
+            }
+            continue;
+        }
+
+        entries.push({
+            ...post,
+            imageUrl: post.imageStorageId
+                ? (urlByStorageId.get(post.imageStorageId) ?? null)
+                : null,
+            ...(post.imageModel && { imageModel: post.imageModel }),
+        });
+    }
+
+    return entries;
+}
+
 // List all posts for current user (not deleted) with cursor-based pagination
 export const listByUser = query({
     args: {
@@ -600,6 +686,83 @@ export const listByUser = query({
             nextCursor: result.continueCursor,
             hasMore: !result.isDone,
         };
+    },
+});
+
+// List gallery entries for current user (one entry per generated image output)
+export const listGalleryByUser = query({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return { posts: [], nextCursor: null, hasMore: false };
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return { posts: [], nextCursor: null, hasMore: false };
+        }
+
+        const limit = args.limit ?? 30;
+        const result = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .paginate({ cursor: args.cursor ?? null, numItems: limit });
+
+        const visiblePosts = result.page.filter((post) => !post.deletedAt);
+        const posts = await buildGalleryEntries(ctx, visiblePosts);
+
+        return {
+            posts,
+            nextCursor: result.continueCursor,
+            hasMore: !result.isDone,
+        };
+    },
+});
+
+// List gallery entries for a single project (one entry per generated image output)
+export const listGalleryByProject = query({
+    args: {
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            return [];
+        }
+
+        const posts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .collect();
+
+        return buildGalleryEntries(
+            ctx,
+            posts.filter((post) => !post.deletedAt)
+        );
     },
 });
 
@@ -1008,6 +1171,70 @@ export const search = query({
                 };
             })
         );
+    },
+});
+
+// Search gallery entries (one entry per generated image output)
+export const searchGallery = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const searchTerm = args.query.toLowerCase();
+        const limit = args.limit ?? 20;
+
+        const standalonePosts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .collect();
+
+        const userProjects = await ctx.db
+            .query("projects")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .collect();
+
+        const projectPostsArrays = await Promise.all(
+            userProjects.map((project) =>
+                ctx.db
+                    .query("generated_posts")
+                    .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                    .collect()
+            )
+        );
+        const projectPosts = projectPostsArrays.flat();
+
+        // Deduplicate by post ID because many project posts also have userId populated.
+        const uniquePosts = new Map<Id<"generated_posts">, Doc<"generated_posts">>();
+        for (const post of [...standalonePosts, ...projectPosts]) {
+            uniquePosts.set(post._id, post);
+        }
+
+        const matchedPosts = [...uniquePosts.values()]
+            .filter((post) => !post.deletedAt)
+            .filter((post) => {
+                const captionMatch = post.caption?.toLowerCase().includes(searchTerm);
+                const promptMatch = post.imagePrompt?.toLowerCase().includes(searchTerm);
+                return captionMatch || promptMatch;
+            })
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, limit);
+
+        return buildGalleryEntries(ctx, matchedPosts);
     },
 });
 

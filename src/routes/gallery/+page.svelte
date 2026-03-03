@@ -40,6 +40,7 @@
 	// Infinite scroll state
 	type Post = {
 		_id: Id<"generated_posts">;
+		galleryImageId?: Id<"generated_images">;
 		_creationTime: number;
 		caption: string;
 		imageUrl: string | null;
@@ -120,6 +121,64 @@
 		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
 	);
 
+	// Expanded entries (one card per generated image)
+	let projectPostsExpanded = $state<Post[] | null>(null);
+	let searchPostsExpanded = $state<Post[] | null>(null);
+	let expandingProjectPosts = $state(false);
+	let expandingSearchPosts = $state(false);
+	let initialExpandToken = 0;
+	let projectExpandToken = 0;
+	let searchExpandToken = 0;
+
+	type GeneratedImage = {
+		_id: Id<"generated_images">;
+		model: string;
+		url: string | null;
+		createdAt: number;
+	};
+
+	// Expand one post into N gallery entries (one per output image)
+	async function expandPostsToGalleryEntries(basePosts: Post[]): Promise<Post[]> {
+		if (basePosts.length === 0) return [];
+
+		const imagesByPost = await Promise.all(
+			basePosts.map(async (post) => {
+				try {
+					const images = await client.query(api.generatedImages.listByPost, {
+						generatedPostId: post._id,
+					});
+					return images as GeneratedImage[];
+				} catch (err) {
+					console.error("Failed to load generated images for post:", post._id, err);
+					return [];
+				}
+			})
+		);
+
+		const expanded: Post[] = [];
+		for (let i = 0; i < basePosts.length; i++) {
+			const post = basePosts[i];
+			if (!post) continue;
+
+			const images = imagesByPost[i] ?? [];
+			if (images.length > 0) {
+				const sortedImages = [...images].sort((a, b) => b.createdAt - a.createdAt);
+				for (const image of sortedImages) {
+					expanded.push({
+						...post,
+						galleryImageId: image._id,
+						imageUrl: image.url ?? post.imageUrl,
+						imageModel: image.model ?? post.imageModel,
+					});
+				}
+			} else {
+				expanded.push(post);
+			}
+		}
+
+		return expanded;
+	}
+
 	// Conversations query - only active when viewing conversations
 	const conversationsQuery = useQuery(
 		api.imageEditConversations.listByUser,
@@ -137,7 +196,8 @@
 				args.cursor = cursor;
 			}
 			const result = await client.query(api.generatedPosts.listByUser, args);
-			allPosts = [...allPosts, ...result.posts];
+			const expanded = await expandPostsToGalleryEntries(result.posts as Post[]);
+			allPosts = [...allPosts, ...expanded];
 			cursor = result.nextCursor;
 			hasMore = result.hasMore;
 		} catch (err) {
@@ -151,6 +211,7 @@
 	$effect(() => {
 		// When filter or search changes, reset accumulated posts
 		if (filterProjectId || searchQuery.trim()) {
+			initialExpandToken += 1;
 			allPosts = [];
 			cursor = null;
 			hasMore = true;
@@ -161,11 +222,62 @@
 	// Initialize posts from initial query
 	$effect(() => {
 		if (initialPostsQuery.data && !filterProjectId && !searchQuery.trim() && !initialLoadDone) {
-			allPosts = initialPostsQuery.data.posts;
-			cursor = initialPostsQuery.data.nextCursor;
-			hasMore = initialPostsQuery.data.hasMore;
-			initialLoadDone = true;
+			const sourcePosts = initialPostsQuery.data.posts as Post[];
+			const nextCursor = initialPostsQuery.data.nextCursor;
+			const nextHasMore = initialPostsQuery.data.hasMore;
+			const token = ++initialExpandToken;
+
+			void (async () => {
+				const expanded = await expandPostsToGalleryEntries(sourcePosts);
+				if (token !== initialExpandToken) return;
+				if (filterProjectId || searchQuery.trim()) return;
+				allPosts = expanded;
+				cursor = nextCursor;
+				hasMore = nextHasMore;
+				initialLoadDone = true;
+			})();
 		}
+	});
+
+	// Expand project-filtered posts
+	$effect(() => {
+		if (!filterProjectId || !projectPostsQuery.data) {
+			projectExpandToken += 1;
+			projectPostsExpanded = null;
+			expandingProjectPosts = false;
+			return;
+		}
+
+		const sourcePosts = projectPostsQuery.data as Post[];
+		const token = ++projectExpandToken;
+		expandingProjectPosts = true;
+		void (async () => {
+			const expanded = await expandPostsToGalleryEntries(sourcePosts);
+			if (token !== projectExpandToken || !filterProjectId) return;
+			projectPostsExpanded = expanded;
+			expandingProjectPosts = false;
+		})();
+	});
+
+	// Expand search results
+	$effect(() => {
+		const query = searchQuery.trim();
+		if (!query || !searchResultsQuery.data) {
+			searchExpandToken += 1;
+			searchPostsExpanded = null;
+			expandingSearchPosts = false;
+			return;
+		}
+
+		const sourcePosts = searchResultsQuery.data as Post[];
+		const token = ++searchExpandToken;
+		expandingSearchPosts = true;
+		void (async () => {
+			const expanded = await expandPostsToGalleryEntries(sourcePosts);
+			if (token !== searchExpandToken || searchQuery.trim() !== query) return;
+			searchPostsExpanded = expanded;
+			expandingSearchPosts = false;
+		})();
 	});
 
 	// Intersection Observer for infinite scroll
@@ -191,18 +303,18 @@
 	let selectedProject = $derived(projects.find(p => p._id === filterProjectId) ?? null);
 	let posts = $derived(() => {
 		if (searchQuery.trim()) {
-			return searchResultsQuery.data ?? [];
+			return searchPostsExpanded ?? [];
 		}
 		if (filterProjectId) {
-			return projectPostsQuery.data ?? [];
+			return projectPostsExpanded ?? [];
 		}
 		// Use accumulated posts for infinite scroll
 		return allPosts;
 	});
 	let isLoading = $derived(
 		(initialPostsQuery.isLoading && !initialLoadDone) ||
-		(filterProjectId && projectPostsQuery.isLoading) ||
-		(searchQuery.trim() && searchResultsQuery.isLoading)
+		(filterProjectId && (projectPostsQuery.isLoading || expandingProjectPosts)) ||
+		(searchQuery.trim() && (searchResultsQuery.isLoading || expandingSearchPosts))
 	);
 
 	// Get profile picture URL for a project
@@ -646,11 +758,11 @@
 			{:else}
 				<!-- Gallery grid -->
 				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-					{#each posts() as post (post._id)}
+					{#each posts() as post (post.galleryImageId ?? post._id)}
 						<div 
 							class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
-							onclick={() => openLightbox(post._id)}
-							onkeydown={(e) => e.key === 'Enter' && openLightbox(post._id)}
+							onclick={() => openLightbox(post._id, post.galleryImageId ?? null)}
+							onkeydown={(e) => e.key === 'Enter' && openLightbox(post._id, post.galleryImageId ?? null)}
 							role="button"
 							tabindex="0"
 						>
