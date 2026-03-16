@@ -18,13 +18,47 @@
         resolution?: string;
     }
 
+    interface MediaItem {
+        _id: Id<"media_items">;
+        storageId: Id<"_storage">;
+        model?: string;
+        url: string | null;
+        prompt?: string;
+        width: number;
+        height: number;
+        aspectRatio?: string;
+        resolution?: string;
+    }
+
     interface Props {
-        image: GeneratedImage;
+        image?: GeneratedImage;
+        mediaItem?: MediaItem;
         open: boolean;
         onclose: () => void;
     }
 
-    let { image, open, onclose }: Props = $props();
+    let { image, mediaItem, open, onclose }: Props = $props();
+
+    // Unified source: prefer mediaItem if provided
+    let source = $derived(mediaItem ? {
+        id: mediaItem._id,
+        storageId: mediaItem.storageId,
+        model: mediaItem.model ?? "",
+        url: mediaItem.url,
+        prompt: mediaItem.prompt ?? "",
+        width: mediaItem.width,
+        height: mediaItem.height,
+        isMediaItem: true as const,
+    } : image ? {
+        id: image._id,
+        storageId: image.storageId,
+        model: image.model,
+        url: image.url,
+        prompt: image.prompt,
+        width: image.width,
+        height: image.height,
+        isMediaItem: false as const,
+    } : null);
 
     const client = useConvexClient();
 
@@ -34,21 +68,21 @@
     let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
     let isStarting = $state(false);
     let error = $state<string | null>(null);
-    let fileInputEl: HTMLInputElement;
+    let fileInputEl = $state<HTMLInputElement | null>(null);
 
-    // Initialize selected models when image changes
+    // Initialize selected models when source changes
     $effect(() => {
-        if (image?.model) {
-            selectedModels = [image.model];
+        if (source?.model) {
+            selectedModels = [source.model];
         }
     });
 
     // Actual image dimensions (loaded from image file)
     let actualDimensions = $state<{ width: number; height: number } | null>(null);
 
-    // Load actual dimensions when image URL changes
+    // Load actual dimensions when source URL changes
     $effect(() => {
-        const url = image?.url;
+        const url = source?.url;
         if (url) {
             actualDimensions = null; // Reset while loading
             const img = new Image();
@@ -141,7 +175,7 @@
 
     // Start the conversation
     async function handleStart() {
-        if (!editPrompt.trim() || selectedModels.length === 0) return;
+        if (!editPrompt.trim() || selectedModels.length === 0 || !source) return;
 
         isStarting = true;
         error = null;
@@ -155,16 +189,22 @@
             }
 
             // Create conversation and first turn synchronously (fast mutation)
-            const result = await client.mutation(api.imageEditConversations.startWithTurn, {
-                sourceImageId: image._id,
+            const startArgs: Record<string, unknown> = {
                 userMessage: editPrompt,
                 selectedModels,
                 ...(manualReferenceIds.length > 0 && { manualReferenceIds }),
-            });
+            };
 
-            // Navigate immediately to the conversation page
-            // The page will trigger the image generation action
-            goto(`/posts/edit/${result.conversationId}?turnId=${result.turnId}`);
+            if (source.isMediaItem) {
+                startArgs.sourceMediaId = source.id;
+            } else {
+                startArgs.sourceImageId = source.id;
+            }
+
+            const result = await client.mutation(api.imageEditConversations.startWithTurn, startArgs as any);
+
+            // Navigate to the conversation page under images
+            goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
         } catch (err) {
             console.error("Failed to start conversation:", err);
             error = err instanceof Error ? err.message : "Erro ao iniciar edição";
@@ -242,11 +282,11 @@
             <!-- Left: Source Image -->
             <div class="flex w-[320px] shrink-0 flex-col border-r border-border bg-muted/30 p-6">
                 <Label class="mb-3 text-sm font-medium">Imagem de origem</Label>
-                <div class="relative overflow-hidden border border-border bg-background" style="aspect-ratio: {image.width} / {image.height};">
-                    {#if image.url}
-                        <img 
-                            src={image.url} 
-                            alt="Imagem de origem" 
+                <div class="relative overflow-hidden border border-border bg-background" style="aspect-ratio: {source?.width ?? 1} / {source?.height ?? 1};">
+                    {#if source?.url}
+                        <img
+                            src={source.url}
+                            alt="Imagem de origem"
                             class="h-full w-full object-cover"
                         />
                     {:else}
@@ -256,12 +296,12 @@
                     {/if}
                 </div>
                 <div class="mt-3 space-y-1">
-                    <p class="text-sm font-medium">{modelDisplayNames[image.model] ?? image.model}</p>
+                    <p class="text-sm font-medium">{modelDisplayNames[source?.model ?? ""] ?? source?.model ?? "Desconhecido"}</p>
                     <p class="text-xs text-muted-foreground">
                         {#if actualDimensions}
                             {actualDimensions.width} x {actualDimensions.height}
                         {:else}
-                            {image.width} x {image.height}
+                            {source?.width ?? 0} x {source?.height ?? 0}
                         {/if}
                     </p>
                 </div>
@@ -303,7 +343,7 @@
                                             type="button"
                                             aria-label="Adicionar imagens de referencia"
                                             class="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                            onclick={() => fileInputEl.click()}
+                                            onclick={() => fileInputEl?.click()}
                                         >
                                             <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
@@ -352,7 +392,7 @@
                                 type="button"
                                 aria-label="Adicionar mais imagens"
                                 class="flex h-14 w-14 items-center justify-center border border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                                onclick={() => fileInputEl.click()}
+                                onclick={() => fileInputEl?.click()}
                             >
                                 <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

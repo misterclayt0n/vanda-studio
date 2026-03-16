@@ -191,6 +191,118 @@ export const create = mutation({
     },
 });
 
+// Create or update a real post composition that references library media
+export const saveComposedDraft = mutation({
+    args: {
+        id: v.optional(v.id("generated_posts")),
+        projectId: v.optional(v.id("projects")),
+        caption: v.string(),
+        mediaItemIds: v.array(v.id("media_items")),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        if (args.mediaItemIds.length === 0) {
+            throw new Error("At least one media item is required");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        if (args.projectId) {
+            const project = await ctx.db.get(args.projectId);
+            if (!project || project.userId !== user._id) {
+                throw new Error("Not authorized");
+            }
+        }
+
+        const mediaItems = await Promise.all(args.mediaItemIds.map((id) => ctx.db.get(id)));
+        if (mediaItems.some((item) => !item || item.userId !== user._id || item.deletedAt)) {
+            throw new Error("Invalid media selection");
+        }
+
+        const orderedMediaItems = mediaItems as Doc<"media_items">[];
+        const firstMediaItem = orderedMediaItems[0];
+        if (!firstMediaItem) {
+            throw new Error("At least one media item is required");
+        }
+
+        const now = Date.now();
+        let postId = args.id;
+
+        if (postId) {
+            const post = await ctx.db.get(postId);
+            if (!post) {
+                throw new Error("Generated post not found");
+            }
+
+            let hasAccess = post.userId === user._id;
+            if (!hasAccess && post.projectId) {
+                const project = await ctx.db.get(post.projectId);
+                hasAccess = project?.userId === user._id;
+            }
+
+            if (!hasAccess) {
+                throw new Error("Not authorized");
+            }
+
+            await ctx.db.patch(postId, {
+                userId: post.userId ?? user._id,
+                projectId: args.projectId,
+                caption: args.caption,
+                imageStorageId: firstMediaItem.storageId,
+                imagePrompt: firstMediaItem.prompt,
+                imageModel: firstMediaItem.model,
+                isComposed: true,
+                status: "draft",
+                updatedAt: now,
+            });
+        } else {
+            postId = await ctx.db.insert("generated_posts", {
+                userId: user._id,
+                caption: args.caption,
+                imageStorageId: firstMediaItem.storageId,
+                isComposed: true,
+                status: "draft",
+                createdAt: now,
+                updatedAt: now,
+                ...(args.projectId && { projectId: args.projectId }),
+                ...(firstMediaItem.prompt && { imagePrompt: firstMediaItem.prompt }),
+                ...(firstMediaItem.model && { imageModel: firstMediaItem.model }),
+            });
+        }
+
+        const existingLinks = await ctx.db
+            .query("post_media_items")
+            .withIndex("by_post", (q) => q.eq("postId", postId))
+            .collect();
+
+        for (const link of existingLinks) {
+            await ctx.db.delete(link._id);
+        }
+
+        for (const [position, mediaItemId] of args.mediaItemIds.entries()) {
+            await ctx.db.insert("post_media_items", {
+                postId,
+                mediaItemId,
+                position,
+                role: position === 0 ? "cover" : "attachment",
+            });
+        }
+
+        return postId;
+    },
+});
+
 // Update from chat (for chat-based generation)
 export const updateFromChat = mutation({
     args: {
@@ -488,6 +600,15 @@ export const remove = mutation({
         
         for (const m of messages) {
             await ctx.db.delete(m._id);
+        }
+
+        const mediaLinks = await ctx.db
+            .query("post_media_items")
+            .withIndex("by_post", (q) => q.eq("postId", args.id))
+            .collect();
+
+        for (const link of mediaLinks) {
+            await ctx.db.delete(link._id);
         }
 
         await ctx.db.delete(args.id);
@@ -1082,6 +1203,15 @@ export const permanentDelete = mutation({
         
         for (const m of messages) {
             await ctx.db.delete(m._id);
+        }
+
+        const mediaLinks = await ctx.db
+            .query("post_media_items")
+            .withIndex("by_post", (q) => q.eq("postId", args.id))
+            .collect();
+
+        for (const link of mediaLinks) {
+            await ctx.db.delete(link._id);
         }
 
         // Delete main image storage

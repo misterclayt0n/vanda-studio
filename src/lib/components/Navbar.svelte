@@ -12,9 +12,9 @@
 
 	// Navigation items
 	const navItems = [
-		{ href: "/posts/create", label: "Criar", icon: "sparkles" },
+		{ href: "/images", label: "Imagens", icon: "gallery" },
+		{ href: "/posts/create", label: "Posts", icon: "sparkles" },
 		{ href: "/calendar", label: "Calendário", icon: "calendar" },
-		{ href: "/gallery", label: "Galeria", icon: "gallery" },
 		{ href: "/projects", label: "Projetos", icon: "projects" },
 	];
 

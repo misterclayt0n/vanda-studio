@@ -4,3 +4,4 @@ export { default as LightboxSidebar } from "./LightboxSidebar.svelte";
 export { default as LightboxThumbnail } from "./LightboxThumbnail.svelte";
 export { default as LightboxConversationCard } from "./LightboxConversationCard.svelte";
 export { default as EditOutputLightbox } from "./EditOutputLightbox.svelte";
+export { default as MediaLightbox } from "./MediaLightbox.svelte";

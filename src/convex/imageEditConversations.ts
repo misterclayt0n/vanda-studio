@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 
-// Get a single conversation with source image URL and original post data
+// Get a single conversation with source asset URL and original post data
 export const get = query({
     args: {
         id: v.id("image_edit_conversations"),
@@ -18,22 +18,33 @@ export const get = query({
             return null;
         }
 
-        // Get source image URL
+        // Get source asset URL
         const sourceImageUrl = await ctx.storage.getUrl(conversation.sourceStorageId);
 
         // Get source image details
-        const sourceImage = await ctx.db.get(conversation.sourceImageId);
+        let sourceImage: Doc<"generated_images"> | null = null;
+        if (conversation.sourceImageId) {
+            sourceImage = await ctx.db.get(conversation.sourceImageId);
+        }
+
+        let sourceMedia: Doc<"media_items"> | null = null;
+        if (conversation.sourceMediaId) {
+            sourceMedia = await ctx.db.get(conversation.sourceMediaId);
+        }
 
         // Get original post data (for caption inheritance)
-        let originalPost = null;
-        if (sourceImage?.generatedPostId) {
+        let originalPost: Doc<"generated_posts"> | null = null;
+        if (sourceImage) {
             originalPost = await ctx.db.get(sourceImage.generatedPostId);
+        } else if (sourceMedia?.legacyPostId) {
+            originalPost = await ctx.db.get(sourceMedia.legacyPostId);
         }
 
         return {
             ...conversation,
             sourceImageUrl,
             sourceImage,
+            sourceMedia,
             originalPost,
         };
     },
@@ -120,6 +131,25 @@ export const getBySourceImage = query({
     },
 });
 
+export const getBySourceMedia = query({
+    args: {
+        sourceMediaId: v.id("media_items"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const conversation = await ctx.db
+            .query("image_edit_conversations")
+            .withIndex("by_source_media", (q) => q.eq("sourceMediaId", args.sourceMediaId))
+            .first();
+
+        return conversation;
+    },
+});
+
 // Create a new conversation
 export const create = mutation({
     args: {
@@ -167,7 +197,8 @@ export const create = mutation({
 // Image generation is triggered separately from the conversation page
 export const startWithTurn = mutation({
     args: {
-        sourceImageId: v.id("generated_images"),
+        sourceImageId: v.optional(v.id("generated_images")),
+        sourceMediaId: v.optional(v.id("media_items")),
         userMessage: v.string(),
         selectedModels: v.array(v.string()),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
@@ -187,10 +218,32 @@ export const startWithTurn = mutation({
             throw new Error("User not found");
         }
 
-        // Get source image
-        const sourceImage = await ctx.db.get(args.sourceImageId);
-        if (!sourceImage) {
-            throw new Error("Source image not found");
+        if (!args.sourceImageId && !args.sourceMediaId) {
+            throw new Error("Source asset not found");
+        }
+
+        let sourceStorageId: Id<"_storage">;
+        let aspectRatio: string;
+        let resolution: string;
+
+        if (args.sourceMediaId) {
+            const sourceMedia = await ctx.db.get(args.sourceMediaId);
+            if (!sourceMedia) {
+                throw new Error("Source media not found");
+            }
+
+            sourceStorageId = sourceMedia.storageId;
+            aspectRatio = sourceMedia.aspectRatio ?? "1:1";
+            resolution = sourceMedia.resolution ?? "standard";
+        } else {
+            const sourceImage = await ctx.db.get(args.sourceImageId!);
+            if (!sourceImage) {
+                throw new Error("Source image not found");
+            }
+
+            sourceStorageId = sourceImage.storageId;
+            aspectRatio = sourceImage.aspectRatio;
+            resolution = sourceImage.resolution;
         }
 
         const now = Date.now();
@@ -201,11 +254,12 @@ export const startWithTurn = mutation({
         // Create conversation
         const conversationId = await ctx.db.insert("image_edit_conversations", {
             userId: user._id,
-            sourceImageId: args.sourceImageId,
-            sourceStorageId: sourceImage.storageId,
+            ...(args.sourceImageId && { sourceImageId: args.sourceImageId }),
+            ...(args.sourceMediaId && { sourceMediaId: args.sourceMediaId }),
+            sourceStorageId,
             title,
-            aspectRatio: sourceImage.aspectRatio,
-            resolution: sourceImage.resolution,
+            aspectRatio,
+            resolution,
             createdAt: now,
             updatedAt: now,
         });
@@ -225,8 +279,8 @@ export const startWithTurn = mutation({
         return {
             conversationId,
             turnId,
-            aspectRatio: sourceImage.aspectRatio,
-            resolution: sourceImage.resolution,
+            aspectRatio,
+            resolution,
         };
     },
 });
@@ -421,6 +475,91 @@ export const listBySourceImage = query({
             ...conv,
             turnCount: turnCountByConvId.get(conv._id) ?? 0,
             thumbnailUrl: thumbnailUrls[i],
+        }));
+    },
+});
+
+export const listBySourceMedia = query({
+    args: {
+        sourceMediaId: v.id("media_items"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const conversations = await ctx.db
+            .query("image_edit_conversations")
+            .withIndex("by_source_media", (q) => q.eq("sourceMediaId", args.sourceMediaId))
+            .collect();
+
+        const activeConversations = conversations.filter((conv) => !conv.deletedAt);
+
+        if (activeConversations.length === 0) {
+            return [];
+        }
+
+        const conversationIds = activeConversations.map((conv) => conv._id);
+
+        const [allTurns, allOutputs] = await Promise.all([
+            Promise.all(
+                conversationIds.map((convId) =>
+                    ctx.db
+                        .query("image_edit_turns")
+                        .withIndex("by_conversation", (q) => q.eq("conversationId", convId))
+                        .collect()
+                )
+            ),
+            Promise.all(
+                conversationIds.map((convId) =>
+                    ctx.db
+                        .query("image_edit_outputs")
+                        .withIndex("by_conversation", (q) => q.eq("conversationId", convId))
+                        .order("desc")
+                        .first()
+                )
+            ),
+        ]);
+
+        const turnCountByConvId = new Map<Id<"image_edit_conversations">, number>();
+        const latestOutputByConvId = new Map<Id<"image_edit_conversations">, NonNullable<typeof allOutputs[0]>>();
+
+        for (let i = 0; i < conversationIds.length; i++) {
+            const convId = conversationIds[i];
+            const turns = allTurns[i];
+            const output = allOutputs[i];
+            if (convId && turns) {
+                turnCountByConvId.set(convId, turns.length);
+                if (output) {
+                    latestOutputByConvId.set(convId, output);
+                }
+            }
+        }
+
+        const storageIdsToResolve: Id<"_storage">[] = [];
+        for (const conv of activeConversations) {
+            const latestOutput = latestOutputByConvId.get(conv._id);
+            storageIdsToResolve.push(latestOutput?.storageId ?? conv.sourceStorageId);
+        }
+
+        const thumbnailUrls = await Promise.all(
+            storageIdsToResolve.map((id) => ctx.storage.getUrl(id))
+        );
+
+        return activeConversations.map((conv, index) => ({
+            ...conv,
+            turnCount: turnCountByConvId.get(conv._id) ?? 0,
+            thumbnailUrl: thumbnailUrls[index],
         }));
     },
 });

@@ -1,468 +1,42 @@
 <script lang="ts">
-	import { Button, Textarea, Label, Badge, Separator, Input, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, CaptionModelSelector, AspectRatioSelector, ResolutionSelector, ImageSkeleton, EditImageModal, EditableCaption, ProjectSelector } from "$lib/components/studio";
+	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
 	import { ScheduleModal } from "$lib/components/calendar";
-	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
-	import { useConvexClient, useQuery } from "convex-svelte";
+	import Navbar from "$lib/components/Navbar.svelte";
+	import {
+		CaptionModelSelector,
+		ProjectSelector,
+	} from "$lib/components/studio";
+	import { Badge, Button, Input, Textarea } from "$lib/components/ui";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
-	import Navbar from "$lib/components/Navbar.svelte";
-	import { page } from "$app/stores";
-	import { goto } from "$app/navigation";
+	import { useConvexClient, useQuery } from "convex-svelte";
+	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 
-	// Type definitions for studio settings
-	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
-	type Resolution = "standard" | "high" | "ultra";
-
-	// Generated image type from backend
-	type GeneratedImage = {
-		_id: Id<"generated_images">;
-		storageId: Id<"_storage">;
-		model: string;
+	type MediaItem = {
+		_id: Id<"media_items">;
 		url: string | null;
-		prompt: string;
+		model?: string;
+		prompt?: string;
+		sourceType: string;
 		width: number;
 		height: number;
-		aspectRatio?: string;
-		resolution?: string;
+		projectId?: Id<"projects">;
+		createdAt: number;
 	};
 
-	// Convex client and Clerk auth
+	type ComposerPost = {
+		_id: Id<"generated_posts">;
+		caption: string;
+		projectId?: Id<"projects">;
+		scheduledFor?: number;
+		schedulingStatus?: string;
+	};
+
+	type LibraryScope = "all" | "project";
+
 	const client = useConvexClient();
-	const clerk = useClerkContext();
 
-	// Auth state
-	let showLoginPrompt = $state(false);
-
-	// Hide login prompt when user logs in
-	$effect(() => {
-		if (clerk.user && showLoginPrompt) {
-			showLoginPrompt = false;
-		}
-	});
-
-	// Project from URL params
-	let urlProjectId = $derived($page.url.searchParams.get('projectId') as Id<"projects"> | null);
-
-	// Form state
-	let prompt = $state("");
-	let tone = $state("profissional");
-	let customTone = $state("");
-	let useCustomTone = $state(false);
-	let platform = $state("instagram");
-	let captionModel = $state<string>("openai/gpt-4.1");
-	let selectedProjectId = $state<Id<"projects"> | null>(null);
-	let includeProjectContext = $state(true);
-
-	// Query selected project data
-	const selectedProjectQuery = useQuery(
-		api.projects.get,
-		() => selectedProjectId ? { projectId: selectedProjectId } : "skip"
-	);
-	let selectedProject = $derived(selectedProjectQuery.data);
-
-	// Query context images for selected project
-	const contextImagesQuery = useQuery(
-		api.contextImages.list,
-		() => selectedProjectId ? { projectId: selectedProjectId } : "skip"
-	);
-	let contextImages = $derived(contextImagesQuery.data ?? []);
-
-	// Check if project has any context configured
-	let projectHasContext = $derived(
-		selectedProject && (
-			!!selectedProject.accountDescription ||
-			(selectedProject.brandTraits && selectedProject.brandTraits.length > 0) ||
-			!!selectedProject.additionalContext ||
-			contextImages.length > 0
-		)
-	);
-
-	// Initialize selectedProjectId from URL param
-	$effect(() => {
-		if (urlProjectId && selectedProjectId === null) {
-			selectedProjectId = urlProjectId;
-		}
-	});
-
-	// Generation state
-	let isGenerating = $state(false);
-	let hasGenerated = $state(false);
-	let error = $state<string | null>(null);
-	let showErrorDetails = $state(false);
-
-	type ErrorPresentation = {
-		title: string;
-		message: string;
-		detail?: string;
-		action?: "billing";
-	};
-
-	function getErrorPresentation(raw: string): ErrorPresentation {
-		const normalized = raw.toLowerCase();
-
-		if (normalized.includes("creditos insuficientes") || normalized.includes("créditos insuficientes")) {
-			return {
-				title: "Seus créditos acabaram",
-				message: "Você não tem créditos suficientes para gerar imagens. Assine um plano ou adquira mais créditos para continuar criando.",
-				detail: raw,
-				action: "billing",
-			};
-		}
-
-		if (normalized.includes("temporariamente indisponivel") || normalized.includes("temporariamente indisponível")) {
-			return {
-				title: "Serviço instável",
-				message: "Nosso provedor de IA está com instabilidade. Tente novamente em alguns minutos.",
-				detail: raw,
-			};
-		}
-
-		return {
-			title: "Não foi possível gerar",
-			message: "Ocorreu um problema inesperado. Se persistir, tente novamente mais tarde.",
-			detail: raw,
-		};
-	}
-
-	let errorPresentation = $derived(error ? getErrorPresentation(error) : null);
-
-	$effect(() => {
-		if (error) {
-			showErrorDetails = false;
-		}
-	});
-
-	// Studio settings (declared early for derived state references)
-	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
-	let aspectRatio = $state<AspectRatio>("1:1");
-	let resolution = $state<Resolution>("standard");
-
-	// Progressive loading state
-	let generatedPostId = $state<Id<"generated_posts"> | null>(null);
-
-	// Subscriptions using "skip" pattern for conditional queries
-	const postQuery = useQuery(
-		api.generatedPosts.get, 
-		() => generatedPostId ? { id: generatedPostId } : "skip"
-	);
-
-	const imagesQuery = useQuery(
-		api.generatedImages.listByPost,
-		() => generatedPostId ? { generatedPostId } : "skip"
-	);
-
-	// Derived states from subscriptions
-	let postData = $derived(postQuery.data);
-	let imagesData = $derived(imagesQuery.data ?? []);
-
-	// Progressive loading states (cast to handle missing fields before schema update)
-	let isGeneratingCaption = $derived(postData?.status === "generating_caption");
-	let isGeneratingImages = $derived(postData?.status === "generating_images");
-	let isCompleted = $derived(postData?.status === "generated");
-	let subscriptionCaption = $derived(postData?.caption ?? "");
-	let pendingModels = $derived((postData as any)?.pendingImageModels ?? []);
-	let totalModels = $derived((postData as any)?.totalImageModels ?? selectedModels.length);
-	let hasAnyImage = $derived(imagesData.length > 0);
-	let hasCaption = $derived(subscriptionCaption.length > 0);
-
-	// Generated content (updated from subscriptions)
-	let generatedCaption = $state("");
-	let generatedImages = $state<GeneratedImage[]>([]);
-	let selectedImageIndex = $state(0);
-
-	// Edit modal state
-	let editModalOpen = $state(false);
-	let editModalImage = $state<GeneratedImage | null>(null);
-
-	function openEditModal(image: GeneratedImage) {
-		editModalImage = image;
-		editModalOpen = true;
-	}
-
-	function closeEditModal() {
-		editModalOpen = false;
-		editModalImage = null;
-	}
-
-	// Schedule modal state
-	let scheduleModalOpen = $state(false);
-
-	function openScheduleModal() {
-		scheduleModalOpen = true;
-	}
-
-	function closeScheduleModal() {
-		scheduleModalOpen = false;
-	}
-
-	// Sync subscription data to state
-	$effect(() => {
-		if (subscriptionCaption) {
-			generatedCaption = subscriptionCaption;
-		}
-	});
-
-	$effect(() => {
-		if (imagesData.length > 0) {
-			generatedImages = imagesData.map(img => ({
-				_id: img._id,
-				storageId: img.storageId,
-				model: img.model,
-				url: img.url,
-				prompt: img.prompt,
-				width: img.width,
-				height: img.height,
-				aspectRatio: img.aspectRatio,
-				resolution: img.resolution,
-			}));
-		}
-	});
-
-	// Track when generation is complete
-	$effect(() => {
-		if (isCompleted && generatedPostId) {
-			isGenerating = false;
-		}
-	});
-	
-	// Reference images state
-	let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
-	let fileInputEl: HTMLInputElement;
-
-	function addImageFiles(files: File[]) {
-		files.forEach((file) => {
-			if (!file.type.startsWith('image/')) return;
-			const url = URL.createObjectURL(file);
-			referenceImages = [...referenceImages, {
-				id: crypto.randomUUID(),
-				url,
-				name: file.name || `pasted-image-${Date.now()}.png`,
-				file
-			}];
-		});
-	}
-
-	function handleFileSelect(event: Event) {
-		const input = event.target as HTMLInputElement;
-		if (!input.files) return;
-		
-		addImageFiles(Array.from(input.files));
-		
-		// Clear input to allow selecting the same file again
-		input.value = "";
-	}
-
-	function removeImage(id: string) {
-		const image = referenceImages.find(img => img.id === id);
-		if (image) {
-			URL.revokeObjectURL(image.url);
-		}
-		referenceImages = referenceImages.filter(img => img.id !== id);
-	}
-
-	// Handle paste from clipboard
-	function handlePaste(event: ClipboardEvent) {
-		const items = event.clipboardData?.items;
-		if (!items) return;
-
-		const imageFiles: File[] = [];
-		for (const item of items) {
-			if (item.type.startsWith('image/')) {
-				const file = item.getAsFile();
-				if (file) {
-					imageFiles.push(file);
-				}
-			}
-		}
-
-		if (imageFiles.length > 0) {
-			event.preventDefault();
-			addImageFiles(imageFiles);
-		}
-	}
-
-	// Build the full prompt with tone
-	function buildFullPrompt(): string {
-		const toneText = useCustomTone && customTone.trim() 
-			? customTone.trim() 
-			: toneLabels[tone];
-		return `${prompt}\n\nTom: ${toneText}`;
-	}
-
-	// Upload a file to Convex storage
-	async function uploadFileToStorage(file: File): Promise<Id<"_storage">> {
-		// Get upload URL from Convex
-		const uploadUrl = await client.mutation(api.referenceImages.generateUploadUrl, {});
-		
-		// Upload the file
-		const response = await fetch(uploadUrl, {
-			method: "POST",
-			headers: { "Content-Type": file.type },
-			body: file,
-		});
-		
-		if (!response.ok) {
-			throw new Error("Falha ao fazer upload da imagem");
-		}
-		
-		const { storageId } = await response.json();
-		return storageId as Id<"_storage">;
-	}
-
-	// Real generation function with progressive loading
-	async function handleGenerate() {
-		if (!prompt.trim()) return;
-
-		// Check if user is authenticated
-		if (!clerk.user) {
-			showLoginPrompt = true;
-			return;
-		}
-
-		isGenerating = true;
-		error = null;
-		hasGenerated = false;
-		generatedPostId = null; // Reset to stop previous subscriptions
-		generatedCaption = "";
-		generatedImages = [];
-		selectedImageIndex = 0;
-		
-		try {
-			// Upload reference images to Convex storage first
-			let imageStorageIds: Id<"_storage">[] = [];
-			
-			if (referenceImages.length > 0) {
-				console.log(`Uploading ${referenceImages.length} reference images...`);
-				
-				const uploadPromises = referenceImages.map(img => uploadFileToStorage(img.file));
-				imageStorageIds = await Promise.all(uploadPromises);
-				
-				console.log(`Uploaded ${imageStorageIds.length} images successfully`);
-			}
-
-			// Build attachments object if we have reference images
-			const attachments = imageStorageIds.length > 0
-				? { imageStorageIds }
-				: undefined;
-
-			// Build projectContext if enabled and project has context
-			let projectContext: {
-				accountDescription?: string;
-				brandTraits?: string[];
-				additionalContext?: string;
-				contextImageUrls?: string[];
-			} | undefined;
-
-			if (includeProjectContext && projectHasContext && selectedProject) {
-				projectContext = {};
-				if (selectedProject.accountDescription) {
-					projectContext.accountDescription = selectedProject.accountDescription;
-				}
-				if (selectedProject.brandTraits && selectedProject.brandTraits.length > 0) {
-					projectContext.brandTraits = selectedProject.brandTraits;
-				}
-				if (selectedProject.additionalContext) {
-					projectContext.additionalContext = selectedProject.additionalContext;
-				}
-				if (contextImages.length > 0) {
-					projectContext.contextImageUrls = contextImages
-						.filter(img => img.url)
-						.map(img => img.url as string);
-				}
-			}
-
-			// Call action - it will return generatedPostId
-			// The action runs in the background, subscriptions will update UI progressively
-			const result = await client.action(api.ai.chat.generate, {
-				message: buildFullPrompt(),
-				captionModel,
-				imageModels: selectedModels,
-				aspectRatio,
-				resolution,
-				...(attachments && { attachments }),
-				...(selectedProjectId && { projectId: selectedProjectId }),
-				...(projectContext && { projectContext }),
-			});
-
-			// Set ID to start subscriptions (this triggers reactive updates)
-			generatedPostId = result.generatedPostId;
-			hasGenerated = true;
-			
-			// Note: isGenerating will be set to false by the $effect when isCompleted becomes true
-		} catch (err) {
-			console.error("Generation failed:", err);
-			error = err instanceof Error ? err.message : "Erro ao gerar conteúdo";
-			isGenerating = false;
-		}
-	}
-
-	// Regenerate with same settings
-	async function handleRegenerate() {
-		await handleGenerate();
-	}
-
-	// Copy feedback state
-	let showCopiedFeedback = $state(false);
-
-	function handleCopyCaption() {
-		navigator.clipboard.writeText(generatedCaption);
-		showCopiedFeedback = true;
-		setTimeout(() => {
-			showCopiedFeedback = false;
-		}, 2000);
-	}
-
-	// Download the selected image directly to browser
-	async function handleDownloadImage() {
-		if (!selectedImage?.url) return;
-		
-		try {
-			const response = await fetch(selectedImage.url);
-			const blob = await response.blob();
-			
-			// Create a download link
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement('a');
-			link.href = url;
-			
-			// Generate filename from model name
-			const modelName = selectedImage.model.split('/').pop() ?? 'image';
-			const extension = blob.type.split('/').pop() ?? 'png';
-			link.download = `vanda-${modelName}-${Date.now()}.${extension}`;
-			
-			// Trigger download
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			
-			// Clean up
-			URL.revokeObjectURL(url);
-		} catch (err) {
-			console.error('Download failed:', err);
-		}
-	}
-
-	// Get selected image
-	let selectedImage = $derived(generatedImages[selectedImageIndex] ?? null);
-
-	// Actual image dimensions (loaded from image file)
-	let actualDimensions = $state<{ width: number; height: number } | null>(null);
-
-	// Load actual dimensions when image URL changes
-	$effect(() => {
-		const url = selectedImage?.url;
-		if (url) {
-			actualDimensions = null; // Reset while loading
-			const img = new Image();
-			img.onload = () => {
-				actualDimensions = { width: img.naturalWidth, height: img.naturalHeight };
-			};
-			img.src = url;
-		}
-	});
-
-	// Model name mapping for display
 	const modelDisplayNames: Record<string, string> = {
 		"google/gemini-2.5-flash-image": "Nano Banana",
 		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
@@ -471,752 +45,668 @@
 		"openai/gpt-5-image": "GPT Image 1.5",
 	};
 
-	// Tone mapping for display
-	const toneLabels: Record<string, string> = {
-		profissional: "Profissional",
-		casual: "Casual",
-		inspirador: "Inspirador",
-		humoristico: "Humoristico",
-		educativo: "Educativo",
-		promocional: "Promocional"
+	const sourceLabels: Record<string, string> = {
+		generated: "Gerada",
+		uploaded: "Upload",
+		edited: "Editada",
+		imported: "Importada",
 	};
 
-	// Extract hashtags from caption
-	let hashtags = $derived(
-		generatedCaption.match(/#[\p{L}\p{N}_]+/gu) ?? []
+	function parseMediaIds(value: string | null): Id<"media_items">[] {
+		if (!value) return [];
+		return value
+			.split(",")
+			.map((id) => id.trim())
+			.filter(Boolean) as Id<"media_items">[];
+	}
+
+	function dedupeMediaIds(ids: Id<"media_items">[]): Id<"media_items">[] {
+		return [...new Set(ids)];
+	}
+
+	function formatDate(timestamp: number): string {
+		const date = new Date(timestamp);
+		return date.toLocaleDateString("pt-BR", {
+			day: "2-digit",
+			month: "short",
+			year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+		});
+	}
+
+	function formatScheduledDate(timestamp: number): string {
+		return new Date(timestamp).toLocaleString("pt-BR", {
+			day: "2-digit",
+			month: "short",
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	}
+
+	const postIdFromUrl = $derived(
+		$page.url.searchParams.get("postId") as Id<"generated_posts"> | null
 	);
+	const projectIdFromUrl = $derived(
+		$page.url.searchParams.get("projectId") as Id<"projects"> | null
+	);
+	const mediaIdsFromUrl = $derived(
+		parseMediaIds($page.url.searchParams.get("mediaIds"))
+	);
+
+	let activePostId = $state<Id<"generated_posts"> | null>(null);
+	let selectedProjectId = $state<Id<"projects"> | null>(null);
+	let selectedMediaIds = $state<Id<"media_items">[]>([]);
+	let libraryScope = $state<LibraryScope>("all");
+	let librarySearch = $state("");
+	let captionBrief = $state("");
+	let caption = $state("");
+	let captionModel = $state("openai/gpt-4.1");
+	let includeProjectContext = $state(true);
+	let isGeneratingCaption = $state(false);
+	let isSavingDraft = $state(false);
+	let error = $state<string | null>(null);
+	let scheduleModalOpen = $state(false);
+	let hydratedPostId = $state<string | null>(null);
+	let hydratedPostMediaId = $state<string | null>(null);
+	let consumedMediaIdsSignature = $state("");
+
+	const composerPostId = $derived(activePostId ?? postIdFromUrl);
+
+	const postQuery = useQuery(
+		api.generatedPosts.get,
+		() => (composerPostId ? { id: composerPostId } : "skip")
+	);
+	const postMediaQuery = useQuery(
+		api.postMediaItems.listByPost,
+		() => (composerPostId ? { postId: composerPostId } : "skip")
+	);
+	const selectedMediaQuery = useQuery(
+		api.mediaItems.listByIds,
+		() =>
+			selectedMediaIds.length > 0
+				? { ids: selectedMediaIds }
+				: "skip"
+	);
+	const allMediaQuery = useQuery(api.mediaItems.listByUser, () => ({ limit: 120 }));
+	const projectMediaQuery = useQuery(
+		api.mediaItems.listByProject,
+		() =>
+			libraryScope === "project" && selectedProjectId
+				? { projectId: selectedProjectId }
+				: "skip"
+	);
+	const selectedProjectQuery = useQuery(
+		api.projects.get,
+		() =>
+			selectedProjectId
+				? { projectId: selectedProjectId }
+				: "skip"
+	);
+	const contextImagesQuery = useQuery(
+		api.contextImages.list,
+		() =>
+			selectedProjectId
+				? { projectId: selectedProjectId }
+				: "skip"
+	);
+
+	let currentPost = $derived(postQuery.data as ComposerPost | null | undefined);
+	let selectedProject = $derived(selectedProjectQuery.data);
+	let contextImages = $derived(contextImagesQuery.data ?? []);
+	let selectedMedia = $derived((selectedMediaQuery.data ?? []) as MediaItem[]);
+	let linkedPostMedia = $derived(postMediaQuery.data ?? []);
+	let libraryBaseItems = $derived(
+		(
+			libraryScope === "project" && selectedProjectId
+				? projectMediaQuery.data ?? []
+				: allMediaQuery.data?.items ?? []
+		) as MediaItem[]
+	);
+	let libraryItems = $derived.by(() => {
+		const query = librarySearch.trim().toLowerCase();
+		if (!query) {
+			return libraryBaseItems;
+		}
+
+		return libraryBaseItems.filter((item) => {
+			const promptMatch = item.prompt?.toLowerCase().includes(query) ?? false;
+			const modelMatch = item.model?.toLowerCase().includes(query) ?? false;
+			const sourceMatch = sourceLabels[item.sourceType]?.toLowerCase().includes(query) ?? false;
+			return promptMatch || modelMatch || sourceMatch;
+		});
+	});
+	let coverMedia = $derived(selectedMedia[0] ?? null);
+	let isEditingExistingPost = $derived(!!composerPostId);
+
+	$effect(() => {
+		if (projectIdFromUrl && !selectedProjectId && !composerPostId) {
+			selectedProjectId = projectIdFromUrl;
+			libraryScope = "project";
+		}
+	});
+
+	$effect(() => {
+		if (currentPost && composerPostId && hydratedPostId !== composerPostId) {
+			activePostId = composerPostId;
+			selectedProjectId = currentPost.projectId ?? null;
+			caption = currentPost.caption;
+			libraryScope = currentPost.projectId ? "project" : "all";
+			hydratedPostId = composerPostId;
+		}
+	});
+
+	$effect(() => {
+		if (composerPostId && hydratedPostMediaId !== composerPostId && linkedPostMedia.length > 0) {
+			selectedMediaIds = linkedPostMedia
+				.filter((row): row is NonNullable<typeof row> => !!row)
+				.map((row) => row.mediaItemId);
+			hydratedPostMediaId = composerPostId;
+		}
+	});
+
+	$effect(() => {
+		const signature = mediaIdsFromUrl.join(",");
+		if (!signature || consumedMediaIdsSignature === signature) {
+			return;
+		}
+
+		selectedMediaIds = dedupeMediaIds([...selectedMediaIds, ...mediaIdsFromUrl]);
+		consumedMediaIdsSignature = signature;
+	});
+
+	$effect(() => {
+		if (!captionBrief && selectedMedia.length === 1 && selectedMedia[0]?.prompt) {
+			captionBrief = selectedMedia[0].prompt ?? "";
+		}
+	});
+
+	function isSelected(mediaId: Id<"media_items">): boolean {
+		return selectedMediaIds.includes(mediaId);
+	}
+
+	function addMedia(mediaId: Id<"media_items">) {
+		if (isSelected(mediaId)) return;
+		selectedMediaIds = [...selectedMediaIds, mediaId];
+	}
+
+	function removeMedia(mediaId: Id<"media_items">) {
+		selectedMediaIds = selectedMediaIds.filter((id) => id !== mediaId);
+	}
+
+	function moveMedia(mediaId: Id<"media_items">, direction: -1 | 1) {
+		const currentIndex = selectedMediaIds.indexOf(mediaId);
+		if (currentIndex === -1) return;
+
+		const nextIndex = currentIndex + direction;
+		if (nextIndex < 0 || nextIndex >= selectedMediaIds.length) return;
+
+		const reordered = [...selectedMediaIds];
+		const [item] = reordered.splice(currentIndex, 1);
+		if (!item) return;
+		reordered.splice(nextIndex, 0, item);
+		selectedMediaIds = reordered;
+	}
+
+	function buildProjectContext() {
+		if (!includeProjectContext || !selectedProjectId || !selectedProject) {
+			return undefined;
+		}
+
+		const contextImageUrls = contextImages
+			.map((image) => image.url)
+			.filter((url): url is string => !!url);
+
+		return {
+			...(selectedProject.accountDescription && {
+				accountDescription: selectedProject.accountDescription,
+			}),
+			...(selectedProject.brandTraits && {
+				brandTraits: selectedProject.brandTraits,
+			}),
+			...(selectedProject.additionalContext && {
+				additionalContext: selectedProject.additionalContext,
+			}),
+			...(contextImageUrls.length > 0 && { contextImageUrls }),
+		};
+	}
+
+	function buildReferenceText(): string | undefined {
+		if (selectedMedia.length === 0) return undefined;
+
+		const chunks = selectedMedia.map((item, index) => {
+			const lines = [
+				`Imagem ${index + 1}`,
+				`Origem: ${sourceLabels[item.sourceType] ?? item.sourceType}`,
+				item.model
+					? `Modelo: ${modelDisplayNames[item.model] ?? item.model}`
+					: null,
+				item.prompt ? `Prompt: ${item.prompt}` : null,
+				`Tamanho: ${item.width}x${item.height}`,
+			].filter(Boolean);
+
+			return lines.join("\n");
+		});
+
+		return chunks.join("\n\n");
+	}
+
+	async function handleGenerateCaption() {
+		if (!captionBrief.trim()) {
+			error = "Descreva o briefing para gerar a legenda.";
+			return;
+		}
+
+		isGeneratingCaption = true;
+		error = null;
+
+		try {
+			const projectContext = buildProjectContext();
+			const referenceText = buildReferenceText();
+			const result = await client.action(api.ai.generateCaption.generate, {
+				message: captionBrief.trim(),
+				captionModel,
+				...(projectContext && { projectContext }),
+				...(referenceText && { referenceText }),
+			});
+			caption = result.caption;
+		} catch (err) {
+			error = err instanceof Error ? err.message : "Erro ao gerar legenda";
+		} finally {
+			isGeneratingCaption = false;
+		}
+	}
+
+	function updateComposerUrl(postId: Id<"generated_posts">) {
+		const url = new URL($page.url);
+		url.searchParams.set("postId", postId);
+		url.searchParams.delete("mediaIds");
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	async function saveDraft() {
+		if (selectedMediaIds.length === 0) {
+			error = "Selecione pelo menos uma imagem para criar o post.";
+			return null;
+		}
+
+		isSavingDraft = true;
+		error = null;
+
+		try {
+			const savedPostId = await client.mutation(api.generatedPosts.saveComposedDraft, {
+				...(composerPostId && { id: composerPostId }),
+				...(selectedProjectId && { projectId: selectedProjectId }),
+				caption,
+				mediaItemIds: selectedMediaIds,
+			});
+
+			activePostId = savedPostId;
+			updateComposerUrl(savedPostId);
+			return savedPostId;
+		} catch (err) {
+			error = err instanceof Error ? err.message : "Erro ao salvar rascunho";
+			return null;
+		} finally {
+			isSavingDraft = false;
+		}
+	}
+
+	async function handleSchedule() {
+		const savedPostId = await saveDraft();
+		if (savedPostId) {
+			scheduleModalOpen = true;
+		}
+	}
 </script>
 
 <svelte:head>
-	<title>Criar Post - Vanda Studio</title>
+	<title>{isEditingExistingPost ? "Editar Post" : "Novo Post"} - Vanda Studio</title>
 </svelte:head>
 
 <div class="flex h-screen flex-col bg-background">
 	<Navbar />
 
-	<!-- Conteúdo Principal -->
-	<div class="flex min-h-0 flex-1">
-		<!-- Painel Esquerdo - Configuração do Prompt -->
-		<aside class="flex w-[400px] shrink-0 flex-col border-r border-border bg-sidebar">
-			<div class="flex-1 overflow-y-auto p-6">
-				<div class="space-y-6">
-					<!-- Seção: Prompt -->
-					<div class="space-y-3">
-						<div class="flex items-center justify-between">
-							<Label class="text-sm font-medium">Prompt</Label>
-							<Badge variant="secondary">Obrigatório</Badge>
-						</div>
-						<div class="relative">
-							<Textarea
-								bind:value={prompt}
-								placeholder="Descreva o post que você quer criar. Seja específico sobre o tema, mensagem e pontos-chave que deseja incluir... (Cole imagens com Ctrl+V)"
-								class="min-h-[140px] resize-none bg-background pb-12"
-								onpaste={handlePaste}
-							/>
-							<!-- Barra de ações do prompt -->
-							<div class="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-								<input
-									bind:this={fileInputEl}
-									type="file"
-									accept="image/*"
-									multiple
-									class="hidden"
-									onchange={handleFileSelect}
-								/>
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger>
-											<button
-												type="button"
-												aria-label="Anexar imagens de referência"
-												class="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-												onclick={() => fileInputEl.click()}
-											>
-												<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-												</svg>
-											</button>
-										</TooltipTrigger>
-										<TooltipContent>
-											<p>Anexar imagens de referência</p>
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-								<span class="text-xs text-muted-foreground">
-									{prompt.length} caracteres
-								</span>
+	<SignedOut>
+		<div class="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-20">
+			<div class="max-w-md text-center">
+				<h2 class="text-2xl font-semibold">Entre para montar seus posts</h2>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Selecione imagens da biblioteca, gere uma legenda e agende tudo do mesmo lugar.
+				</p>
+			</div>
+			<SignInButton mode="modal">
+				<button class="h-10 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+					Entrar
+				</button>
+			</SignInButton>
+		</div>
+	</SignedOut>
+
+	<SignedIn>
+		<div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+			<main class="min-h-0 overflow-y-auto border-b border-border lg:border-b-0 lg:border-r">
+				<div class="border-b border-border bg-muted/20 px-6 py-5">
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<div class="flex items-center gap-2">
+								<h1 class="text-xl font-semibold">
+									{isEditingExistingPost ? "Editor de post" : "Compositor de post"}
+								</h1>
+								{#if currentPost?.schedulingStatus === "scheduled" && currentPost.scheduledFor}
+									<Badge variant="outline">
+										Agendado para {formatScheduledDate(currentPost.scheduledFor)}
+									</Badge>
+								{/if}
 							</div>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Monte um rascunho com imagens existentes da biblioteca. A imagem de capa define o preview do post.
+							</p>
 						</div>
-						
-						<!-- Imagens de referência anexadas -->
-						{#if referenceImages.length > 0}
-							<div class="space-y-2">
-								<Label class="text-xs text-muted-foreground">Imagens de referência</Label>
-								<div class="flex flex-wrap gap-2">
-									{#each referenceImages as image (image.id)}
-										<div class="group relative">
-											<div class="h-16 w-16 overflow-hidden rounded-none border border-border bg-muted">
-												<img 
-													src={image.url} 
-													alt={image.name}
-													class="h-full w-full object-cover"
-												/>
-											</div>
-											<button
-												type="button"
-												aria-label="Remover imagem"
-												class="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-												onclick={() => removeImage(image.id)}
-											>
-												<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-												</svg>
-											</button>
-										</div>
-									{/each}
-									<!-- Botão para adicionar mais -->
-									<button
-										type="button"
-										aria-label="Adicionar mais imagens"
-										class="flex h-16 w-16 items-center justify-center rounded-none border border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-										onclick={() => fileInputEl.click()}
-									>
-										<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-										</svg>
-									</button>
+
+						<div class="flex items-center gap-2">
+							<Button variant="outline" onclick={() => goto("/images")}>
+								Ir para imagens
+							</Button>
+							<Button variant="outline" onclick={saveDraft} disabled={isSavingDraft || selectedMediaIds.length === 0}>
+								{isSavingDraft ? "Salvando..." : "Salvar rascunho"}
+							</Button>
+						</div>
+					</div>
+				</div>
+
+				<section class="space-y-8 px-6 py-6">
+					<div>
+						<div class="mb-3 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+									Selecao
+								</h2>
+								<p class="mt-1 text-sm text-muted-foreground">
+									{selectedMedia.length} imagem{selectedMedia.length !== 1 ? "ns" : ""} selecionada{selectedMedia.length !== 1 ? "s" : ""}
+								</p>
+							</div>
+							{#if selectedMedia.length > 0}
+								<Button variant="ghost" size="sm" onclick={() => (selectedMediaIds = [])}>
+									Limpar
+								</Button>
+							{/if}
+						</div>
+
+						{#if selectedMedia.length === 0}
+							<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-12 text-center">
+								<div class="flex h-16 w-16 items-center justify-center border border-border bg-background">
+									<svg class="h-8 w-8 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+									</svg>
 								</div>
+								<h3 class="mt-4 text-lg font-medium">Escolha as imagens do post</h3>
+								<p class="mt-2 max-w-md text-sm text-muted-foreground">
+									Selecione uma ou mais imagens na biblioteca abaixo, ou volte para o workspace de imagens para gerar novas opcoes.
+								</p>
+							</div>
+						{:else}
+							<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+								{#each selectedMedia as item, index (item._id)}
+									<div class="overflow-hidden border border-border bg-card">
+										<div class="relative aspect-square overflow-hidden bg-muted">
+											{#if item.url}
+												<img src={item.url} alt="" class="h-full w-full object-cover" />
+											{/if}
+											<div class="absolute left-3 top-3 flex items-center gap-2">
+												<Badge variant="secondary">{index === 0 ? "Capa" : `#${index + 1}`}</Badge>
+												<Badge variant="outline">{sourceLabels[item.sourceType] ?? item.sourceType}</Badge>
+											</div>
+										</div>
+										<div class="space-y-3 p-4">
+											<div class="space-y-1">
+												<div class="flex items-center justify-between gap-2">
+													<span class="text-sm font-medium">
+														{item.model ? modelDisplayNames[item.model] ?? item.model.split("/").pop() : "Imagem da biblioteca"}
+													</span>
+													<span class="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+												</div>
+												{#if item.prompt}
+													<p class="line-clamp-3 text-sm text-muted-foreground">{item.prompt}</p>
+												{/if}
+											</div>
+											<div class="flex items-center gap-2">
+												<Button variant="outline" size="sm" onclick={() => moveMedia(item._id, -1)} disabled={index === 0}>
+													Subir
+												</Button>
+												<Button variant="outline" size="sm" onclick={() => moveMedia(item._id, 1)} disabled={index === selectedMedia.length - 1}>
+													Descer
+												</Button>
+												<Button variant="ghost" size="sm" class="ml-auto text-destructive hover:text-destructive" onclick={() => removeMedia(item._id)}>
+													Remover
+												</Button>
+											</div>
+										</div>
+									</div>
+								{/each}
 							</div>
 						{/if}
 					</div>
 
-					<Separator />
+					<div>
+						<div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+							<div>
+								<h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+									Biblioteca
+								</h2>
+								<p class="mt-1 text-sm text-muted-foreground">
+									Puxe imagens existentes da biblioteca para este rascunho.
+								</p>
+							</div>
 
-					<!-- Seção: Projeto -->
+							<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+								<div class="flex items-center gap-2">
+									<Button
+										variant={libraryScope === "all" ? "secondary" : "outline"}
+										size="sm"
+										onclick={() => (libraryScope = "all")}
+									>
+										Todas
+									</Button>
+									<Button
+										variant={libraryScope === "project" ? "secondary" : "outline"}
+										size="sm"
+										onclick={() => (libraryScope = "project")}
+										disabled={!selectedProjectId}
+									>
+										Projeto do post
+									</Button>
+								</div>
+								<Input
+									value={librarySearch}
+									oninput={(event) => (librarySearch = (event.currentTarget as HTMLInputElement).value)}
+									placeholder="Buscar por prompt, modelo ou origem"
+									class="w-full sm:w-72"
+								/>
+							</div>
+						</div>
+
+						{#if allMediaQuery.isLoading || projectMediaQuery.isLoading}
+							<div class="flex items-center justify-center py-16">
+								<svg class="h-7 w-7 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+							</div>
+						{:else if libraryItems.length === 0}
+							<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-12 text-center">
+								<h3 class="text-lg font-medium">Nenhuma imagem disponivel</h3>
+								<p class="mt-2 max-w-md text-sm text-muted-foreground">
+									{libraryScope === "project" && selectedProjectId
+										? "Este projeto ainda nao possui imagens na biblioteca."
+										: "Sua biblioteca ainda esta vazia. Gere ou envie imagens primeiro."}
+								</p>
+								<Button class="mt-4" onclick={() => goto("/images")}>
+									Abrir workspace de imagens
+								</Button>
+							</div>
+						{:else}
+							<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+								{#each libraryItems as item (item._id)}
+									<button
+										type="button"
+										class={`overflow-hidden border text-left transition-colors ${
+											isSelected(item._id)
+												? "border-primary bg-primary/5"
+												: "border-border bg-card hover:border-primary/40"
+										}`}
+										onclick={() => (isSelected(item._id) ? removeMedia(item._id) : addMedia(item._id))}
+									>
+										<div class="relative aspect-square overflow-hidden bg-muted">
+											{#if item.url}
+												<img src={item.url} alt="" class="h-full w-full object-cover" />
+											{/if}
+											<div class="absolute left-3 top-3 flex items-center gap-2">
+												<Badge variant="secondary">
+													{sourceLabels[item.sourceType] ?? item.sourceType}
+												</Badge>
+												{#if isSelected(item._id)}
+													<Badge>Selecionada</Badge>
+												{/if}
+											</div>
+										</div>
+										<div class="space-y-2 p-4">
+											<div class="flex items-center justify-between gap-2">
+												<span class="text-sm font-medium">
+													{item.model ? modelDisplayNames[item.model] ?? item.model.split("/").pop() : "Imagem da biblioteca"}
+												</span>
+												<span class="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+											</div>
+											{#if item.prompt}
+												<p class="line-clamp-2 text-sm text-muted-foreground">{item.prompt}</p>
+											{:else}
+												<p class="text-sm text-muted-foreground">Sem prompt salvo</p>
+											{/if}
+										</div>
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				</section>
+			</main>
+
+			<aside class="min-h-0 overflow-y-auto bg-muted/20">
+				<div class="space-y-6 px-6 py-6">
+					<div class="space-y-3">
+						<h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+							Draft
+						</h2>
+
+						{#if coverMedia?.url}
+							<div class="overflow-hidden border border-border bg-card">
+								<img src={coverMedia.url} alt="" class="aspect-square h-full w-full object-cover" />
+							</div>
+						{:else}
+							<div class="flex aspect-square items-center justify-center border border-dashed border-border bg-background">
+								<span class="text-sm text-muted-foreground">Selecione uma imagem de capa</span>
+							</div>
+						{/if}
+					</div>
+
 					<ProjectSelector
 						value={selectedProjectId}
-						onchange={(id) => selectedProjectId = id}
+						onchange={(projectId) => {
+							selectedProjectId = projectId;
+							if (!projectId) {
+								libraryScope = "all";
+							}
+						}}
 					/>
 
-					<!-- Context toggle (only shown when project has context) -->
-					{#if selectedProjectId && projectHasContext}
-						<div class="flex items-center justify-between pt-2">
-							<div class="flex items-center gap-2">
-								<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-								</svg>
-								<span class="text-sm">Incluir contexto da marca</span>
+					<div class="space-y-2">
+						<div class="flex items-center justify-between gap-3">
+							<div>
+								<p class="text-sm font-medium">Usar contexto do projeto</p>
+								<p class="text-xs text-muted-foreground">
+									Inclui descricao, brand traits e imagens de contexto na geracao da legenda.
+								</p>
 							</div>
 							<button
 								type="button"
-								role="switch"
+								aria-label="Alternar contexto do projeto"
 								aria-checked={includeProjectContext}
-								class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {includeProjectContext ? 'bg-primary' : 'bg-muted'}"
-								onclick={() => includeProjectContext = !includeProjectContext}
+								role="switch"
+								class={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+									includeProjectContext ? "bg-primary" : "bg-muted"
+								}`}
+								onclick={() => (includeProjectContext = !includeProjectContext)}
 							>
 								<span
-									class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform {includeProjectContext ? 'translate-x-4' : 'translate-x-0'}"
+									class={`h-5 w-5 rounded-full bg-background shadow transition-transform ${
+										includeProjectContext ? "translate-x-5" : "translate-x-1"
+									}`}
 								></span>
 							</button>
 						</div>
-						<p class="text-xs text-muted-foreground">
-							A IA usará as informações configuradas nas configurações do projeto
-						</p>
+					</div>
+
+					<div class="space-y-2">
+						<p class="text-sm font-medium">Briefing da legenda</p>
+						<Textarea
+							bind:value={captionBrief}
+							placeholder="Descreva o objetivo do post, CTA, tom e mensagens principais."
+							class="min-h-[120px] resize-none bg-background"
+						/>
+					</div>
+
+					<div class="space-y-2">
+						<p class="text-sm font-medium">Modelo de legenda</p>
+						<CaptionModelSelector value={captionModel} onchange={(value) => (captionModel = value)} />
+					</div>
+
+					<Button
+						class="w-full"
+						onclick={handleGenerateCaption}
+						disabled={isGeneratingCaption || !captionBrief.trim()}
+					>
+						{isGeneratingCaption ? "Gerando legenda..." : "Gerar legenda"}
+					</Button>
+
+					<div class="space-y-2">
+						<div class="flex items-center justify-between gap-3">
+							<p class="text-sm font-medium">Legenda final</p>
+							{#if caption.length > 0}
+								<span class="text-xs text-muted-foreground">{caption.length} caracteres</span>
+							{/if}
+						</div>
+						<Textarea
+							bind:value={caption}
+							placeholder="Edite a legenda manualmente ou gere uma nova versao."
+							class="min-h-[220px] resize-none bg-background"
+						/>
+					</div>
+
+					{#if error}
+						<div class="rounded-none border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+							{error}
+						</div>
 					{/if}
 
-					<Separator />
-
-					<!-- Seção: Tom -->
-					<div class="space-y-3">
-						<Label class="text-sm font-medium">Tom</Label>
-						<div class="grid grid-cols-2 gap-2">
-							{#each ["profissional", "casual", "inspirador", "humoristico", "educativo", "promocional"] as toneOption}
-								<button
-									class="h-9 rounded-none border px-3 text-sm transition-colors {!useCustomTone && tone === toneOption 
-										? 'border-primary bg-primary/10 text-primary' 
-										: 'border-border bg-background hover:bg-muted'}"
-									onclick={() => { tone = toneOption; useCustomTone = false; }}
-								>
-									{toneLabels[toneOption]}
-								</button>
-							{/each}
-						</div>
-						<div class="relative">
-							<Input
-								type="text"
-								bind:value={customTone}
-								placeholder="Ou descreva seu próprio tom..."
-								class="bg-background {useCustomTone ? 'border-primary ring-1 ring-primary' : ''}"
-								onfocus={() => useCustomTone = true}
-							/>
-						</div>
-					</div>
-
-					<Separator />
-
-					<!-- Seção: Plataforma -->
-					<div class="space-y-3">
-						<Label class="text-sm font-medium">Plataforma</Label>
-						<div class="grid grid-cols-3 gap-2">
-							<TooltipProvider>
-								{#each [
-									{ id: "instagram", label: "Instagram", icon: "instagram", enabled: true },
-									{ id: "twitter", label: "Twitter/X", icon: "twitter", enabled: false },
-									{ id: "linkedin", label: "LinkedIn", icon: "linkedin", enabled: false }
-								] as platformOption}
-									{#if platformOption.enabled}
-										<button
-											type="button"
-											class="flex h-9 items-center justify-center gap-2 rounded-none border px-3 text-sm transition-colors {platform === platformOption.id
-												? 'border-primary bg-primary/10 text-primary'
-												: 'border-border bg-background hover:bg-muted'}"
-											onclick={() => platform = platformOption.id}
-										>
-											{#if platformOption.icon === "instagram"}
-												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-												</svg>
-											{/if}
-											{platformOption.label}
-										</button>
-									{:else}
-										<Tooltip>
-											<TooltipTrigger>
-												<button
-													type="button"
-													class="flex h-9 w-full items-center justify-center gap-2 rounded-none border border-border bg-muted/50 px-3 text-sm text-muted-foreground cursor-not-allowed"
-													disabled
-												>
-													{#if platformOption.icon === "twitter"}
-														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-															<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-														</svg>
-													{:else if platformOption.icon === "linkedin"}
-														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-															<path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-														</svg>
-													{/if}
-													{platformOption.label}
-												</button>
-											</TooltipTrigger>
-											<TooltipContent>
-												<p>Em breve</p>
-											</TooltipContent>
-										</Tooltip>
-									{/if}
-								{/each}
-							</TooltipProvider>
-						</div>
-					</div>
-
-					<Separator />
-
-					<!-- Seção: Modelo de Legenda -->
-					<div class="space-y-3">
-						<div class="flex items-center gap-2">
-							<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-							</svg>
-							<Label class="text-sm font-medium">Modelo de Legenda</Label>
-						</div>
-						<CaptionModelSelector
-							value={captionModel}
-							onchange={(model) => captionModel = model}
-						/>
-					</div>
-
-					<Separator />
-
-					<!-- Seção: Modelo de Imagem -->
-					<div class="space-y-3">
-						<div class="flex items-center gap-2">
-							<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-							</svg>
-							<Label class="text-sm font-medium">Modelo de Imagem</Label>
-						</div>
-						<ImageModelSelector
-							selected={selectedModels}
-							onchange={(models) => selectedModels = models}
-						/>
-					</div>
-
-					<Separator />
-
-					<!-- Seção: Proporção -->
-					<div class="space-y-3">
-						<div class="flex items-center gap-2">
-							<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-							</svg>
-							<Label class="text-sm font-medium">Proporção</Label>
-						</div>
-						<AspectRatioSelector 
-							value={aspectRatio}
-							onchange={(ratio) => aspectRatio = ratio}
-						/>
-					</div>
-
-					<Separator />
-
-					<!-- Seção: Resolução -->
-					<div class="space-y-3">
-						<div class="flex items-center gap-2">
-							<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-							</svg>
-							<Label class="text-sm font-medium">Resolução</Label>
-						</div>
-						<ResolutionSelector 
-							value={resolution}
-							onchange={(res) => resolution = res}
-						/>
-					</div>
-				</div>
-			</div>
-
-			<!-- Botão Gerar -->
-			<div class="shrink-0 border-t border-border bg-sidebar p-4">
-				<Button
-					class="w-full"
-					disabled={!prompt.trim() || isGenerating}
-					onclick={handleGenerate}
-				>
-					{#if isGenerating}
-						<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						Gerando...
-					{:else}
-						Gerar Post
-					{/if}
-				</Button>
-			</div>
-		</aside>
-
-		<!-- Painel Direito - Visualizacao -->
-		<main class="flex flex-1 flex-col overflow-hidden bg-muted/30">
-			{#if showLoginPrompt}
-				<!-- Login Required State -->
-				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-primary/50 bg-primary/10">
-						<svg class="h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-						</svg>
-					</div>
-					<div class="text-center">
-						<h3 class="text-lg font-medium">Entre para continuar</h3>
-						<p class="mt-1 max-w-md text-sm text-muted-foreground">
-							Você precisa estar logado para gerar posts. Faça login ou crie uma conta para começar.
-						</p>
-					</div>
-					<div class="flex gap-3 mt-2">
-						<SignInButton mode="modal">
-							<button class="h-9 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-								Entrar
-							</button>
-						</SignInButton>
-						<Button variant="outline" onclick={() => showLoginPrompt = false}>
-							Voltar
+					<div class="space-y-3 border-t border-border pt-4">
+						<Button class="w-full" onclick={saveDraft} disabled={isSavingDraft || selectedMediaIds.length === 0}>
+							{isSavingDraft ? "Salvando..." : isEditingExistingPost ? "Atualizar rascunho" : "Salvar rascunho"}
+						</Button>
+						<Button variant="outline" class="w-full" onclick={handleSchedule} disabled={isSavingDraft || selectedMediaIds.length === 0}>
+							Salvar e agendar
 						</Button>
 					</div>
 				</div>
-			{:else if error && !isGenerating}
-				<!-- Estado de Erro -->
-				<div class="relative flex flex-1 items-center justify-center overflow-hidden p-8">
-					<div class="pointer-events-none absolute inset-0">
-						{#if errorPresentation?.action === "billing"}
-							<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"></div>
-						{:else}
-							<div class="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-destructive/10 blur-3xl"></div>
-						{/if}
-						<div class="absolute -bottom-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
-					</div>
-					<div class="relative w-full max-w-xl overflow-hidden rounded-none border border-border/60 bg-card/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
-						<div class="flex items-start gap-4">
-							{#if errorPresentation?.action === "billing"}
-								<!-- Credits icon for billing errors -->
-								<div class="flex h-12 w-12 items-center justify-center rounded-none border border-primary/40 bg-primary/10 text-primary">
-									<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-									</svg>
-								</div>
-							{:else}
-								<!-- Warning icon for other errors -->
-								<div class="flex h-12 w-12 items-center justify-center rounded-none border border-destructive/40 bg-destructive/10 text-destructive">
-									<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.5 19.5h15a1.5 1.5 0 001.32-2.21l-7.5-13.5a1.5 1.5 0 00-2.64 0l-7.5 13.5A1.5 1.5 0 004.5 19.5z" />
-									</svg>
-								</div>
-							{/if}
-							<div class="min-w-0 flex-1">
-								<p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-									{errorPresentation?.action === "billing" ? "Créditos esgotados" : "Tentativa interrompida"}
-								</p>
-								<h3 class="mt-2 text-xl font-semibold">{errorPresentation?.title}</h3>
-								<p class="mt-2 text-sm text-muted-foreground">
-									{errorPresentation?.message}
-								</p>
-
-								{#if errorPresentation?.detail && errorPresentation?.action !== "billing"}
-									<button
-										type="button"
-										class="mt-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-										onclick={() => showErrorDetails = !showErrorDetails}
-									>
-										<span>{showErrorDetails ? "Ocultar detalhes" : "Ver detalhes"}</span>
-										<svg class="h-3 w-3 transition-transform {showErrorDetails ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 9.75L12 17.25 4.5 9.75" />
-										</svg>
-									</button>
-									{#if showErrorDetails}
-										<pre class="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-none border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground">{errorPresentation.detail}</pre>
-									{/if}
-								{/if}
-
-								<div class="mt-5 flex flex-wrap gap-3">
-									{#if errorPresentation?.action === "billing"}
-										<Button onclick={() => goto('/account#planos')}>
-											<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-											</svg>
-											Ver planos
-										</Button>
-										<Button variant="outline" onclick={() => error = null}>
-											Voltar
-										</Button>
-									{:else}
-										<Button variant="outline" onclick={() => error = null}>
-											Tentar novamente
-										</Button>
-									{/if}
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			{:else if !hasGenerated && !isGenerating && !generatedPostId}
-				<!-- Estado Vazio -->
-				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-					<div class="flex h-16 w-16 items-center justify-center rounded-none border-2 border-dashed border-border bg-background">
-						<svg class="h-8 w-8 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-						</svg>
-					</div>
-					<div class="text-center">
-						<h3 class="text-lg font-medium">Pronto para criar</h3>
-						<p class="mt-1 text-sm text-muted-foreground">
-							Digite um prompt e clique em Gerar para criar seu post
-						</p>
-					</div>
-				</div>
-			{:else if isGenerating && !generatedPostId}
-				<!-- Initial loading - uploading references, waiting for action -->
-				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-					<div class="flex h-16 w-16 items-center justify-center rounded-none border border-border bg-background">
-						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-					</div>
-					<div class="text-center">
-						<h3 class="text-lg font-medium">Iniciando geração</h3>
-						<p class="mt-2 text-xs text-muted-foreground">
-							Preparando arquivos...
-						</p>
-					</div>
-				</div>
-			{:else if generatedPostId && isGeneratingCaption}
-				<!-- Caption loading -->
-				<div class="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-					<div class="flex h-16 w-16 items-center justify-center rounded-none border border-border bg-background">
-						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-					</div>
-					<div class="text-center">
-						<h3 class="text-lg font-medium">Gerando legenda</h3>
-						<p class="mt-2 text-xs text-muted-foreground">
-							Criando uma legenda perfeita para seu post...
-						</p>
-					</div>
-				</div>
-			{:else if generatedPostId && hasCaption}
-				<!-- Conteúdo Gerado (progressivo) -->
-				<div class="flex flex-1 overflow-hidden">
-					<!-- Seção das Imagens -->
-					<div class="flex flex-1 flex-col border-r border-border">
-						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
-							<div class="flex items-center gap-2">
-								<h3 class="text-sm font-medium">Imagens Geradas</h3>
-								{#if !hasAnyImage && (isGeneratingImages || pendingModels.length > 0)}
-									<Badge variant="secondary">Gerando...</Badge>
-								{:else if hasAnyImage}
-									{#if selectedImage}
-										<Badge variant="secondary">
-											{#if actualDimensions}
-												{actualDimensions.width}x{actualDimensions.height}
-											{:else}
-												{selectedImage.width}x{selectedImage.height}
-											{/if}
-										</Badge>
-									{/if}
-									{#if pendingModels.length > 0}
-										<Badge variant="outline">{generatedImages.length}/{totalModels}</Badge>
-									{:else if generatedImages.length > 1}
-										<Badge variant="outline">{generatedImages.length} modelos</Badge>
-									{/if}
-								{/if}
-							</div>
-							<div class="flex items-center gap-2">
-								<Button variant="outline" size="sm" onclick={handleRegenerate} disabled={isGenerating || pendingModels.length > 0}>
-									{#if isGenerating || pendingModels.length > 0}
-										<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-										</svg>
-									{:else}
-										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-										</svg>
-									{/if}
-									Regenerar
-								</Button>
-								{#if selectedImage?.url}
-									<Button variant="outline" size="sm" onclick={handleDownloadImage}>
-										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-										</svg>
-										Baixar
-									</Button>
-									<Button variant="outline" size="sm" onclick={() => openEditModal(selectedImage)}>
-										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-										</svg>
-										Refinar
-									</Button>
-								{/if}
-							</div>
-						</div>
-						
-						<!-- Image grid / preview area -->
-						<div class="flex flex-1 flex-col overflow-auto bg-muted/50">
-							{#if !hasAnyImage && (isGeneratingImages || pendingModels.length > 0)}
-								<!-- No images yet - show all skeletons in a grid -->
-								<div class="flex flex-1 items-center justify-center p-8">
-									<div class="grid grid-cols-2 gap-4 max-w-[600px] w-full">
-										{#each selectedModels as model}
-											<ImageSkeleton {model} {aspectRatio} />
-										{/each}
-									</div>
-								</div>
-							{:else if generatedImages.length === 0 && !isGeneratingImages && pendingModels.length === 0}
-								<!-- No images generated (completed but empty) -->
-								<div class="flex flex-1 items-center justify-center p-8">
-									<p class="text-sm text-muted-foreground">Nenhuma imagem foi gerada</p>
-								</div>
-							{:else if generatedImages.length === 1 && pendingModels.length === 0}
-								<!-- Single image - full size -->
-								<div class="flex flex-1 items-center justify-center p-8">
-									<div class="relative w-full max-w-[500px] overflow-hidden border border-border bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
-										{#if selectedImage?.url}
-											<img 
-												src={selectedImage.url} 
-												alt="Post gerado" 
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center bg-muted">
-												<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
-											</div>
-										{/if}
-									</div>
-								</div>
-							{:else}
-								<!-- Multiple images or some pending - grid with selection -->
-								<div class="flex flex-1 flex-col">
-									<!-- Main selected image -->
-									<div class="flex flex-1 items-center justify-center p-6">
-										{#if selectedImage}
-											<div class="relative w-full max-w-[400px] overflow-hidden border-2 border-primary bg-background shadow-sm" style="aspect-ratio: {selectedImage?.width ?? 1} / {selectedImage?.height ?? 1};">
-												{#if selectedImage?.url}
-													<img 
-														src={selectedImage.url} 
-														alt="Post gerado selecionado" 
-														class="h-full w-full object-cover"
-													/>
-												{:else}
-													<div class="flex h-full w-full items-center justify-center bg-muted">
-														<p class="text-sm text-muted-foreground">Imagem indisponivel</p>
-													</div>
-												{/if}
-												<!-- Model badge overlay -->
-												<div class="absolute bottom-2 left-2">
-													<Badge variant="secondary" class="bg-background/90 backdrop-blur-sm">
-														{modelDisplayNames[selectedImage?.model ?? ""] ?? selectedImage?.model}
-													</Badge>
-												</div>
-											</div>
-										{:else}
-											<!-- No image selected yet, show first skeleton large -->
-											<div class="w-full max-w-[400px]">
-												<ImageSkeleton model={pendingModels[0]} {aspectRatio} />
-											</div>
-										{/if}
-									</div>
-									
-									<!-- Thumbnail strip with images and skeletons for pending -->
-									<div class="shrink-0 border-t border-border bg-background p-4">
-										<div class="flex justify-center gap-3">
-											{#each generatedImages as image, index}
-												<div class="group relative">
-													<button
-														type="button"
-														class="relative h-20 w-20 overflow-hidden border-2 transition-all {selectedImageIndex === index ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground'}"
-														onclick={() => selectedImageIndex = index}
-													>
-														{#if image.url}
-															<img 
-																src={image.url} 
-																alt="Opcao {index + 1}" 
-																class="h-full w-full object-cover"
-															/>
-														{:else}
-															<div class="flex h-full w-full items-center justify-center bg-muted">
-																<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-																	<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-																</svg>
-															</div>
-														{/if}
-														<!-- Model name tooltip on hover -->
-														<div class="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-															{modelDisplayNames[image.model] ?? image.model.split("/").pop()}
-														</div>
-													</button>
-													<!-- Edit button overlay -->
-													<button
-														type="button"
-														aria-label="Editar imagem"
-														class="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center bg-primary text-primary-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/90"
-														onclick={(e) => { e.stopPropagation(); openEditModal(image); }}
-													>
-														<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-															<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-														</svg>
-													</button>
-												</div>
-											{/each}
-											<!-- Skeletons for pending models -->
-											{#each pendingModels as model}
-												<ImageSkeleton {model} size="thumbnail" />
-											{/each}
-										</div>
-									</div>
-								</div>
-							{/if}
-						</div>
-					</div>
-
-					<!-- Seção da Legenda -->
-					<div class="flex w-[380px] shrink-0 flex-col">
-						<div class="flex items-center justify-between border-b border-border bg-background px-4 py-3">
-							<h3 class="text-sm font-medium">Legenda</h3>
-							<div class="flex items-center gap-2">
-								<TooltipProvider>
-									<Tooltip open={showCopiedFeedback}>
-										<TooltipTrigger>
-											<Button variant="ghost" size="sm" onclick={handleCopyCaption}>
-												{#if showCopiedFeedback}
-													<svg class="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-													</svg>
-												{:else}
-													<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-													</svg>
-												{/if}
-												{showCopiedFeedback ? 'Copiado!' : 'Copiar'}
-											</Button>
-										</TooltipTrigger>
-									</Tooltip>
-								</TooltipProvider>
-							</div>
-						</div>
-						<div class="flex flex-1 flex-col overflow-auto bg-background">
-							<div class="flex-1 p-4">
-								{#if generatedPostId}
-									<EditableCaption
-										postId={generatedPostId}
-										caption={generatedCaption}
-										showHashtags={false}
-										showCharCount={false}
-										onupdate={(newCaption) => generatedCaption = newCaption}
-									/>
-								{:else}
-									<p class="whitespace-pre-wrap text-sm leading-relaxed">{generatedCaption}</p>
-								{/if}
-							</div>
-
-							<!-- Estatisticas e Metadados -->
-							<div class="border-t border-border p-4">
-								<div class="space-y-3">
-									<div class="flex items-center justify-between text-sm">
-										<span class="text-muted-foreground">Caracteres</span>
-										<span class="font-mono">{generatedCaption.length}</span>
-									</div>
-									<div class="flex items-center justify-between text-sm">
-										<span class="text-muted-foreground">Hashtags</span>
-										<span class="font-mono">{hashtags.length}</span>
-									</div>
-									{#if hashtags.length > 0}
-										<Separator />
-										<div class="flex flex-wrap gap-1.5">
-											{#each hashtags as tag}
-												<Badge variant="outline" class="text-xs">{tag}</Badge>
-											{/each}
-										</div>
-									{/if}
-								</div>
-							</div>
-						</div>
-
-						<!-- Botoes de Acao -->
-						<div class="shrink-0 border-t border-border bg-background p-4">
-							<div class="flex gap-2">
-								<Button variant="outline" class="flex-1">
-									Salvar Rascunho
-								</Button>
-								<Button class="flex-1" onclick={openScheduleModal} disabled={!generatedPostId || isGenerating}>
-									Agendar Post
-								</Button>
-							</div>
-						</div>
-					</div>
-				</div>
-			{/if}
-		</main>
-	</div>
+			</aside>
+		</div>
+	</SignedIn>
 </div>
 
-<!-- Edit Image Modal -->
-{#if editModalImage}
-	<EditImageModal 
-		image={editModalImage}
-		open={editModalOpen}
-		onclose={closeEditModal}
-	/>
-{/if}
-
-<!-- Schedule Modal -->
-{#if generatedPostId}
+{#if activePostId && coverMedia}
 	<ScheduleModal
 		open={scheduleModalOpen}
-		onclose={closeScheduleModal}
-		postId={generatedPostId}
-		caption={generatedCaption}
-		imageUrl={selectedImage?.url ?? null}
+		onclose={() => (scheduleModalOpen = false)}
+		postId={activePostId}
+		caption={caption}
+		imageUrl={coverMedia.url}
 		projectName={selectedProject?.name}
 	/>
 {/if}

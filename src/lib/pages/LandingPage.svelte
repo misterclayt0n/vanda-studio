@@ -58,6 +58,7 @@
 	function cycleToNext() {
 		// Bring the back card (last in order) to front
 		const backCard = cardOrder[cardOrder.length - 1];
+		if (backCard === undefined) return;
 		bringToFront(backCard);
 	}
 

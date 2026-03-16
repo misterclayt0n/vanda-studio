@@ -28,6 +28,7 @@ export default defineSchema({
         accountDescription: v.optional(v.string()), // What is this account about?
         brandTraits: v.optional(v.array(v.string())), // ["friendly", "witty", "concise"]
         additionalContext: v.optional(v.string()), // Free-form additional context
+        latestBrandAnalysisId: v.optional(v.string()), // Legacy field kept for schema compatibility
     }).index("by_user_id", ["userId"]),
 
     // Context images for brand context
@@ -107,6 +108,9 @@ export default defineSchema({
             referenceText: v.optional(v.string()),
             referenceImageIds: v.optional(v.array(v.id("_storage"))),
         })),
+
+        // Composed post flag (created from media library, not from generation)
+        isComposed: v.optional(v.boolean()),
 
         // ============================================================================
         // Scheduling fields
@@ -211,6 +215,64 @@ export default defineSchema({
     }).index("by_generated_post_id", ["generatedPostId"]),
 
     // ============================================================================
+    // Media Library
+    // ============================================================================
+
+    // Reusable image assets (decoupled from posts)
+    media_items: defineTable({
+        userId: v.id("users"),
+        projectId: v.optional(v.id("projects")),
+        storageId: v.id("_storage"),
+        mimeType: v.string(),
+        width: v.number(),
+        height: v.number(),
+        sourceType: v.string(), // "generated" | "uploaded" | "edited" | "imported"
+        model: v.optional(v.string()),
+        prompt: v.optional(v.string()),
+        aspectRatio: v.optional(v.string()),
+        resolution: v.optional(v.string()),
+        parentMediaId: v.optional(v.id("media_items")),
+        sourceConversationId: v.optional(v.id("image_edit_conversations")),
+        sourceTurnId: v.optional(v.id("image_edit_turns")),
+        sourceOutputId: v.optional(v.id("image_edit_outputs")),
+        batchId: v.optional(v.id("media_generation_batches")),
+        // Legacy bridge (for migration lookups)
+        legacyGeneratedImageId: v.optional(v.id("generated_images")),
+        legacyPostId: v.optional(v.id("generated_posts")),
+        deletedAt: v.optional(v.number()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_user_id", ["userId"])
+      .index("by_user_created", ["userId", "createdAt"])
+      .index("by_project_id", ["projectId"])
+      .index("by_legacy_image", ["legacyGeneratedImageId"])
+      .index("by_source_output", ["sourceOutputId"])
+      .index("by_batch", ["batchId"]),
+
+    // Join table: posts <-> media items (multi-image carousel support)
+    post_media_items: defineTable({
+        postId: v.id("generated_posts"),
+        mediaItemId: v.id("media_items"),
+        position: v.number(), // 0, 1, 2... for ordering
+        role: v.string(), // "cover" | "attachment"
+    }).index("by_post", ["postId"])
+      .index("by_media", ["mediaItemId"]),
+
+    // Batch tracking for progressive image generation
+    media_generation_batches: defineTable({
+        userId: v.id("users"),
+        projectId: v.optional(v.id("projects")),
+        status: v.string(), // "generating" | "completed" | "error"
+        pendingModels: v.optional(v.array(v.string())),
+        totalModels: v.number(),
+        prompt: v.string(),
+        aspectRatio: v.string(),
+        resolution: v.string(),
+        createdAt: v.number(),
+    }).index("by_user_id", ["userId"])
+      .index("by_user_created", ["userId", "createdAt"]),
+
+    // ============================================================================
     // Image Editing Conversations
     // ============================================================================
 
@@ -220,7 +282,8 @@ export default defineSchema({
         userId: v.id("users"),
 
         // Source image that started this conversation
-        sourceImageId: v.id("generated_images"),
+        sourceImageId: v.optional(v.id("generated_images")), // Legacy - optional for new media-based convos
+        sourceMediaId: v.optional(v.id("media_items")), // New - media library source
         sourceStorageId: v.id("_storage"), // Denormalized for quick access
 
         // Metadata
@@ -237,6 +300,7 @@ export default defineSchema({
         deletedAt: v.optional(v.number()), // Timestamp when soft-deleted (null = not deleted)
     }).index("by_user_id", ["userId"])
       .index("by_source_image", ["sourceImageId"])
+      .index("by_source_media", ["sourceMediaId"])
       .index("by_user_created", ["userId", "createdAt"]),
 
     // Each turn in an image editing conversation

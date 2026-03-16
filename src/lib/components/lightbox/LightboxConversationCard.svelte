@@ -26,7 +26,7 @@
     }
 
     function handleClick() {
-        goto(`/posts/edit/${conversation._id}`);
+        goto(`/images/conversations/${conversation._id}`);
     }
 </script>
 

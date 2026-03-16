@@ -1,458 +1,448 @@
 <script lang="ts">
-    import { Button, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-    import { ProjectSettingsForm } from "$lib/components/projects";
-    import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
-    import { useConvexClient, useQuery } from "convex-svelte";
-    import { api } from "../../../convex/_generated/api.js";
-    import type { Id } from "../../../convex/_generated/dataModel.js";
-    import { goto } from "$app/navigation";
-    import { page } from "$app/stores";
-    import Navbar from "$lib/components/Navbar.svelte";
-    import { Lightbox } from "$lib/components/lightbox";
+	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
+	import { MediaLightbox, Lightbox } from "$lib/components/lightbox";
+	import Navbar from "$lib/components/Navbar.svelte";
+	import { ProjectSettingsForm } from "$lib/components/projects";
+	import { Badge, Button } from "$lib/components/ui";
+	import { api } from "../../../convex/_generated/api.js";
+	import type { Id } from "../../../convex/_generated/dataModel.js";
+	import { useConvexClient, useQuery } from "convex-svelte";
+	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 
-    const client = useConvexClient();
+	type ProjectTab = "images" | "posts" | "settings";
 
-    // Get projectId from route params
-    let projectId = $derived($page.params.projectId as Id<"projects">);
+	type MediaItem = {
+		_id: Id<"media_items">;
+		url: string | null;
+		storageId: Id<"_storage">;
+		mimeType: string;
+		model?: string;
+		prompt?: string;
+		sourceType: string;
+		width: number;
+		height: number;
+		aspectRatio?: string;
+		resolution?: string;
+		createdAt: number;
+	};
 
-    // Queries
-    const projectQuery = useQuery(api.projects.get, () => ({ projectId }));
-    const postsQuery = useQuery(api.generatedPosts.listByProject, () => ({ projectId }));
-    const postCountQuery = useQuery(api.generatedPosts.countByProject, () => ({ projectId }));
+	type ProjectPost = {
+		_id: Id<"generated_posts">;
+		caption: string;
+		imageUrl: string | null;
+		imageModel?: string;
+		createdAt: number;
+		isComposed?: boolean;
+	};
 
-    // Derived data
-    let project = $derived(projectQuery.data);
-    let posts = $derived(postsQuery.data ?? []);
-    let postCount = $derived(postCountQuery.data ?? 0);
-    let isLoading = $derived(projectQuery.isLoading);
+	const client = useConvexClient();
 
-    // View mode state
-    type ViewMode = "gallery" | "settings";
-    let viewMode = $state<ViewMode>("gallery");
+	const modelDisplayNames: Record<string, string> = {
+		"google/gemini-2.5-flash-image": "Nano Banana",
+		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
+		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
+		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
+		"openai/gpt-5-image": "GPT Image 1.5",
+	};
 
-    // Delete confirmation state
-    let showDeleteConfirm = $state(false);
-    let isDeleting = $state(false);
+	const sourceLabels: Record<string, string> = {
+		generated: "Gerada",
+		uploaded: "Upload",
+		edited: "Editada",
+		imported: "Importada",
+	};
 
-    // Lightbox state from URL params
-    let lightboxPostId = $derived($page.url.searchParams.get('view'));
-    let lightboxImageId = $derived($page.url.searchParams.get('img'));
-    let lightboxOpen = $derived(!!lightboxPostId);
+	let projectId = $derived($page.params.projectId as Id<"projects">);
+	let activeTab = $derived(($page.url.searchParams.get("tab") as ProjectTab | null) ?? "images");
+	let lightboxPostId = $derived($page.url.searchParams.get("post"));
+	let lightboxImageId = $derived($page.url.searchParams.get("img"));
+	let lightboxMediaId = $derived($page.url.searchParams.get("media"));
+	let showDeleteConfirm = $state(false);
+	let isDeletingProject = $state(false);
 
-    // Open lightbox
-    function openLightbox(postId: string, imageId?: string | null) {
-        const url = new URL($page.url);
-        url.searchParams.set('view', postId);
-        if (imageId) {
-            url.searchParams.set('img', imageId);
-        } else {
-            url.searchParams.delete('img');
-        }
-        goto(url.toString(), { replaceState: true, noScroll: true });
-    }
+	const projectQuery = useQuery(api.projects.get, () => ({ projectId }));
+	const postsQuery = useQuery(api.generatedPosts.listByProject, () => ({ projectId }));
+	const mediaQuery = useQuery(api.mediaItems.listByProject, () => ({ projectId }));
 
-    // Close lightbox
-    function closeLightbox() {
-        const url = new URL($page.url);
-        url.searchParams.delete('view');
-        url.searchParams.delete('img');
-        goto(url.toString(), { replaceState: true, noScroll: true });
-    }
+	let project = $derived(projectQuery.data);
+	let posts = $derived((postsQuery.data ?? []) as ProjectPost[]);
+	let mediaItems = $derived((mediaQuery.data ?? []) as MediaItem[]);
+	let legacyPosts = $derived(posts.filter((post) => !post.isComposed));
+	let isLoading = $derived(projectQuery.isLoading);
 
-    // Navigate within lightbox
-    function navigateLightbox(postId: string, imageId?: string | null) {
-        const url = new URL($page.url);
-        url.searchParams.set('view', postId);
-        if (imageId) {
-            url.searchParams.set('img', imageId);
-        } else {
-            url.searchParams.delete('img');
-        }
-        goto(url.toString(), { replaceState: true, noScroll: true });
-    }
+	function setTab(tab: ProjectTab) {
+		const url = new URL($page.url);
+		url.searchParams.set("tab", tab);
+		url.searchParams.delete("post");
+		url.searchParams.delete("img");
+		url.searchParams.delete("media");
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Get profile picture URL
-    function getProfilePicture(): string | null {
-        if (!project) return null;
-        return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
-    }
+	function openLegacyPost(postId: string, imageId?: string | null) {
+		const url = new URL($page.url);
+		url.searchParams.set("tab", "posts");
+		url.searchParams.set("post", postId);
+		if (imageId) {
+			url.searchParams.set("img", imageId);
+		} else {
+			url.searchParams.delete("img");
+		}
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Get handle
-    function getHandle(): string | null {
-        if (!project) return null;
-        if (project.instagramHandle) return project.instagramHandle;
-        try {
-            const url = new URL(project.instagramUrl);
-            const parts = url.pathname.split('/').filter(Boolean);
-            return parts[0] ?? null;
-        } catch {
-            return null;
-        }
-    }
+	function closeLegacyPost() {
+		const url = new URL($page.url);
+		url.searchParams.delete("post");
+		url.searchParams.delete("img");
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Format date
-    function formatDate(timestamp: number): string {
-        const date = new Date(timestamp);
-        return date.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'short',
-            year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-        });
-    }
+	function openMedia(mediaId: string) {
+		const url = new URL($page.url);
+		url.searchParams.set("tab", "images");
+		url.searchParams.set("media", mediaId);
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Truncate caption
-    function truncateCaption(caption: string, maxLength: number = 100): string {
-        if (caption.length <= maxLength) return caption;
-        return caption.substring(0, maxLength).trim() + '...';
-    }
+	function closeMedia() {
+		const url = new URL($page.url);
+		url.searchParams.delete("media");
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Model display names
-    const modelDisplayNames: Record<string, string> = {
-        "google/gemini-2.5-flash-image": "Nano Banana",
-        "google/gemini-3-pro-image-preview": "Nano Banana Pro",
-        "bytedance-seed/seedream-4.5": "SeeDream v4.5",
-        "black-forest-labs/flux.2-flex": "Flux 2 Flex",
-        "openai/gpt-5-image": "GPT Image 1.5",
-    };
+	function navigateMedia(mediaId: string) {
+		const url = new URL($page.url);
+		url.searchParams.set("media", mediaId);
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
 
-    // Handle delete
-    async function handleDelete() {
-        isDeleting = true;
-        try {
-            await client.mutation(api.projects.remove, { projectId });
-            goto('/projects');
-        } catch (err) {
-            console.error("Failed to delete project:", err);
-        } finally {
-            isDeleting = false;
-        }
-    }
+	function getProfilePicture(): string | null {
+		if (!project) return null;
+		return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
+	}
 
-    // Handle download
-    async function handleDownload(imageUrl: string, event: Event) {
-        event.stopPropagation();
-        try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
+	function getHandle(): string | null {
+		if (!project) return null;
+		if (project.instagramHandle) return project.instagramHandle;
+		try {
+			const url = new URL(project.instagramUrl);
+			const parts = url.pathname.split("/").filter(Boolean);
+			return parts[0] ?? null;
+		} catch {
+			return null;
+		}
+	}
 
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `vanda-${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('Download failed:', err);
-        }
-    }
+	function formatDate(timestamp: number): string {
+		const date = new Date(timestamp);
+		return date.toLocaleDateString("pt-BR", {
+			day: "2-digit",
+			month: "short",
+			year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+		});
+	}
 
-    // Handle delete post
-    async function handleDeletePost(postId: Id<"generated_posts">, event: Event) {
-        event.stopPropagation();
-        await client.mutation(api.generatedPosts.softDelete, { id: postId });
-    }
+	function truncateCaption(caption: string, maxLength = 140) {
+		if (caption.length <= maxLength) return caption;
+		return `${caption.slice(0, maxLength).trim()}...`;
+	}
+
+	async function handleDeleteProject() {
+		isDeletingProject = true;
+		try {
+			await client.mutation(api.projects.remove, { projectId });
+			goto("/projects");
+		} catch (err) {
+			console.error("Failed to delete project:", err);
+		} finally {
+			isDeletingProject = false;
+		}
+	}
+
+	async function handleDeletePost(postId: Id<"generated_posts">, event: Event) {
+		event.stopPropagation();
+		await client.mutation(api.generatedPosts.softDelete, { id: postId });
+	}
+
+	async function handleDeleteMedia(mediaId: Id<"media_items">, event: Event) {
+		event.stopPropagation();
+		await client.mutation(api.mediaItems.softDelete, { id: mediaId });
+	}
 </script>
 
 <svelte:head>
-    <title>{project?.name ?? 'Projeto'} - Vanda Studio</title>
+	<title>{project?.name ?? "Projeto"} - Vanda Studio</title>
 </svelte:head>
 
 <div class="flex h-screen flex-col bg-background">
-    <Navbar />
+	<Navbar />
 
-    <SignedOut>
-        <div class="flex flex-1 flex-col items-center justify-center gap-6 py-20">
-            <div class="text-center">
-                <h2 class="text-2xl font-bold">Entre para ver este projeto</h2>
-                <p class="mt-2 text-muted-foreground">
-                    Faça login para acessar seus projetos
-                </p>
-            </div>
-            <SignInButton mode="modal">
-                <button class="h-9 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                    Entrar
-                </button>
-            </SignInButton>
-        </div>
-    </SignedOut>
+	<SignedOut>
+		<div class="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-20">
+			<div class="max-w-md text-center">
+				<h2 class="text-2xl font-semibold">Entre para ver este projeto</h2>
+				<p class="mt-2 text-sm text-muted-foreground">
+					Faça login para acessar imagens, posts e configuracoes do projeto.
+				</p>
+			</div>
+			<SignInButton mode="modal">
+				<button class="h-10 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+					Entrar
+				</button>
+			</SignInButton>
+		</div>
+	</SignedOut>
 
-    <SignedIn>
-        {#if isLoading}
-            <div class="flex flex-1 items-center justify-center">
-                <div class="flex flex-col items-center gap-4">
-                    <svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="text-sm text-muted-foreground">Carregando projeto...</p>
-                </div>
-            </div>
-        {:else if !project}
-            <div class="flex flex-1 flex-col items-center justify-center gap-4 py-20">
-                <div class="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border bg-muted/50">
-                    <svg class="h-8 w-8 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                    </svg>
-                </div>
-                <h3 class="text-lg font-medium">Projeto não encontrado</h3>
-                <p class="text-sm text-muted-foreground">
-                    Este projeto pode ter sido excluído ou você não tem permissão para acessá-lo.
-                </p>
-                <Button variant="outline" onclick={() => goto('/projects')}>
-                    Voltar para Projetos
-                </Button>
-            </div>
-        {:else}
-            <!-- Header with project info -->
-            <div class="shrink-0 border-b border-border bg-muted/30 px-6 py-4">
-                <div class="flex items-start justify-between">
-                    <div class="flex items-center gap-4">
-                        <Button variant="ghost" size="sm" onclick={() => goto('/projects')}>
-                            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                            </svg>
-                        </Button>
+	<SignedIn>
+		{#if isLoading}
+			<div class="flex flex-1 items-center justify-center">
+				<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+				</svg>
+			</div>
+		{:else if !project}
+			<div class="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+				<h3 class="text-lg font-medium">Projeto não encontrado</h3>
+				<p class="max-w-md text-sm text-muted-foreground">
+					Este projeto pode ter sido removido ou você não tem permissão para acessá-lo.
+				</p>
+				<Button variant="outline" onclick={() => goto("/projects")}>Voltar para projetos</Button>
+			</div>
+		{:else}
+			<div class="border-b border-border bg-muted/20 px-6 py-5">
+				<div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+					<div class="flex items-start gap-4">
+						<Button variant="ghost" size="sm" onclick={() => goto("/projects")}>
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+							</svg>
+						</Button>
 
-                        <!-- Profile picture -->
-                        <div class="h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted">
-                            {#if getProfilePicture()}
-                                <img
-                                    src={getProfilePicture()}
-                                    alt={project.name}
-                                    class="h-full w-full object-cover"
-                                />
-                            {:else}
-                                <div class="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted-foreground">
-                                    {project.name.charAt(0).toUpperCase()}
-                                </div>
-                            {/if}
-                        </div>
+						<div class="h-16 w-16 overflow-hidden rounded-full border border-border bg-muted">
+							{#if getProfilePicture()}
+								<img src={getProfilePicture()} alt={project.name} class="h-full w-full object-cover" />
+							{:else}
+								<div class="flex h-full w-full items-center justify-center text-xl font-semibold text-muted-foreground">
+									{project.name.charAt(0).toUpperCase()}
+								</div>
+							{/if}
+						</div>
 
-                        <div>
-                            <h1 class="text-xl font-semibold">{project.name}</h1>
-                            {#if getHandle()}
-                                <a
-                                    href={project.instagramUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                                >
-                                    @{getHandle()}
-                                </a>
-                            {/if}
-                            <p class="text-sm text-muted-foreground">{postCount} {postCount === 1 ? 'post' : 'posts'}</p>
-                        </div>
-                    </div>
+						<div class="space-y-2">
+							<div class="flex flex-wrap items-center gap-3">
+								<h1 class="text-2xl font-semibold">{project.name}</h1>
+								{#if getHandle()}
+									<a
+										href={project.instagramUrl}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-sm text-muted-foreground hover:text-foreground hover:underline"
+									>
+										@{getHandle()}
+									</a>
+								{/if}
+							</div>
+							<div class="flex flex-wrap items-center gap-2">
+								<Badge variant={activeTab === "images" ? "default" : "outline"}>
+									{mediaItems.length} imagem{mediaItems.length !== 1 ? "ns" : ""}
+								</Badge>
+								<Badge variant={activeTab === "posts" ? "default" : "outline"}>
+									{posts.length} post{posts.length !== 1 ? "s" : ""}
+								</Badge>
+							</div>
+						</div>
+					</div>
 
-                    <div class="flex items-center gap-2">
-                        <Button onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
-                            <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                            </svg>
-                            Criar Post
-                        </Button>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    <Button variant={viewMode === "settings" ? "secondary" : "outline"} onclick={() => viewMode = viewMode === "gallery" ? "settings" : "gallery"}>
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Configurações</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    <Button variant="outline" onclick={() => showDeleteConfirm = true}>
-                                        <svg class="h-4 w-4 text-destructive" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                        </svg>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Excluir projeto</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
-                </div>
-            </div>
+					<div class="flex flex-wrap items-center gap-2">
+						<Button variant="outline" onclick={() => goto(`/images?projectId=${projectId}`)}>
+							Nova imagem
+						</Button>
+						<Button onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
+							Novo post
+						</Button>
+						<Button variant="outline" onclick={() => setTab("settings")}>
+							Configuracoes
+						</Button>
+						<Button variant="outline" class="text-destructive hover:text-destructive" onclick={() => (showDeleteConfirm = true)}>
+							Excluir projeto
+						</Button>
+					</div>
+				</div>
 
-            <!-- Main content -->
-            <main class="flex-1 overflow-y-auto p-6">
-                {#if viewMode === "settings"}
-                    <div class="mx-auto max-w-2xl">
-                        <ProjectSettingsForm {projectId} {project} />
-                    </div>
-                {:else if posts.length === 0}
-                    <div class="flex flex-col items-center justify-center py-20">
-                        <div class="flex h-20 w-20 items-center justify-center rounded-none border-2 border-dashed border-border bg-muted/50">
-                            <svg class="h-10 w-10 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                            </svg>
-                        </div>
-                        <h3 class="mt-6 text-lg font-medium">Nenhum post ainda</h3>
-                        <p class="mt-2 text-sm text-muted-foreground">
-                            Crie seu primeiro post para este projeto
-                        </p>
-                        <Button class="mt-6" onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
-                            <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                            </svg>
-                            Criar Primeiro Post
-                        </Button>
-                    </div>
-                {:else}
-                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {#each posts as post (post._id)}
-                            <div
-                                class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
-                                onclick={() => openLightbox(post._id)}
-                                onkeydown={(e) => e.key === 'Enter' && openLightbox(post._id)}
-                                role="button"
-                                tabindex="0"
-                            >
-                                <!-- Image -->
-                                <div class="relative aspect-square overflow-hidden bg-muted">
-                                    {#if post.imageUrl}
-                                        <img
-                                            src={post.imageUrl}
-                                            alt="Post gerado"
-                                            class="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                        />
-                                    {:else}
-                                        <div class="flex h-full w-full items-center justify-center">
-                                            <svg class="h-12 w-12 text-muted-foreground/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                                            </svg>
-                                        </div>
-                                    {/if}
+				<div class="mt-6 flex flex-wrap items-center gap-2">
+					<Button variant={activeTab === "images" ? "secondary" : "ghost"} onclick={() => setTab("images")}>
+						Imagens
+					</Button>
+					<Button variant={activeTab === "posts" ? "secondary" : "ghost"} onclick={() => setTab("posts")}>
+						Posts
+					</Button>
+					<Button variant={activeTab === "settings" ? "secondary" : "ghost"} onclick={() => setTab("settings")}>
+						Settings
+					</Button>
+				</div>
+			</div>
 
-                                    <!-- Hover overlay with actions -->
-                                    <div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                                        {#if post.imageUrl}
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger>
-                                                        <button
-                                                            type="button"
-                                                            aria-label="Baixar"
-                                                            class="flex h-10 w-10 items-center justify-center bg-white/20 text-white backdrop-blur-sm hover:bg-white/30"
-                                                            onclick={(e) => handleDownload(post.imageUrl!, e)}
-                                                        >
-                                                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                                            </svg>
-                                                        </button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>Baixar</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                        {/if}
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger>
-                                                    <button
-                                                        type="button"
-                                                        aria-label="Excluir"
-                                                        class="flex h-10 w-10 items-center justify-center bg-white/20 text-white backdrop-blur-sm hover:bg-red-500/50"
-                                                        onclick={(e) => handleDeletePost(post._id, e)}
-                                                    >
-                                                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                                        </svg>
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Mover para lixeira</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    </div>
-
-                                    <!-- Model badge -->
-                                    {#if post.imageModel}
-                                        <div class="absolute bottom-2 left-2">
-                                            <Badge variant="secondary" class="bg-black/60 text-white text-[10px] backdrop-blur-sm">
-                                                {modelDisplayNames[post.imageModel] ?? post.imageModel.split("/").pop()}
-                                            </Badge>
-                                        </div>
-                                    {/if}
-                                </div>
-
-                                <!-- Caption preview -->
-                                <div class="flex flex-1 flex-col p-4">
-                                    <p class="line-clamp-3 text-sm leading-relaxed">
-                                        {truncateCaption(post.caption, 120)}
-                                    </p>
-                                    <div class="mt-auto pt-3">
-                                        <span class="text-xs text-muted-foreground">
-                                            {formatDate(post.createdAt)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
-            </main>
-        {/if}
-    </SignedIn>
+			<main class="flex-1 overflow-y-auto px-6 py-6">
+				{#if activeTab === "settings"}
+					<div class="mx-auto max-w-2xl">
+						<ProjectSettingsForm {projectId} {project} />
+					</div>
+				{:else if activeTab === "images"}
+					{#if mediaItems.length === 0}
+						<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+							<h3 class="text-lg font-medium">Nenhuma imagem ainda</h3>
+							<p class="mt-2 max-w-md text-sm text-muted-foreground">
+								Gere imagens novas ou envie assets para começar a biblioteca visual deste projeto.
+							</p>
+							<Button class="mt-4" onclick={() => goto(`/images?projectId=${projectId}`)}>
+								Abrir workspace de imagens
+							</Button>
+						</div>
+					{:else}
+						<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+							{#each mediaItems as item (item._id)}
+								<div
+									class="group cursor-pointer overflow-hidden border border-border bg-card"
+									role="button"
+									tabindex="0"
+									onclick={() => openMedia(item._id)}
+									onkeydown={(event) => event.key === "Enter" && openMedia(item._id)}
+								>
+									<div class="relative aspect-square overflow-hidden bg-muted">
+										{#if item.url}
+											<img src={item.url} alt="" class="h-full w-full object-cover transition-transform group-hover:scale-105" />
+										{/if}
+										<div class="absolute left-3 top-3 flex items-center gap-2">
+											<Badge variant="secondary">{sourceLabels[item.sourceType] ?? item.sourceType}</Badge>
+										</div>
+										<button
+											type="button"
+											aria-label="Mover imagem para lixeira"
+											class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+											onclick={(event) => handleDeleteMedia(item._id, event)}
+										>
+											<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+											</svg>
+										</button>
+									</div>
+									<div class="space-y-2 p-4">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-sm font-medium">
+												{item.model ? modelDisplayNames[item.model] ?? item.model.split("/").pop() : "Biblioteca"}
+											</span>
+											<span class="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+										</div>
+										{#if item.prompt}
+											<p class="line-clamp-2 text-sm text-muted-foreground">{item.prompt}</p>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{:else}
+					{#if posts.length === 0}
+						<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+							<h3 class="text-lg font-medium">Nenhum post ainda</h3>
+							<p class="mt-2 max-w-md text-sm text-muted-foreground">
+								Monte um novo post com imagens da biblioteca ou abra um draft existente.
+							</p>
+							<Button class="mt-4" onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
+								Criar post
+							</Button>
+						</div>
+					{:else}
+						<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+							{#each posts as post (post._id)}
+								<div
+									class="group cursor-pointer overflow-hidden border border-border bg-card"
+									role="button"
+									tabindex="0"
+									onclick={() => (post.isComposed ? goto(`/posts/create?postId=${post._id}`) : openLegacyPost(post._id))}
+									onkeydown={(event) => event.key === "Enter" && (post.isComposed ? goto(`/posts/create?postId=${post._id}`) : openLegacyPost(post._id))}
+								>
+									<div class="relative aspect-square overflow-hidden bg-muted">
+										{#if post.imageUrl}
+											<img src={post.imageUrl} alt="" class="h-full w-full object-cover transition-transform group-hover:scale-105" />
+										{/if}
+										<div class="absolute left-3 top-3 flex items-center gap-2">
+											<Badge>{post.isComposed ? "Composto" : "Gerado"}</Badge>
+											{#if post.imageModel}
+												<Badge variant="secondary">{modelDisplayNames[post.imageModel] ?? post.imageModel.split("/").pop()}</Badge>
+											{/if}
+										</div>
+										<button
+											type="button"
+											aria-label="Mover post para lixeira"
+											class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+											onclick={(event) => handleDeletePost(post._id, event)}
+										>
+											<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+											</svg>
+										</button>
+									</div>
+									<div class="space-y-2 p-4">
+										<p class="line-clamp-3 text-sm leading-relaxed">{truncateCaption(post.caption)}</p>
+										<div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+											<span>{formatDate(post.createdAt)}</span>
+											<span>{post.isComposed ? "Abrir editor" : "Abrir preview"}</span>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/if}
+			</main>
+		{/if}
+	</SignedIn>
 </div>
 
-<!-- Delete Confirmation Modal -->
-{#if showDeleteConfirm}
-    <!-- Backdrop -->
-    <div
-        class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-        onclick={() => showDeleteConfirm = false}
-        onkeydown={(e) => e.key === "Enter" && (showDeleteConfirm = false)}
-        role="button"
-        tabindex="0"
-    ></div>
-
-    <!-- Modal -->
-    <div class="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm border border-border bg-background shadow-xl p-6">
-        <h3 class="text-lg font-semibold">Excluir projeto?</h3>
-        <p class="mt-2 text-sm text-muted-foreground">
-            Esta ação irá excluir o projeto e todos os {postCount} posts associados permanentemente. Esta ação não pode ser desfeita.
-        </p>
-        <div class="mt-6 flex justify-end gap-3">
-            <Button variant="outline" onclick={() => showDeleteConfirm = false} disabled={isDeleting}>
-                Cancelar
-            </Button>
-            <Button variant="destructive" onclick={handleDelete} disabled={isDeleting}>
-                {#if isDeleting}
-                    <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Excluindo...
-                {:else}
-                    Excluir
-                {/if}
-            </Button>
-        </div>
-    </div>
+{#if lightboxMediaId && mediaItems.length > 0}
+	<MediaLightbox
+		items={mediaItems}
+		currentMediaId={lightboxMediaId}
+		onclose={closeMedia}
+		onnavigate={navigateMedia}
+	/>
 {/if}
 
-<!-- Lightbox -->
-{#if lightboxOpen && lightboxPostId && posts.length > 0}
-    <Lightbox
-        {posts}
-        currentPostId={lightboxPostId}
-        currentImageId={lightboxImageId}
-        onclose={closeLightbox}
-        onnavigate={navigateLightbox}
-    />
+{#if lightboxPostId && legacyPosts.length > 0}
+	<Lightbox
+		posts={legacyPosts}
+		currentPostId={lightboxPostId}
+		currentImageId={lightboxImageId}
+		onclose={closeLegacyPost}
+		onnavigate={openLegacyPost}
+	/>
+{/if}
+
+{#if showDeleteConfirm}
+	<div
+		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+		onclick={() => (showDeleteConfirm = false)}
+		onkeydown={(event) => event.key === "Enter" && (showDeleteConfirm = false)}
+		role="button"
+		tabindex="0"
+	></div>
+
+	<div class="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-6 shadow-xl">
+		<h3 class="text-lg font-semibold">Excluir projeto?</h3>
+		<p class="mt-2 text-sm text-muted-foreground">
+			Isso remove o projeto e os dados associados. Use com cuidado.
+		</p>
+		<div class="mt-6 flex justify-end gap-3">
+			<Button variant="outline" onclick={() => (showDeleteConfirm = false)} disabled={isDeletingProject}>
+				Cancelar
+			</Button>
+			<Button variant="destructive" onclick={handleDeleteProject} disabled={isDeletingProject}>
+				{isDeletingProject ? "Excluindo..." : "Excluir"}
+			</Button>
+		</div>
+	</div>
 {/if}

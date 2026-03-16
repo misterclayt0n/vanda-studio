@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Id, Doc } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
 import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
 import {
@@ -168,21 +168,19 @@ export const startConversation = action({
                         const blob = new Blob([binaryData], { type: result.mimeType });
                         const storageId = await ctx.storage.store(blob);
 
-                        // Save output (also creates gallery post for composability)
+                        // Save output (creates media_items entry)
                         await ctx.runMutation(internal.imageEditOutputs.create, {
-                        turnId: turnIdValue,
-                        conversationId: conversationIdValue,
+                            turnId: turnIdValue,
+                            conversationId: conversationIdValue,
                             storageId,
                             model,
                             prompt: result.prompt,
                             width: result.dimensions?.width ?? dimensions.width,
                             height: result.dimensions?.height ?? dimensions.height,
-                            // Data for gallery post creation
                             aspectRatio: sourceImage.aspectRatio,
                             resolution: sourceImage.resolution,
-                            originalPostId: originalPost._id,
-                            originalCaption: originalPost.caption,
                             userId: user._id,
+                            ...(originalPost.projectId && { projectId: originalPost.projectId }),
                         });
 
                         // Remove from pending
@@ -266,10 +264,9 @@ export const sendEdit = action({
         if (!conversation) {
             throw new Error("Conversa não encontrada");
         }
-        const originalPost = conversation.originalPost;
-        if (!originalPost) {
-            throw new Error("Post original não encontrado");
-        }
+        const originalPost = conversation.originalPost as Doc<"generated_posts"> | null;
+        const sourceMedia = conversation.sourceMedia as Doc<"media_items"> | null;
+        const projectId = originalPost?.projectId ?? sourceMedia?.projectId;
 
         // 4. Get previous turn's outputs (auto-references)
         const previousTurn = await ctx.runQuery(api.imageEditTurns.getLatest, {
@@ -358,21 +355,19 @@ export const sendEdit = action({
                         const blob = new Blob([binaryData], { type: result.mimeType });
                         const storageId = await ctx.storage.store(blob);
 
-                        // Save output (also creates gallery post for composability)
+                        // Save output (creates media_items entry)
                         await ctx.runMutation(internal.imageEditOutputs.create, {
-                        turnId: turnIdValue,
-                        conversationId: args.conversationId,
+                            turnId: turnIdValue,
+                            conversationId: args.conversationId,
                             storageId,
                             model,
                             prompt: result.prompt,
                             width: result.dimensions?.width ?? dimensions.width,
                             height: result.dimensions?.height ?? dimensions.height,
-                            // Data for gallery post creation
                             aspectRatio: conversation.aspectRatio,
                             resolution: conversation.resolution,
-                            originalPostId: originalPost._id,
-                            originalCaption: originalPost.caption,
                             userId: user._id,
+                            ...(projectId && { projectId }),
                         });
 
                         // Remove from pending
@@ -451,10 +446,9 @@ export const generateForTurn = action({
         if (!conversation) {
             throw new Error("Conversa não encontrada");
         }
-        const originalPost = conversation.originalPost;
-        if (!originalPost) {
-            throw new Error("Post original não encontrado");
-        }
+        const originalPost = conversation.originalPost as Doc<"generated_posts"> | null;
+        const sourceMedia = conversation.sourceMedia as Doc<"media_items"> | null;
+        const projectId = originalPost?.projectId ?? sourceMedia?.projectId;
 
         // 4. Get the turn
         const turn = await ctx.runQuery(api.imageEditTurns.get, {
@@ -531,7 +525,7 @@ export const generateForTurn = action({
                         const blob = new Blob([binaryData], { type: result.mimeType });
                         const storageId = await ctx.storage.store(blob);
 
-                        // Save output (also creates gallery post)
+                        // Save output (creates media_items entry)
                         await ctx.runMutation(internal.imageEditOutputs.create, {
                             turnId: args.turnId,
                             conversationId: args.conversationId,
@@ -542,9 +536,8 @@ export const generateForTurn = action({
                             height: result.dimensions?.height ?? dimensions.height,
                             aspectRatio: conversation.aspectRatio,
                             resolution: conversation.resolution,
-                            originalPostId: originalPost._id,
-                            originalCaption: originalPost.caption,
                             userId: user._id,
+                            ...(projectId && { projectId }),
                         });
 
                         // Remove from pending
