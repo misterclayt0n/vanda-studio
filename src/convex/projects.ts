@@ -1,11 +1,41 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
     profilePictureStorageUrl: string | null;
 };
+
+type ProjectSummary = ProjectWithStorageUrl & {
+    postCount: number;
+    mediaCount: number;
+};
+
+async function getCurrentUser(ctx: QueryCtx, clerkId: string) {
+    return ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+        .unique();
+}
+
+async function resolveProjectsWithUrls(
+    ctx: QueryCtx,
+    projects: Doc<"projects">[]
+): Promise<ProjectWithStorageUrl[]> {
+    const urls = await Promise.all(
+        projects.map((project) =>
+            project.profilePictureStorageId
+                ? ctx.storage.getUrl(project.profilePictureStorageId)
+                : Promise.resolve(null)
+        )
+    );
+
+    return projects.map((project, index) => ({
+        ...project,
+        profilePictureStorageUrl: urls[index] ?? null,
+    }));
+}
 
 export const create = mutation({
     args: {
@@ -47,10 +77,7 @@ export const list = query({
             return [];
         }
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+        const user = await getCurrentUser(ctx, identity.subject);
 
         if (!user) {
             return [];
@@ -61,21 +88,55 @@ export const list = query({
             .withIndex("by_user_id", (q) => q.eq("userId", user._id))
             .collect();
 
-        // Get storage URLs for profile pictures
-        const projectsWithUrls: ProjectWithStorageUrl[] = await Promise.all(
+        return resolveProjectsWithUrls(ctx, projects);
+    },
+});
+
+export const listSummaries = query({
+    args: {},
+    handler: async (ctx): Promise<ProjectSummary[]> => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await getCurrentUser(ctx, identity.subject);
+
+        if (!user) {
+            return [];
+        }
+
+        const projects = await ctx.db
+            .query("projects")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .collect();
+
+        const projectsWithUrls = await resolveProjectsWithUrls(ctx, projects);
+        const counts = await Promise.all(
             projects.map(async (project) => {
-                let profilePictureStorageUrl: string | null = null;
-                if (project.profilePictureStorageId) {
-                    profilePictureStorageUrl = await ctx.storage.getUrl(project.profilePictureStorageId);
-                }
+                const [posts, mediaItems] = await Promise.all([
+                    ctx.db
+                        .query("generated_posts")
+                        .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                        .collect(),
+                    ctx.db
+                        .query("media_items")
+                        .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                        .collect(),
+                ]);
+
                 return {
-                    ...project,
-                    profilePictureStorageUrl,
+                    postCount: posts.filter((post) => !post.deletedAt).length,
+                    mediaCount: mediaItems.filter((item) => !item.deletedAt).length,
                 };
             })
         );
 
-        return projectsWithUrls;
+        return projectsWithUrls.map((project, index) => ({
+            ...project,
+            postCount: counts[index]?.postCount ?? 0,
+            mediaCount: counts[index]?.mediaCount ?? 0,
+        }));
     },
 });
 

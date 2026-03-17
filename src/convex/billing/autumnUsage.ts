@@ -62,12 +62,16 @@ export async function refundImageUsage(ctx: any, count: number): Promise<void> {
         return;
     }
 
-    const result = await autumn.track(ctx, {
-        featureId: IMAGE_FEATURE_ID,
-        value: -normalized,
-    });
+    try {
+        const result = await autumn.track(ctx, {
+            featureId: IMAGE_FEATURE_ID,
+            value: -normalized,
+        });
 
-    if (result.error) {
-        console.error("Failed to refund usage:", result.error.message || result.error);
+        if (result.error) {
+            console.error("Failed to refund usage:", result.error.message || result.error);
+        }
+    } catch (err) {
+        console.error("Failed to refund usage:", err);
     }
 }

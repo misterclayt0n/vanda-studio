@@ -1,7 +1,11 @@
 <script lang="ts">
-	import { Button, Textarea, Label, Badge, Separator, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-	import { ImageModelSelector, ImageSkeleton } from "$lib/components/studio";
-	import { EditOutputLightbox } from "$lib/components/lightbox";
+	import { Button, Textarea, Badge } from "$lib/components/ui";
+	import {
+		ImageModelSelector,
+		AspectRatioSelector,
+		ResolutionSelector,
+	} from "$lib/components/studio";
+	import { MediaLightbox } from "$lib/components/lightbox";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../../convex/_generated/api.js";
@@ -10,18 +14,75 @@
 	import { goto } from "$app/navigation";
 	import Logo from "$lib/components/Logo.svelte";
 
+	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
+	type Resolution = "standard" | "high" | "ultra";
+	type CanvasMode = "canvas" | "history";
+
+	interface TurnOutput {
+		_id: Id<"image_edit_outputs">;
+		url: string | null;
+		model: string;
+		width: number;
+		height: number;
+		createdAt: number;
+	}
+
+	interface Turn {
+		_id: Id<"image_edit_turns">;
+		turnIndex: number;
+		userMessage: string;
+		selectedModels: string[];
+		selectedOutputIds?: Id<"image_edit_outputs">[];
+		aspectRatio: string;
+		resolution: string;
+		status: string;
+		pendingModels?: string[];
+		outputs: TurnOutput[];
+		createdAt: number;
+	}
+
+	interface LightboxMediaItem {
+		_id: Id<"media_items">;
+		url: string | null;
+		model?: string;
+		sourceType: string;
+		prompt?: string;
+		userPrompt?: string;
+		generationDurationMs?: number;
+		width: number;
+		height: number;
+		aspectRatio?: string;
+		resolution?: string;
+		createdAt: number;
+		sourceConversationId?: Id<"image_edit_conversations">;
+		sourceTurnId?: Id<"image_edit_turns">;
+		sourceOutputId?: Id<"image_edit_outputs">;
+		storageId: Id<"_storage">;
+		mimeType: string;
+	}
+
 	const client = useConvexClient();
+	const ACTIVE_GENERATION_WINDOW_MS = 5 * 60 * 1000;
+
+	const modelDisplayNames: Record<string, string> = {
+		"google/gemini-2.5-flash-image": "Nano Banana",
+		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
+		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
+		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
+		"openai/gpt-5-image": "GPT Image 1.5",
+	};
 
 	let conversationId = $derived($page.params.conversationId as Id<"image_edit_conversations">);
-	let pendingTurnId = $derived($page.url.searchParams.get('turnId') as Id<"image_edit_turns"> | null);
-
+	let pendingTurnId = $derived($page.url.searchParams.get("turnId") as Id<"image_edit_turns"> | null);
 	let generationTriggered = $state(false);
+	let canvasMode = $state<CanvasMode>("canvas");
+	let staleCleanupStarted = $state(false);
 
 	$effect(() => {
 		if (pendingTurnId && !generationTriggered) {
 			generationTriggered = true;
 			const url = new URL($page.url);
-			url.searchParams.delete('turnId');
+			url.searchParams.delete("turnId");
 			goto(url.pathname, { replaceState: true, noScroll: true });
 
 			client.action(api.ai.imageEdit.generateForTurn, {
@@ -33,138 +94,187 @@
 		}
 	});
 
+	$effect(() => {
+		if (staleCleanupStarted) return;
+		staleCleanupStarted = true;
+
+		void client
+			.mutation(api.imageEditConversations.cleanupStalePendingByUser, {
+				staleAfterMs: ACTIVE_GENERATION_WINDOW_MS,
+			})
+			.catch(() => undefined);
+	});
+
 	const conversationQuery = useQuery(
 		api.imageEditConversations.get,
 		() => conversationId ? { id: conversationId } : "skip"
 	);
-
 	const turnsQuery = useQuery(
 		api.imageEditTurns.listByConversation,
 		() => conversationId ? { conversationId } : "skip"
 	);
-
-	const allOutputsQuery = useQuery(
-		api.imageEditOutputs.listByConversation,
-		() => conversationId ? { conversationId } : "skip"
+	const lightboxItemsQuery = useQuery(
+		api.mediaItems.listBySourceOutputIds,
+		() => {
+			const outputIds = ((turnsQuery.data ?? []) as Turn[]).flatMap((turn) =>
+				turn.outputs.map((output) => output._id)
+			);
+			return outputIds.length > 0 ? { outputIds } : "skip";
+		}
 	);
 
 	let conversation = $derived(conversationQuery.data);
-	let turns = $derived(turnsQuery.data ?? []);
-	let allOutputs = $derived(allOutputsQuery.data ?? []);
-	let turnCount = $derived(turns.length);
+	let turns = $derived((turnsQuery.data ?? []) as Turn[]);
+	let conversationMediaItems = $derived((lightboxItemsQuery.data ?? []) as LightboxMediaItem[]);
 	let isLoading = $derived(!conversation && conversationQuery.isLoading);
-
-	// Lightbox state
-	let lightboxOpen = $state(false);
-	let lightboxIndex = $state(0);
-
-	let lightboxImages = $derived(
-		allOutputs
-			.filter(o => o.url)
-			.map(o => ({
-				id: o._id,
-				url: o.url!,
-				model: o.model,
-				width: o.width,
-				height: o.height,
-				createdAt: o.createdAt
-			}))
+	let turnCount = $derived(turns.length);
+	let isAnyGenerating = $derived(
+		turns.some((turn) => turn.status === "generating" || (turn.pendingModels?.length ?? 0) > 0)
 	);
 
-	function openLightbox(outputId: string) {
-		const index = lightboxImages.findIndex(img => img.id === outputId);
-		if (index !== -1) {
-			lightboxIndex = index;
-			lightboxOpen = true;
-		}
-	}
-
-	function closeLightbox() { lightboxOpen = false; }
-	function navigateLightbox(index: number) { lightboxIndex = index; }
-
-	// Form state
-	let editPrompt = $state("");
 	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
-	let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
+	let aspectRatio = $state<AspectRatio>("1:1");
+	let resolution = $state<Resolution>("standard");
+	let editPrompt = $state("");
 	let isSending = $state(false);
-	let fileInputEl = $state<HTMLInputElement | null>(null);
+	let settingsInitialized = $state(false);
 
-	const modelDisplayNames: Record<string, string> = {
-		"google/gemini-2.5-flash-image": "Nano Banana",
-		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
-		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
-		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
-		"openai/gpt-5-image": "GPT Image 1.5",
-	};
-
-	function addImageFiles(files: File[]) {
-		files.forEach((file) => {
-			if (!file.type.startsWith('image/')) return;
-			const url = URL.createObjectURL(file);
-			referenceImages = [...referenceImages, {
-				id: crypto.randomUUID(), url, name: file.name || `pasted-image-${Date.now()}.png`, file
-			}];
-		});
-	}
-
-	function handleFileSelect(event: Event) {
-		const input = event.target as HTMLInputElement;
-		if (!input.files) return;
-		addImageFiles(Array.from(input.files));
-		input.value = "";
-	}
-
-	function handlePaste(event: ClipboardEvent) {
-		const items = event.clipboardData?.items;
-		if (!items) return;
-		const imageFiles: File[] = [];
-		for (const item of items) {
-			if (item.type.startsWith('image/')) {
-				const file = item.getAsFile();
-				if (file) imageFiles.push(file);
+	let latestSeedTurn = $derived(() => {
+		for (let index = turns.length - 1; index >= 0; index -= 1) {
+			const turn = turns[index];
+			if (turn && turn.outputs.length > 0) {
+				return turn;
 			}
 		}
-		if (imageFiles.length > 0) {
-			event.preventDefault();
-			addImageFiles(imageFiles);
+		return null;
+	});
+
+	let selectedSeedOutputIds = $state<Id<"image_edit_outputs">[]>([]);
+	let selectedSeedTurnId = $state<Id<"image_edit_turns"> | null>(null);
+
+	$effect(() => {
+		if (!conversation || settingsInitialized) return;
+		selectedModels = ["google/gemini-3-pro-image-preview"];
+		aspectRatio = (conversation.aspectRatio as AspectRatio | undefined) ?? "1:1";
+		resolution = (conversation.resolution as Resolution | undefined) ?? "standard";
+		settingsInitialized = true;
+	});
+
+	$effect(() => {
+		const seedTurn = latestSeedTurn();
+		if (!seedTurn) {
+			selectedSeedOutputIds = [];
+			selectedSeedTurnId = null;
+			return;
+		}
+
+		const outputIds = seedTurn.outputs.map((output) => output._id);
+		if (selectedSeedTurnId !== seedTurn._id) {
+			selectedSeedOutputIds = outputIds;
+			selectedSeedTurnId = seedTurn._id;
+			return;
+		}
+
+		const validIds = new Set(outputIds);
+		const retainedIds = selectedSeedOutputIds.filter((id) => validIds.has(id));
+		if (retainedIds.length === 0) {
+			selectedSeedOutputIds = outputIds;
+			return;
+		}
+		if (retainedIds.length !== selectedSeedOutputIds.length) {
+			selectedSeedOutputIds = retainedIds;
+		}
+	});
+
+	let lightboxMediaId = $state<string | null>(null);
+	let lightboxOpen = $derived(!!lightboxMediaId);
+
+	async function openLightbox(outputId: Id<"image_edit_outputs">) {
+		const existing = conversationMediaItems.find((item) => item.sourceOutputId === outputId);
+		if (existing) {
+			lightboxMediaId = existing._id;
+			return;
+		}
+
+		try {
+			const results = await client.query(api.mediaItems.listBySourceOutputIds, {
+				outputIds: [outputId],
+			});
+			const item = results[0] as LightboxMediaItem | undefined;
+			if (item) {
+				lightboxMediaId = item._id;
+			}
+		} catch (err) {
+			console.error("Failed to open media lightbox:", err);
 		}
 	}
 
-	function removeReference(id: string) {
-		const img = referenceImages.find(r => r.id === id);
-		if (img) URL.revokeObjectURL(img.url);
-		referenceImages = referenceImages.filter(r => r.id !== id);
+	function closeLightbox() {
+		lightboxMediaId = null;
 	}
 
-	async function uploadFileToStorage(file: File): Promise<Id<"_storage">> {
-		const uploadUrl = await client.mutation(api.referenceImages.generateUploadUrl, {});
-		const response = await fetch(uploadUrl, {
-			method: "POST",
-			headers: { "Content-Type": file.type },
-			body: file,
+	function navigateLightbox(mediaId: string) {
+		lightboxMediaId = mediaId;
+	}
+
+	function getModelDisplayName(model?: string): string {
+		if (!model) return "Imagem";
+		return modelDisplayNames[model] ?? model.split("/").pop() ?? model;
+	}
+
+	function getAspectRatioValue(aspectRatio?: string, width?: number, height?: number): string {
+		if (width && height) return `${width} / ${height}`;
+		if (!aspectRatio) return "1 / 1";
+		const [aspectWidth, aspectHeight] = aspectRatio.split(":");
+		if (!aspectWidth || !aspectHeight) return "1 / 1";
+		return `${aspectWidth} / ${aspectHeight}`;
+	}
+
+	function formatDate(timestamp: number): string {
+		return new Date(timestamp).toLocaleDateString("pt-BR", {
+			day: "2-digit",
+			month: "short",
+			hour: "2-digit",
+			minute: "2-digit",
 		});
-		if (!response.ok) throw new Error("Falha ao fazer upload da imagem");
-		const { storageId } = await response.json();
-		return storageId as Id<"_storage">;
+	}
+
+	function getTurnOutputCount(turn: Turn): number {
+		return turn.outputs.length + (turn.pendingModels?.length ?? 0);
+	}
+
+	function isSelectableTurn(turnId: Id<"image_edit_turns">): boolean {
+		return latestSeedTurn()?._id === turnId;
+	}
+
+	function isSeedSelected(outputId: Id<"image_edit_outputs">): boolean {
+		return selectedSeedOutputIds.includes(outputId);
+	}
+
+	function toggleSeedOutput(outputId: Id<"image_edit_outputs">) {
+		if (selectedSeedOutputIds.includes(outputId)) {
+			if (selectedSeedOutputIds.length > 1) {
+				selectedSeedOutputIds = selectedSeedOutputIds.filter((id) => id !== outputId);
+			}
+			return;
+		}
+
+		selectedSeedOutputIds = [...selectedSeedOutputIds, outputId];
 	}
 
 	async function handleSendEdit() {
-		if (!editPrompt.trim() || selectedModels.length === 0) return;
+		if (!editPrompt.trim() || selectedModels.length === 0 || isSending || isAnyGenerating) return;
 		isSending = true;
 		try {
-			let manualReferenceIds: Id<"_storage">[] = [];
-			if (referenceImages.length > 0) {
-				manualReferenceIds = await Promise.all(referenceImages.map(img => uploadFileToStorage(img.file)));
-			}
 			await client.action(api.ai.imageEdit.sendEdit, {
 				conversationId,
-				userMessage: editPrompt,
+				userMessage: editPrompt.trim(),
 				selectedModels,
-				...(manualReferenceIds.length > 0 && { manualReferenceIds }),
+				aspectRatio,
+				resolution,
+				...(selectedSeedOutputIds.length > 0 ? { selectedOutputIds: selectedSeedOutputIds } : {}),
 			});
 			editPrompt = "";
-			referenceImages.forEach(img => URL.revokeObjectURL(img.url));
-			referenceImages = [];
 		} catch (err) {
 			console.error("Failed to send edit:", err);
 		} finally {
@@ -172,255 +282,369 @@
 		}
 	}
 
-	function handleKeydown(event: KeyboardEvent) {
-		if ((event.metaKey || event.ctrlKey) && event.key === "Enter") handleSendEdit();
+	function handleComposerKeydown(event: KeyboardEvent) {
+		if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+			handleSendEdit();
+		}
 	}
 
-	let isAnyGenerating = $derived(turns.some(t => t.status === "generating" || (t.pendingModels && t.pendingModels.length > 0)));
-
-	async function downloadImage(url: string, model: string) {
-		try {
-			const response = await fetch(url);
-			const blob = await response.blob();
-			const downloadUrl = URL.createObjectURL(blob);
-			const link = document.createElement('a');
-			link.href = downloadUrl;
-			link.download = `vanda-edit-${model.split('/').pop() ?? 'image'}-${Date.now()}.${blob.type.split('/').pop() ?? 'png'}`;
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			URL.revokeObjectURL(downloadUrl);
-		} catch (err) {
-			console.error('Download failed:', err);
+	function getReferenceSelectionLabel(): string {
+		if (selectedSeedOutputIds.length === 1) {
+			return "1 imagem selecionada como base";
 		}
+
+		return `${selectedSeedOutputIds.length} imagens selecionadas como base`;
 	}
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleComposerKeydown} />
 
 <svelte:head>
-	<title>{conversation?.title ?? 'Editar Imagem'} - Vanda Studio</title>
+	<title>{conversation?.title ?? "Editar imagem"} - Vanda Studio</title>
 </svelte:head>
 
 <div class="flex h-screen flex-col bg-background">
-	<!-- Header -->
 	<header class="shrink-0 border-b border-border">
 		<div class="flex h-14 items-center justify-between px-4">
 			<div class="flex items-center gap-4">
 				<a href="/"><Logo /></a>
-				<Separator orientation="vertical" class="h-6" />
+				<div class="h-6 w-px bg-border"></div>
 				<button
 					type="button"
-					class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-					onclick={() => goto('/images')}
+					class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+					onclick={() => goto("/images")}
 				>
 					<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
 					</svg>
-					Imagens
+					Gallery
 				</button>
-				<Separator orientation="vertical" class="h-6" />
-				<div class="flex items-center gap-2">
-					<span class="text-sm font-medium">{conversation?.title ?? 'Carregando...'}</span>
-					{#if turnCount > 0}
-						<Badge variant="secondary">{turnCount} {turnCount === 1 ? 'edição' : 'edições'}</Badge>
-					{/if}
+
+				<div>
+					<p class="text-sm font-medium">{conversation?.title ?? "Carregando..."}</p>
+					<p class="text-xs text-muted-foreground">{turnCount} turn{turnCount === 1 ? "" : "s"}</p>
 				</div>
 			</div>
-			<div class="flex items-center gap-4">
+
+			<div class="flex items-center gap-3">
+				<div class="flex overflow-hidden rounded-xl border border-border bg-card">
+					<button
+						type="button"
+						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {canvasMode === 'canvas' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						aria-label="Visualização em canvas"
+						onclick={() => (canvasMode = "canvas")}
+					>
+						<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4.75 4.75h5.5v5.5h-5.5zm9 0h5.5v5.5h-5.5zm-9 9h5.5v5.5h-5.5zm9 0h5.5v5.5h-5.5z" />
+						</svg>
+					</button>
+					<button
+						type="button"
+						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {canvasMode === 'history' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						aria-label="Visualização em histórico"
+						onclick={() => (canvasMode = "history")}
+					>
+						<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+						</svg>
+					</button>
+				</div>
+
 				<SignedOut>
 					<SignInButton mode="modal">
-						<button class="h-8 rounded-none border border-border bg-background px-3 text-xs font-medium hover:bg-muted">Entrar</button>
+						<button class="h-8 rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted">
+							Entrar
+						</button>
 					</SignInButton>
 				</SignedOut>
-				<SignedIn><UserButton /></SignedIn>
+				<SignedIn>
+					<UserButton />
+				</SignedIn>
 			</div>
 		</div>
 	</header>
 
-	<!-- Main content -->
 	<div class="flex min-h-0 flex-1">
-		{#if isLoading}
-			<div class="flex flex-1 items-center justify-center">
-				<div class="flex flex-col items-center gap-4">
-					<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-					</svg>
-					<p class="text-sm text-muted-foreground">Carregando conversa...</p>
+		<aside class="flex w-80 shrink-0 flex-col border-r border-border bg-muted/20">
+			<div class="space-y-5 overflow-y-auto p-4">
+				<div class="space-y-3">
+					<div class="flex items-center justify-between">
+						<h2 class="text-sm font-semibold text-foreground">Configurações</h2>
+						<Badge variant="secondary">{selectedModels.length} ativo{selectedModels.length > 1 ? "s" : ""}</Badge>
+					</div>
+
+					{#if conversation?.sourceImageUrl}
+						<div class="overflow-hidden rounded-xl border border-border bg-card">
+							<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(conversation.sourceMedia?.aspectRatio ?? conversation.aspectRatio, conversation.sourceMedia?.width, conversation.sourceMedia?.height)};`}>
+								<img src={conversation.sourceImageUrl} alt="Imagem de origem" class="h-full w-full object-cover" />
+							</div>
+							<div class="px-3 py-3">
+								<p class="text-sm font-medium text-foreground">Imagem de origem</p>
+								<p class="mt-1 text-xs text-muted-foreground">
+									{conversation.sourceMedia?.width ?? 0} × {conversation.sourceMedia?.height ?? 0}
+								</p>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Modelos</p>
+					<ImageModelSelector selected={selectedModels} onchange={(models) => (selectedModels = models)} compact />
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Proporção</p>
+					<AspectRatioSelector value={aspectRatio} onchange={(value) => (aspectRatio = value)} compact />
+				</div>
+
+				<div class="space-y-2">
+					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Resolução</p>
+					<ResolutionSelector value={resolution} onchange={(value) => (resolution = value)} compact />
 				</div>
 			</div>
-		{:else if !conversation}
-			<div class="flex flex-1 items-center justify-center">
-				<div class="flex flex-col items-center gap-4">
-					<p class="text-sm text-muted-foreground">Conversa não encontrada</p>
-					<Button variant="outline" onclick={() => goto('/images')}>Voltar para imagens</Button>
+		</aside>
+
+		<main class="flex min-h-0 flex-1 flex-col">
+			{#if isLoading}
+				<div class="flex flex-1 items-center justify-center">
+					<div class="flex flex-col items-center gap-4">
+						<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<p class="text-sm text-muted-foreground">Carregando conversa...</p>
+					</div>
 				</div>
-			</div>
-		{:else}
-			<div class="flex flex-1 flex-col overflow-hidden">
-				<!-- Thumbnail strip -->
-				{#if allOutputs.length > 0}
-					<div class="shrink-0 border-b border-border bg-muted/30 p-4">
-						<div class="flex gap-2 overflow-x-auto pb-2">
-							{#if conversation.sourceImageUrl}
-								<div class="relative h-16 w-16 shrink-0 overflow-hidden border-2 border-border bg-background">
-									<img src={conversation.sourceImageUrl} alt="Original" class="h-full w-full object-cover" />
-									<div class="absolute inset-0 flex items-center justify-center bg-black/50">
-										<span class="text-[10px] font-medium text-white">Original</span>
-									</div>
+			{:else if !conversation}
+				<div class="flex flex-1 items-center justify-center">
+					<div class="text-center">
+						<p class="text-sm text-muted-foreground">Conversa não encontrada.</p>
+						<Button class="mt-4" variant="outline" onclick={() => goto("/images")}>Voltar</Button>
+					</div>
+				</div>
+			{:else}
+				<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+					<div class="flex-1 overflow-y-auto p-6">
+						<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+							{#if canvasMode === "canvas"}
+								<div class="space-y-6">
+									{#each turns as turn (turn._id)}
+										<section class="rounded-2xl border border-border bg-card/60 p-5 shadow-sm">
+											<div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+												<div class="h-2 w-2 rounded-full bg-primary"></div>
+												<span>{formatDate(turn.createdAt)}</span>
+												<span>{getTurnOutputCount(turn)} output{getTurnOutputCount(turn) === 1 ? "" : "s"}</span>
+											</div>
+
+											<h3 class="mt-3 text-lg font-medium text-foreground">{turn.userMessage}</h3>
+
+											<div class="mt-4 flex flex-wrap gap-4">
+												{#each turn.outputs as output (output._id)}
+													<div
+														class="group relative overflow-hidden rounded-2xl border bg-card transition {isSelectableTurn(turn._id) && isSeedSelected(output._id) ? 'border-primary ring-1 ring-primary/40' : 'border-border hover:border-primary/40'}"
+														style="width: 200px;"
+													>
+														<button
+															type="button"
+															class="w-full text-left"
+															onclick={() => openLightbox(output._id)}
+														>
+															<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(undefined, output.width, output.height)};`}>
+																{#if output.url}
+																	<img src={output.url} alt="Resultado" class="h-full w-full object-cover" />
+																{/if}
+															</div>
+															<div class="px-3 py-3">
+																<p class="text-sm font-medium text-foreground">{getModelDisplayName(output.model)}</p>
+																{#if isSelectableTurn(turn._id)}
+																	<p class="mt-1 text-xs text-muted-foreground">
+																		{isSeedSelected(output._id) ? "Selecionada como base" : "Clique no check para usar como base"}
+																	</p>
+																{/if}
+															</div>
+														</button>
+														{#if isSelectableTurn(turn._id)}
+															<button
+																type="button"
+																class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm transition {isSeedSelected(output._id) ? 'border-primary bg-primary text-primary-foreground shadow-lg' : 'border-white/15 bg-black/55 text-white/75 hover:text-white'}"
+																aria-pressed={isSeedSelected(output._id)}
+																aria-label={isSeedSelected(output._id) ? "Remover imagem base" : "Usar imagem como base"}
+																onclick={() => toggleSeedOutput(output._id)}
+															>
+																{#if isSeedSelected(output._id)}
+																	<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
+																		<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+																	</svg>
+																{:else}
+																	<div class="h-3.5 w-3.5 rounded-full border border-current"></div>
+																{/if}
+															</button>
+														{/if}
+													</div>
+												{/each}
+
+												{#each turn.pendingModels ?? [] as model (model)}
+													<div class="w-[200px] overflow-hidden rounded-2xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
+														<div class="relative bg-muted/30" style={`aspect-ratio: ${getAspectRatioValue(turn.aspectRatio)};`}>
+															<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
+															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
+																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+																</svg>
+																<span class="text-xs text-muted-foreground">Gerando...</span>
+															</div>
+														</div>
+														<div class="px-3 py-3">
+															<p class="text-sm font-medium text-foreground">{getModelDisplayName(model)}</p>
+															<p class="mt-1 text-xs text-muted-foreground">Novo resultado em andamento</p>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</section>
+									{/each}
+								</div>
+							{:else}
+								<div class="space-y-6">
+									{#each turns as turn (turn._id)}
+										<section class="rounded-2xl border border-border bg-card/60 p-5 shadow-sm">
+											<div class="flex flex-wrap items-center justify-between gap-3">
+												<div>
+													<p class="text-sm font-semibold text-foreground">Turn {turn.turnIndex + 1}</p>
+													<p class="mt-1 text-xs text-muted-foreground">{formatDate(turn.createdAt)}</p>
+												</div>
+												<div class="flex items-center gap-2">
+													<Badge variant="secondary">{turn.aspectRatio}</Badge>
+													<Badge variant="secondary">{turn.resolution}</Badge>
+													{#if turn.pendingModels?.length}
+														<Badge variant="secondary">Gerando...</Badge>
+													{/if}
+												</div>
+											</div>
+
+											<p class="mt-4 text-sm leading-7 text-foreground">{turn.userMessage}</p>
+
+											<div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+												{#each turn.outputs as output (output._id)}
+													<div class="group relative overflow-hidden rounded-2xl border bg-card transition {isSelectableTurn(turn._id) && isSeedSelected(output._id) ? 'border-primary ring-1 ring-primary/40' : 'border-border hover:border-primary/40'}">
+														<button
+															type="button"
+															class="w-full text-left"
+															onclick={() => openLightbox(output._id)}
+														>
+															<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(undefined, output.width, output.height)};`}>
+																{#if output.url}
+																	<img src={output.url} alt="Resultado" class="h-full w-full object-cover" />
+																{/if}
+															</div>
+															<div class="px-4 py-3">
+																<p class="text-sm font-medium text-foreground">{getModelDisplayName(output.model)}</p>
+																{#if isSelectableTurn(turn._id)}
+																	<p class="mt-1 text-xs text-muted-foreground">
+																		{isSeedSelected(output._id) ? "Selecionada como base" : "Clique no check para usar como base"}
+																	</p>
+																{/if}
+															</div>
+														</button>
+														{#if isSelectableTurn(turn._id)}
+															<button
+																type="button"
+																class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm transition {isSeedSelected(output._id) ? 'border-primary bg-primary text-primary-foreground shadow-lg' : 'border-white/15 bg-black/55 text-white/75 hover:text-white'}"
+																aria-pressed={isSeedSelected(output._id)}
+																aria-label={isSeedSelected(output._id) ? "Remover imagem base" : "Usar imagem como base"}
+																onclick={() => toggleSeedOutput(output._id)}
+															>
+																{#if isSeedSelected(output._id)}
+																	<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
+																		<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+																	</svg>
+																{:else}
+																	<div class="h-3.5 w-3.5 rounded-full border border-current"></div>
+																{/if}
+															</button>
+														{/if}
+													</div>
+												{/each}
+
+												{#each turn.pendingModels ?? [] as model (model)}
+													<div class="overflow-hidden rounded-2xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
+														<div class="relative bg-muted/30" style={`aspect-ratio: ${getAspectRatioValue(turn.aspectRatio)};`}>
+															<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
+															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
+																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+																</svg>
+																<span class="text-xs text-muted-foreground">Gerando...</span>
+															</div>
+														</div>
+														<div class="px-4 py-3">
+															<p class="text-sm font-medium text-foreground">{getModelDisplayName(model)}</p>
+															<p class="mt-1 text-xs text-muted-foreground">Novo resultado em andamento</p>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</section>
+									{/each}
 								</div>
 							{/if}
-							{#each allOutputs as output, index}
-								<button
-									type="button"
-									class="group relative h-16 w-16 shrink-0 overflow-hidden border border-border bg-background hover:border-primary transition-colors cursor-pointer"
-									onclick={() => output.url && openLightbox(output._id)}
-									disabled={!output.url}
-								>
-									{#if output.url}
-										<img src={output.url} alt="Edição {index + 1}" class="h-full w-full object-cover" />
-										<div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-											<svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-											</svg>
-										</div>
-									{:else}
-										<div class="flex h-full w-full items-center justify-center bg-muted">
-											<svg class="h-4 w-4 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-										</div>
-									{/if}
-								</button>
-							{/each}
 						</div>
 					</div>
-				{/if}
 
-				<!-- Turns list -->
-				<div class="flex-1 overflow-y-auto p-6">
-					<div class="mx-auto max-w-3xl space-y-8">
-						{#each turns as turn, index}
-							<div class="space-y-4">
-								<div class="flex items-center gap-3">
-									<div class="h-2 w-2 rounded-full bg-primary"></div>
-									<span class="text-xs font-medium uppercase text-muted-foreground">Edição {index + 1}</span>
-									{#if turn.status === "generating" || (turn.pendingModels && turn.pendingModels.length > 0)}
-										<Badge variant="secondary">Gerando...</Badge>
-									{/if}
-								</div>
-								<p class="text-sm leading-relaxed">{turn.userMessage}</p>
-								<div class="flex flex-wrap gap-4">
-									{#each turn.outputs as output}
-										<button
-											type="button"
-											class="group relative overflow-hidden border border-border bg-background cursor-pointer transition-all hover:border-primary"
-											style="width: 200px; aspect-ratio: {output.width} / {output.height};"
-											onclick={() => output.url && openLightbox(output._id)}
-											disabled={!output.url}
-										>
-											{#if output.url}
-												<img src={output.url} alt="Resultado" class="h-full w-full object-cover" />
-												<div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-													<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-													</svg>
-												</div>
-											{:else}
-												<div class="flex h-full w-full items-center justify-center bg-muted">
-													<svg class="h-6 w-6 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-														<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-													</svg>
-												</div>
-											{/if}
-											<div class="absolute bottom-2 left-2">
-												<Badge variant="secondary" class="bg-background/90 text-[10px] backdrop-blur-sm">
-													{modelDisplayNames[output.model] ?? output.model.split("/").pop()}
-												</Badge>
-											</div>
-										</button>
-									{/each}
-									{#each turn.pendingModels ?? [] as model}
-										<div class="overflow-hidden" style="width: 200px;">
-											<ImageSkeleton {model} aspectRatio={conversation.aspectRatio} />
-										</div>
-									{/each}
-								</div>
-							</div>
-						{/each}
-
-						{#if turns.length === 0}
-							<div class="flex flex-col items-center justify-center py-12 text-center">
-								<p class="text-sm text-muted-foreground">Nenhuma edição ainda. Use o formulário abaixo para começar.</p>
-							</div>
-						{/if}
-					</div>
-				</div>
-
-				<!-- Input area -->
-				<div class="shrink-0 border-t border-border bg-background p-4">
-					<div class="mx-auto max-w-3xl space-y-4">
-						<details class="group">
-							<summary class="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-								<svg class="h-4 w-4 transition-transform group-open:rotate-90" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-								</svg>
-								{selectedModels.length} {selectedModels.length === 1 ? 'modelo selecionado' : 'modelos selecionados'}
-							</summary>
-							<div class="mt-4">
-								<ImageModelSelector selected={selectedModels} onchange={(models) => selectedModels = models} />
-							</div>
-						</details>
-
-						{#if referenceImages.length > 0}
-							<div class="flex flex-wrap gap-2">
-								{#each referenceImages as ref (ref.id)}
-									<div class="group relative">
-										<div class="h-12 w-12 overflow-hidden border border-border bg-muted">
-											<img src={ref.url} alt={ref.name} class="h-full w-full object-cover" />
-										</div>
-										<button type="button" aria-label="Remover" class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100" onclick={() => removeReference(ref.id)}>
-											<svg class="h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-										</button>
+					<div class="shrink-0 border-t border-border bg-background/95 p-4 backdrop-blur-md">
+						<div class="mx-auto w-full max-w-5xl">
+							{#if latestSeedTurn()}
+								<div class="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-3 py-2.5">
+									<div>
+										<p class="text-sm font-medium text-foreground">{getReferenceSelectionLabel()}</p>
+										<p class="text-xs text-muted-foreground">
+											Marque os checks diretamente nos cards acima para definir o que alimenta a próxima geração.
+										</p>
 									</div>
-								{/each}
-							</div>
-						{/if}
+									<Badge variant="secondary">{selectedSeedOutputIds.length}</Badge>
+								</div>
+							{/if}
 
-						<div class="flex gap-3">
-							<input bind:this={fileInputEl} type="file" accept="image/*" multiple class="hidden" onchange={handleFileSelect} />
-							<button
-								type="button"
-								aria-label="Adicionar imagens de referencia"
-								class="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-background text-muted-foreground hover:bg-muted"
-								onclick={() => fileInputEl?.click()}
-							>
-								<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-								</svg>
-							</button>
-							<Textarea bind:value={editPrompt} placeholder="Descreva a proxima edição... (Cole imagens com Ctrl+V)" class="min-h-[40px] max-h-[120px] resize-none bg-background" rows={1} onpaste={handlePaste} />
-							<Button onclick={handleSendEdit} disabled={!editPrompt.trim() || selectedModels.length === 0 || isSending || isAnyGenerating} class="shrink-0">
-								{#if isSending}
-									<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-								{:else}
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
-								{/if}
-							</Button>
+							<div class="flex items-end gap-3">
+								<Textarea
+									bind:value={editPrompt}
+									placeholder="Select an image and describe your edit..."
+									class="min-h-[96px] resize-none bg-background"
+								/>
+								<Button
+									class="h-11 shrink-0 px-5"
+									disabled={!editPrompt.trim() || selectedModels.length === 0 || isSending || isAnyGenerating}
+									onclick={handleSendEdit}
+								>
+									{#if isSending}
+										<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+									{:else}
+										Gerar
+									{/if}
+								</Button>
+							</div>
+							<p class="mt-2 text-xs text-muted-foreground">
+								<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Cmd</kbd>+<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd> para enviar
+							</p>
 						</div>
-						<p class="text-xs text-muted-foreground">
-							<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Cmd</kbd>+<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd> para enviar
-						</p>
 					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</main>
 	</div>
 </div>
 
-{#if lightboxOpen && lightboxImages.length > 0}
-	<EditOutputLightbox images={lightboxImages} currentIndex={lightboxIndex} onclose={closeLightbox} onnavigate={navigateLightbox} />
+{#if lightboxOpen && lightboxMediaId && conversationMediaItems.length > 0}
+	<MediaLightbox
+		items={conversationMediaItems}
+		currentMediaId={lightboxMediaId}
+		onclose={closeLightbox}
+		onnavigate={navigateLightbox}
+	/>
 {/if}

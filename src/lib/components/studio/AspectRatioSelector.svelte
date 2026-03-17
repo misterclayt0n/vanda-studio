@@ -20,9 +20,10 @@
 		value: AspectRatio;
 		onchange: (ratio: AspectRatio) => void;
 		class?: string;
+		compact?: boolean;
 	}
 
-	let { value, onchange, class: className }: Props = $props();
+	let { value, onchange, class: className, compact = false }: Props = $props();
 
 	/**
 	 * Calculate the visual preview dimensions for the aspect ratio button
@@ -39,13 +40,15 @@
 	}
 </script>
 
-<div class={cn("flex flex-wrap gap-2", className)}>
+<div class={cn(compact ? "grid grid-cols-6 gap-1.5" : "flex flex-wrap gap-2", className)}>
 	{#each ASPECT_RATIO_LIST as ratio (ratio)}
 		{@const preview = getPreviewDimensions(ratio)}
 		<button
 			type="button"
 			class={cn(
-				"flex flex-col items-center gap-1.5 rounded-none border p-2 transition-all",
+				compact
+					? "flex min-w-0 flex-col items-center gap-1 rounded-md border px-1.5 py-1.5 transition-all"
+					: "flex flex-col items-center gap-1.5 rounded-none border p-2 transition-all",
 				value === ratio
 					? "border-primary bg-primary/10 text-primary"
 					: "border-border bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground"
@@ -53,7 +56,7 @@
 			onclick={() => onchange(ratio)}
 		>
 			<!-- Visual Preview -->
-			<div class="flex h-8 w-10 items-center justify-center">
+			<div class={cn("flex items-center justify-center", compact ? "h-6 w-7" : "h-8 w-10")}>
 				<div
 					class={cn(
 						"rounded-sm border-2 transition-colors",
@@ -64,9 +67,9 @@
 			</div>
 			<!-- Label -->
 			<div class="flex flex-col items-center gap-0.5">
-				<span class="text-xs font-medium">{ratio}</span>
+				<span class={cn("font-medium", compact ? "text-[10px] leading-none" : "text-xs")}>{ratio}</span>
 				{#if ratio === DEFAULT_ASPECT_RATIO}
-					<span class="text-[9px] text-muted-foreground">Padrão</span>
+					<span class={cn("text-muted-foreground", compact ? "text-[7px] leading-none" : "text-[9px]")}>Padrão</span>
 				{/if}
 			</div>
 		</button>

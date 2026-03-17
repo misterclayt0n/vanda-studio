@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, internalMutation } from "./_generated/server";
+import { query, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 // List all outputs for a turn with URLs
@@ -78,6 +78,53 @@ export const get = query({
     },
 });
 
+export const listByIds = query({
+    args: {
+        ids: v.array(v.id("image_edit_outputs")),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity || args.ids.length === 0) {
+            return [];
+        }
+
+        const outputs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+        const existingOutputs = outputs.filter(
+            (output): output is NonNullable<typeof output> => !!output
+        );
+
+        return Promise.all(
+            existingOutputs.map(async (output) => ({
+                ...output,
+                url: await ctx.storage.getUrl(output.storageId),
+            }))
+        );
+    },
+});
+
+export const listByIdsInternal = internalQuery({
+    args: {
+        ids: v.array(v.id("image_edit_outputs")),
+    },
+    handler: async (ctx, args) => {
+        if (args.ids.length === 0) {
+            return [];
+        }
+
+        const outputs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+        const existingOutputs = outputs.filter(
+            (output): output is NonNullable<typeof output> => !!output
+        );
+
+        return Promise.all(
+            existingOutputs.map(async (output) => ({
+                ...output,
+                url: await ctx.storage.getUrl(output.storageId),
+            }))
+        );
+    },
+});
+
 // ============================================================================
 // Internal Mutations (called by actions)
 // ============================================================================
@@ -88,8 +135,11 @@ export const create = internalMutation({
         turnId: v.id("image_edit_turns"),
         conversationId: v.id("image_edit_conversations"),
         storageId: v.id("_storage"),
+        mimeType: v.string(),
         model: v.string(),
         prompt: v.string(),
+        userPrompt: v.optional(v.string()),
+        generationDurationMs: v.optional(v.number()),
         width: v.number(),
         height: v.number(),
         // Metadata
@@ -121,12 +171,16 @@ export const create = internalMutation({
             userId: args.userId,
             ...(args.projectId && { projectId: args.projectId }),
             storageId: args.storageId,
-            mimeType: "image/png",
+            mimeType: args.mimeType,
             width: args.width,
             height: args.height,
             sourceType: "edited",
             model: args.model,
             prompt: args.prompt,
+            ...(args.userPrompt && { userPrompt: args.userPrompt }),
+            ...(args.generationDurationMs !== undefined
+                ? { generationDurationMs: args.generationDurationMs }
+                : {}),
             aspectRatio: args.aspectRatio,
             resolution: args.resolution,
             sourceConversationId: args.conversationId,

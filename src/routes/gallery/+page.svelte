@@ -65,7 +65,7 @@
 	let hasMore = $state(true);
 	let loadingMore = $state(false);
 	let initialLoadDone = $state(false);
-	let sentinelEl: HTMLDivElement;
+	let sentinelEl = $state<HTMLDivElement | null>(null);
 
 	// Lightbox state from URL params
 	let lightboxPostId = $derived($page.url.searchParams.get('view'));
@@ -109,75 +109,17 @@
 	const projectsQuery = useQuery(api.projects.list, () => ({}));
 	// Initial query - only used for the first load when no filters are active
 	const initialPostsQuery = useQuery(
-		api.generatedPosts.listByUser,
+		api.generatedPosts.listGalleryByUser,
 		() => (filterProjectId || searchQuery.trim()) ? "skip" : { limit: 30 }
 	);
 	const projectPostsQuery = useQuery(
-		api.generatedPosts.listByProject,
+		api.generatedPosts.listGalleryByProject,
 		() => filterProjectId ? { projectId: filterProjectId } : "skip"
 	);
 	const searchResultsQuery = useQuery(
-		api.generatedPosts.search,
+		api.generatedPosts.searchGallery,
 		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
 	);
-
-	// Expanded entries (one card per generated image)
-	let projectPostsExpanded = $state<Post[] | null>(null);
-	let searchPostsExpanded = $state<Post[] | null>(null);
-	let expandingProjectPosts = $state(false);
-	let expandingSearchPosts = $state(false);
-	let initialExpandToken = 0;
-	let projectExpandToken = 0;
-	let searchExpandToken = 0;
-
-	type GeneratedImage = {
-		_id: Id<"generated_images">;
-		model: string;
-		url: string | null;
-		createdAt: number;
-	};
-
-	// Expand one post into N gallery entries (one per output image)
-	async function expandPostsToGalleryEntries(basePosts: Post[]): Promise<Post[]> {
-		if (basePosts.length === 0) return [];
-
-		const imagesByPost = await Promise.all(
-			basePosts.map(async (post) => {
-				try {
-					const images = await client.query(api.generatedImages.listByPost, {
-						generatedPostId: post._id,
-					});
-					return images as GeneratedImage[];
-				} catch (err) {
-					console.error("Failed to load generated images for post:", post._id, err);
-					return [];
-				}
-			})
-		);
-
-		const expanded: Post[] = [];
-		for (let i = 0; i < basePosts.length; i++) {
-			const post = basePosts[i];
-			if (!post) continue;
-
-			const images = imagesByPost[i] ?? [];
-			if (images.length > 0) {
-				const sortedImages = [...images].sort((a, b) => b.createdAt - a.createdAt);
-				for (const image of sortedImages) {
-					expanded.push({
-						...post,
-						galleryImageId: image._id,
-						imageUrl: image.url ?? post.imageUrl,
-						imageModel: image.model ?? post.imageModel,
-					});
-				}
-			} else {
-				expanded.push(post);
-			}
-		}
-
-		return expanded;
-	}
 
 	// Conversations query - only active when viewing conversations
 	const conversationsQuery = useQuery(
@@ -195,9 +137,8 @@
 			if (cursor) {
 				args.cursor = cursor;
 			}
-			const result = await client.query(api.generatedPosts.listByUser, args);
-			const expanded = await expandPostsToGalleryEntries(result.posts as Post[]);
-			allPosts = [...allPosts, ...expanded];
+			const result = await client.query(api.generatedPosts.listGalleryByUser, args);
+			allPosts = [...allPosts, ...(result.posts as Post[])];
 			cursor = result.nextCursor;
 			hasMore = result.hasMore;
 		} catch (err) {
@@ -211,7 +152,6 @@
 	$effect(() => {
 		// When filter or search changes, reset accumulated posts
 		if (filterProjectId || searchQuery.trim()) {
-			initialExpandToken += 1;
 			allPosts = [];
 			cursor = null;
 			hasMore = true;
@@ -222,62 +162,17 @@
 	// Initialize posts from initial query
 	$effect(() => {
 		if (initialPostsQuery.data && !filterProjectId && !searchQuery.trim() && !initialLoadDone) {
-			const sourcePosts = initialPostsQuery.data.posts as Post[];
-			const nextCursor = initialPostsQuery.data.nextCursor;
-			const nextHasMore = initialPostsQuery.data.hasMore;
-			const token = ++initialExpandToken;
-
-			void (async () => {
-				const expanded = await expandPostsToGalleryEntries(sourcePosts);
-				if (token !== initialExpandToken) return;
-				if (filterProjectId || searchQuery.trim()) return;
-				allPosts = expanded;
-				cursor = nextCursor;
-				hasMore = nextHasMore;
-				initialLoadDone = true;
-			})();
+			allPosts = initialPostsQuery.data.posts as Post[];
+			cursor = initialPostsQuery.data.nextCursor;
+			hasMore = initialPostsQuery.data.hasMore;
+			initialLoadDone = true;
 		}
 	});
 
-	// Expand project-filtered posts
+	// Reset accumulated posts when project-filtered query becomes inactive
 	$effect(() => {
-		if (!filterProjectId || !projectPostsQuery.data) {
-			projectExpandToken += 1;
-			projectPostsExpanded = null;
-			expandingProjectPosts = false;
-			return;
-		}
-
-		const sourcePosts = projectPostsQuery.data as Post[];
-		const token = ++projectExpandToken;
-		expandingProjectPosts = true;
-		void (async () => {
-			const expanded = await expandPostsToGalleryEntries(sourcePosts);
-			if (token !== projectExpandToken || !filterProjectId) return;
-			projectPostsExpanded = expanded;
-			expandingProjectPosts = false;
-		})();
-	});
-
-	// Expand search results
-	$effect(() => {
-		const query = searchQuery.trim();
-		if (!query || !searchResultsQuery.data) {
-			searchExpandToken += 1;
-			searchPostsExpanded = null;
-			expandingSearchPosts = false;
-			return;
-		}
-
-		const sourcePosts = searchResultsQuery.data as Post[];
-		const token = ++searchExpandToken;
-		expandingSearchPosts = true;
-		void (async () => {
-			const expanded = await expandPostsToGalleryEntries(sourcePosts);
-			if (token !== searchExpandToken || searchQuery.trim() !== query) return;
-			searchPostsExpanded = expanded;
-			expandingSearchPosts = false;
-		})();
+		if (!filterProjectId && !searchQuery.trim()) return;
+		initialLoadDone = true;
 	});
 
 	// Intersection Observer for infinite scroll
@@ -303,18 +198,18 @@
 	let selectedProject = $derived(projects.find(p => p._id === filterProjectId) ?? null);
 	let posts = $derived(() => {
 		if (searchQuery.trim()) {
-			return searchPostsExpanded ?? [];
+			return (searchResultsQuery.data ?? []) as Post[];
 		}
 		if (filterProjectId) {
-			return projectPostsExpanded ?? [];
+			return (projectPostsQuery.data ?? []) as Post[];
 		}
 		// Use accumulated posts for infinite scroll
 		return allPosts;
 	});
 	let isLoading = $derived(
 		(initialPostsQuery.isLoading && !initialLoadDone) ||
-		(filterProjectId && (projectPostsQuery.isLoading || expandingProjectPosts)) ||
-		(searchQuery.trim() && (searchResultsQuery.isLoading || expandingSearchPosts))
+		(!!filterProjectId && projectPostsQuery.isLoading) ||
+		(!!searchQuery.trim() && searchResultsQuery.isLoading)
 	);
 
 	// Get profile picture URL for a project

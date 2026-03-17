@@ -1247,12 +1247,14 @@ export const search = query({
         const searchTerm = args.query.toLowerCase();
         const limit = args.limit ?? 20;
 
-        // Get all user's posts (we'll filter in memory for now)
-        // In production, you'd use a proper search index
+        const scanLimit = Math.max(limit * 12, 120);
+        const perProjectLimit = Math.max(limit * 4, 30);
+
         const standalonePosts = await ctx.db
             .query("generated_posts")
-            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
-            .collect();
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .take(scanLimit);
 
         const userProjects = await ctx.db
             .query("projects")
@@ -1263,13 +1265,19 @@ export const search = query({
             ctx.db
                 .query("generated_posts")
                 .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
-                .collect()
+                .order("desc")
+                .take(perProjectLimit)
         );
         const projectPostsArrays = await Promise.all(projectPostsPromises);
         const projectPosts = projectPostsArrays.flat();
 
+        const uniquePosts = new Map<Id<"generated_posts">, Doc<"generated_posts">>();
+        for (const post of [...standalonePosts, ...projectPosts]) {
+            uniquePosts.set(post._id, post);
+        }
+
         // Filter by search term in caption or imagePrompt, exclude deleted
-        const allPosts = [...standalonePosts, ...projectPosts]
+        const allPosts = [...uniquePosts.values()]
             .filter((post) => !post.deletedAt)
             .filter((post) => {
                 const captionMatch = post.caption?.toLowerCase().includes(searchTerm);
@@ -1328,10 +1336,14 @@ export const searchGallery = query({
         const searchTerm = args.query.toLowerCase();
         const limit = args.limit ?? 20;
 
+        const scanLimit = Math.max(limit * 12, 120);
+        const perProjectLimit = Math.max(limit * 4, 30);
+
         const standalonePosts = await ctx.db
             .query("generated_posts")
-            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
-            .collect();
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .take(scanLimit);
 
         const userProjects = await ctx.db
             .query("projects")
@@ -1343,7 +1355,8 @@ export const searchGallery = query({
                 ctx.db
                     .query("generated_posts")
                     .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
-                    .collect()
+                    .order("desc")
+                    .take(perProjectLimit)
             )
         );
         const projectPosts = projectPostsArrays.flat();

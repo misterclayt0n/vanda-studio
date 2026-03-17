@@ -7,9 +7,18 @@
     interface Props {
         value: Id<"projects"> | null;
         onchange: (projectId: Id<"projects"> | null) => void;
+        label?: string | null;
+        description?: string | null;
+        compact?: boolean;
     }
 
-    let { value, onchange }: Props = $props();
+    let {
+        value,
+        onchange,
+        label = "Projeto",
+        description = "Associe este post a um projeto para organizar suas criações",
+        compact = false,
+    }: Props = $props();
 
     // Query projects
     const projectsQuery = useQuery(api.projects.list, () => ({}));
@@ -46,12 +55,16 @@
 </script>
 
 <div class="space-y-2">
-    <Label class="text-sm font-medium">Projeto</Label>
+    {#if label}
+        <Label class="text-sm font-medium">{label}</Label>
+    {/if}
     <Popover bind:open={popoverOpen}>
         <PopoverTrigger class="w-full">
             <button
                 type="button"
-                class="flex h-10 w-full items-center justify-between border border-border bg-background px-3 text-sm transition-colors hover:bg-muted {popoverOpen ? 'ring-1 ring-ring' : ''}"
+                class={`flex w-full items-center justify-between border border-border bg-background px-3 text-sm transition-colors hover:bg-muted ${
+                    compact ? "h-10 rounded-md" : "h-10"
+                } ${popoverOpen ? "ring-1 ring-ring" : ""}`}
             >
                 <div class="flex items-center gap-2">
                     {#if selectedProject}
@@ -147,7 +160,9 @@
             {/if}
         </PopoverContent>
     </Popover>
-    <p class="text-xs text-muted-foreground">
-        Associe este post a um projeto para organizar suas criações
-    </p>
+    {#if description}
+        <p class="text-xs text-muted-foreground">
+            {description}
+        </p>
+    {/if}
 </div>

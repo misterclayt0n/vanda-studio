@@ -63,7 +63,7 @@
 
 	const projectQuery = useQuery(api.projects.get, () => ({ projectId }));
 	const postsQuery = useQuery(api.generatedPosts.listByProject, () => ({ projectId }));
-	const mediaQuery = useQuery(api.mediaItems.listByProject, () => ({ projectId }));
+	const mediaQuery = useQuery(api.mediaItems.listCardsByProject, () => ({ projectId }));
 
 	let project = $derived(projectQuery.data);
 	let posts = $derived((postsQuery.data ?? []) as ProjectPost[]);

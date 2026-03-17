@@ -206,8 +206,8 @@ export default defineSchema({
         generatedPostId: v.id("generated_posts"),
         storageId: v.id("_storage"),
         model: v.string(), // The model used to generate this image
-        aspectRatio: v.string(), // "1:1", "16:9", etc.
-        resolution: v.string(), // "standard", "high", "ultra"
+        aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
+        resolution: v.optional(v.string()), // "standard", "high", "ultra"
         prompt: v.string(), // The prompt used to generate the image
         width: v.number(),
         height: v.number(),
@@ -229,6 +229,8 @@ export default defineSchema({
         sourceType: v.string(), // "generated" | "uploaded" | "edited" | "imported"
         model: v.optional(v.string()),
         prompt: v.optional(v.string()),
+        userPrompt: v.optional(v.string()),
+        generationDurationMs: v.optional(v.number()),
         aspectRatio: v.optional(v.string()),
         resolution: v.optional(v.string()),
         parentMediaId: v.optional(v.id("media_items")),
@@ -264,6 +266,8 @@ export default defineSchema({
         projectId: v.optional(v.id("projects")),
         status: v.string(), // "generating" | "completed" | "error"
         pendingModels: v.optional(v.array(v.string())),
+        lastProgressAt: v.optional(v.number()),
+        requestedModels: v.optional(v.array(v.string())),
         totalModels: v.number(),
         prompt: v.string(),
         aspectRatio: v.string(),
@@ -290,8 +294,33 @@ export default defineSchema({
         title: v.string(), // Auto-generated from first prompt
 
         // Settings (defaults for new turns, inherited from source)
-        aspectRatio: v.string(), // "1:1", "16:9", etc.
-        resolution: v.string(), // "standard", "high", "ultra"
+        aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
+        resolution: v.optional(v.string()), // "standard", "high", "ultra"
+
+        // Materialized summary fields for list/feed queries
+        turnCount: v.optional(v.number()),
+        latestTurnId: v.optional(v.id("image_edit_turns")),
+        latestTurnIndex: v.optional(v.number()),
+        latestUserMessage: v.optional(v.string()),
+        latestAspectRatio: v.optional(v.string()),
+        latestResolution: v.optional(v.string()),
+        latestStatus: v.optional(v.string()),
+        latestPendingModels: v.optional(v.array(v.string())),
+        latestProgressAt: v.optional(v.number()),
+        latestOutputCount: v.optional(v.number()),
+        thumbnailStorageId: v.optional(v.id("_storage")),
+        latestOutputs: v.optional(
+            v.array(
+                v.object({
+                    outputId: v.id("image_edit_outputs"),
+                    storageId: v.id("_storage"),
+                    model: v.string(),
+                    width: v.number(),
+                    height: v.number(),
+                    createdAt: v.number(),
+                })
+            )
+        ),
 
         // Timestamps
         createdAt: v.number(),
@@ -301,7 +330,8 @@ export default defineSchema({
     }).index("by_user_id", ["userId"])
       .index("by_source_image", ["sourceImageId"])
       .index("by_source_media", ["sourceMediaId"])
-      .index("by_user_created", ["userId", "createdAt"]),
+      .index("by_user_created", ["userId", "createdAt"])
+      .index("by_user_updated", ["userId", "updatedAt"]),
 
     // Each turn in an image editing conversation
     image_edit_turns: defineTable({
@@ -311,13 +341,19 @@ export default defineSchema({
         // User input
         userMessage: v.string(),
         selectedModels: v.array(v.string()), // Models chosen for this turn
+        selectedOutputIds: v.optional(v.array(v.id("image_edit_outputs"))), // Selected outputs from the previous turn
 
         // Additional reference images (user-uploaded, not auto from previous turn)
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
 
+        // Per-turn generation settings
+        aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
+        resolution: v.optional(v.string()), // "standard", "high", "ultra"
+
         // Generation state (for progressive loading)
         status: v.string(), // "pending" | "generating" | "completed" | "error"
         pendingModels: v.optional(v.array(v.string())), // Models still generating
+        lastProgressAt: v.optional(v.number()),
 
         createdAt: v.number(),
     }).index("by_conversation", ["conversationId"])

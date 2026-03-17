@@ -108,6 +108,11 @@
 	let hydratedPostId = $state<string | null>(null);
 	let hydratedPostMediaId = $state<string | null>(null);
 	let consumedMediaIdsSignature = $state("");
+	let libraryBaseItems = $state<MediaItem[]>([]);
+	let allLibraryCache = $state<MediaItem[] | null>(null);
+	let projectLibraryCache = $state<Record<string, MediaItem[]>>({});
+	let libraryLoading = $state(false);
+	let libraryRequestToken = 0;
 
 	const composerPostId = $derived(activePostId ?? postIdFromUrl);
 
@@ -124,14 +129,6 @@
 		() =>
 			selectedMediaIds.length > 0
 				? { ids: selectedMediaIds }
-				: "skip"
-	);
-	const allMediaQuery = useQuery(api.mediaItems.listByUser, () => ({ limit: 120 }));
-	const projectMediaQuery = useQuery(
-		api.mediaItems.listByProject,
-		() =>
-			libraryScope === "project" && selectedProjectId
-				? { projectId: selectedProjectId }
 				: "skip"
 	);
 	const selectedProjectQuery = useQuery(
@@ -154,13 +151,6 @@
 	let contextImages = $derived(contextImagesQuery.data ?? []);
 	let selectedMedia = $derived((selectedMediaQuery.data ?? []) as MediaItem[]);
 	let linkedPostMedia = $derived(postMediaQuery.data ?? []);
-	let libraryBaseItems = $derived(
-		(
-			libraryScope === "project" && selectedProjectId
-				? projectMediaQuery.data ?? []
-				: allMediaQuery.data?.items ?? []
-		) as MediaItem[]
-	);
 	let libraryItems = $derived.by(() => {
 		const query = librarySearch.trim().toLowerCase();
 		if (!query) {
@@ -217,6 +207,58 @@
 		if (!captionBrief && selectedMedia.length === 1 && selectedMedia[0]?.prompt) {
 			captionBrief = selectedMedia[0].prompt ?? "";
 		}
+	});
+
+	$effect(() => {
+		const effectiveScope =
+			libraryScope === "project" && selectedProjectId ? "project" : "all";
+		const cacheKey = selectedProjectId ?? "__all__";
+		const cachedItems =
+			effectiveScope === "all"
+				? allLibraryCache
+				: projectLibraryCache[cacheKey];
+
+		if (cachedItems) {
+			libraryBaseItems = cachedItems;
+			libraryLoading = false;
+			return;
+		}
+
+		const requestToken = ++libraryRequestToken;
+		libraryLoading = true;
+
+		void (async () => {
+			try {
+				const nextItems =
+					effectiveScope === "project" && selectedProjectId
+						? ((await client.query(api.mediaItems.listCardsByProject, {
+								projectId: selectedProjectId,
+						  })) as MediaItem[])
+						: ((await client.query(api.mediaItems.listCardsByUser, {
+								limit: 120,
+						  })).items as MediaItem[]);
+
+				if (requestToken !== libraryRequestToken) return;
+
+				libraryBaseItems = nextItems;
+				if (effectiveScope === "all") {
+					allLibraryCache = nextItems;
+				} else if (selectedProjectId) {
+					projectLibraryCache = {
+						...projectLibraryCache,
+						[selectedProjectId]: nextItems,
+					};
+				}
+			} catch (err) {
+				if (requestToken !== libraryRequestToken) return;
+				console.error("Failed to load media library:", err);
+				libraryBaseItems = [];
+			} finally {
+				if (requestToken === libraryRequestToken) {
+					libraryLoading = false;
+				}
+			}
+		})();
 	});
 
 	function isSelected(mediaId: Id<"media_items">): boolean {
@@ -524,7 +566,7 @@
 							</div>
 						</div>
 
-						{#if allMediaQuery.isLoading || projectMediaQuery.isLoading}
+						{#if libraryLoading}
 							<div class="flex items-center justify-center py-16">
 								<svg class="h-7 w-7 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

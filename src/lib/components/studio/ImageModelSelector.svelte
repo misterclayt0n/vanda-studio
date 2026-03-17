@@ -58,9 +58,10 @@
 		selected: string[];
 		onchange: (models: string[]) => void;
 		class?: string;
+		compact?: boolean;
 	}
 
-	let { selected, onchange, class: className }: Props = $props();
+	let { selected, onchange, class: className, compact = false }: Props = $props();
 
 	function toggleModel(modelId: string) {
 		if (selected.includes(modelId)) {
@@ -83,7 +84,9 @@
 		<button
 			type="button"
 			class={cn(
-				"flex w-full items-center gap-3 rounded-none border p-3 text-left transition-all",
+				compact
+					? "flex min-h-[58px] w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-all"
+					: "flex w-full items-center gap-3 rounded-none border p-3 text-left transition-all",
 				isSelected(model.id)
 					? "border-primary bg-primary/5"
 					: "border-border bg-background hover:bg-muted/50"
@@ -92,7 +95,10 @@
 		>
 			<!-- Model Icon -->
 			<div
-				class="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm"
+				class={cn(
+					"flex shrink-0 items-center justify-center",
+					compact ? "h-8 w-8 rounded-sm" : "h-10 w-10 rounded-sm"
+				)}
 				style="background-color: {model.color}20;"
 			>
 				{#if model.id.includes("gemini") || model.id.includes("google")}
@@ -104,7 +110,10 @@
 						<path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/>
 					</svg>
 				{:else if model.id.includes("flux") || model.id.includes("black-forest")}
-					<div class="flex h-5 w-5 items-center justify-center rounded-sm bg-gray-800 text-[10px] font-bold text-white">
+					<div class={cn(
+						"flex items-center justify-center rounded-sm bg-gray-800 font-bold text-white",
+						compact ? "h-[18px] w-[18px] text-[9px]" : "h-5 w-5 text-[10px]"
+					)}>
 						F2
 					</div>
 				{:else if model.id.includes("openai") || model.id.includes("gpt")}
@@ -119,26 +128,35 @@
 			<!-- Model Info -->
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center gap-2">
-					<span class="text-sm font-medium">{model.name}</span>
+					<span class={cn("font-medium", compact ? "text-[14px] leading-tight" : "text-sm")}>{model.name}</span>
 					{#if model.id === DEFAULT_MODEL}
-						<span class="rounded-none bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+						<span class={cn(
+							"bg-primary/10 font-medium text-primary",
+							compact ? "ml-auto rounded-full px-1.5 py-0.5 text-[8px]" : "rounded-none px-1.5 py-0.5 text-[10px]"
+						)}>
 							Recomendado
 						</span>
 					{/if}
 				</div>
-				<div class="text-xs text-muted-foreground">{model.provider}</div>
+				<div class={cn("text-muted-foreground", compact ? "text-[12px] leading-tight" : "text-xs")}>{model.provider}</div>
 			</div>
 
 			<!-- Selection Indicator -->
 			<div class="shrink-0">
 				{#if isSelected(model.id)}
-					<div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-						<svg class="h-4 w-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+					<div class={cn(
+						"flex items-center justify-center rounded-full bg-primary",
+						compact ? "h-5 w-5" : "h-6 w-6"
+					)}>
+						<svg class={cn("text-primary-foreground", compact ? "h-3 w-3" : "h-4 w-4")} fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 						</svg>
 					</div>
 				{:else}
-					<div class="h-6 w-6 rounded-full border-2 border-muted-foreground/30"></div>
+					<div class={cn(
+						"rounded-full border-2 border-muted-foreground/30",
+						compact ? "h-5 w-5" : "h-6 w-6"
+					)}></div>
 				{/if}
 			</div>
 		</button>

@@ -13,7 +13,7 @@
     let showCreateModal = $state(false);
 
     // Queries
-    const projectsQuery = useQuery(api.projects.list, () => ({}));
+    const projectsQuery = useQuery(api.projects.listSummaries, () => ({}));
 
     // Derived data
     let projects = $derived(projectsQuery.data ?? []);
@@ -45,18 +45,6 @@
         deleteConfirmId = null;
     }
 
-    // Get post count for a project (simple client-side query)
-    const postCountsMap = $state(new Map<string, number>());
-
-    // Update post counts when projects change
-    $effect(() => {
-        projects.forEach(async (project) => {
-            if (!postCountsMap.has(project._id)) {
-                const count = await client.query(api.generatedPosts.countByProject, { projectId: project._id });
-                postCountsMap.set(project._id, count);
-            }
-        });
-    });
 </script>
 
 <svelte:head>
@@ -137,7 +125,7 @@
                     {#each projects as project (project._id)}
                         <ProjectCard
                             {project}
-                            postCount={postCountsMap.get(project._id) ?? 0}
+                            postCount={project.postCount ?? 0}
                             ondelete={handleDeleteProject}
                         />
                     {/each}

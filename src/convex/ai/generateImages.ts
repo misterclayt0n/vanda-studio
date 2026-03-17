@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
@@ -64,27 +64,23 @@ export const generate = action({
             }
         }
 
-        // 3. Parse settings
         const imageModels = args.imageModels ?? [DEFAULT_IMAGE_MODEL];
         const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
         const resolution = (args.resolution ?? "standard") as Resolution;
-        const dimensions = calculateDimensions(aspectRatio, resolution);
 
-        // 4. Reserve usage
         const reservedCount = await reserveImageUsage(ctx, imageModels.length);
 
-        // 5. Create batch for progressive loading
         const batchId = await ctx.runMutation(internal.mediaGenerationBatches.create, {
             userId: user._id,
             ...(args.projectId && { projectId: args.projectId }),
             totalModels: imageModels.length,
             pendingModels: imageModels,
+            requestedModels: imageModels,
             prompt: args.message,
             aspectRatio,
             resolution,
         });
 
-        // 6. Collect reference image URLs
         const referenceImageUrls: string[] = [];
         if (args.referenceImageUrls) {
             referenceImageUrls.push(...args.referenceImageUrls);
@@ -101,68 +97,127 @@ export const generate = action({
             referenceImageUrls.push(...args.projectContext.contextImageUrls);
         }
 
-        // 7. Generate images in parallel
-        console.log(`[GENERATE_IMAGES] Starting parallel generation for ${imageModels.length} models`);
+        try {
+            await ctx.scheduler.runAfter(0, internal.ai.generateImages.processBatch, {
+                batchId,
+                userId: user._id,
+                ...(args.projectId && { projectId: args.projectId }),
+                message: args.message,
+                imageModels,
+                aspectRatio,
+                resolution,
+                referenceImageUrls,
+                reservedCount,
+            });
+        } catch (err) {
+            await refundImageUsage(ctx, reservedCount);
+            await ctx.runMutation(internal.mediaGenerationBatches.markError, {
+                id: batchId,
+                clearPending: true,
+            });
+            throw err;
+        }
 
-        const results = await Promise.all(
-            imageModels.map(async (model) => {
-                try {
-                    console.log(`[GENERATE_IMAGES] Generating with model: ${model}`);
+        return {
+            success: true,
+            batchId,
+        };
+    },
+});
 
-                    const imageResult = await generateImage({
-                        caption: "",
-                        instructions: args.message,
-                        model,
-                        aspectRatio,
-                        resolution,
-                        ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
-                    });
+export const processBatch = internalAction({
+    args: {
+        batchId: v.id("media_generation_batches"),
+        userId: v.id("users"),
+        projectId: v.optional(v.id("projects")),
+        message: v.string(),
+        imageModels: v.array(v.string()),
+        aspectRatio: v.string(),
+        resolution: v.string(),
+        referenceImageUrls: v.array(v.string()),
+        reservedCount: v.number(),
+    },
+    handler: async (ctx, args): Promise<void> => {
+        const aspectRatio = args.aspectRatio as AspectRatio;
+        const resolution = args.resolution as Resolution;
+        const dimensions = calculateDimensions(aspectRatio, resolution);
 
-                    // Store the image
-                    const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (c) =>
-                        c.charCodeAt(0)
-                    );
-                    const blob = new Blob([binaryData], { type: imageResult.mimeType });
-                    const storageId = await ctx.storage.store(blob);
+        let results:
+            | Array<
+                  | { success: true; model: string }
+                  | { success: false; model: string; errorMessage: string }
+              >
+            | null = null;
 
-                    // Create media_items row
-                    await ctx.runMutation(internal.mediaItems.create, {
-                        userId: user._id,
-                        ...(args.projectId && { projectId: args.projectId }),
-                        storageId,
-                        mimeType: imageResult.mimeType,
-                        width: imageResult.dimensions?.width ?? dimensions.width,
-                        height: imageResult.dimensions?.height ?? dimensions.height,
-                        sourceType: "generated",
-                        model,
-                        prompt: imageResult.prompt,
-                        aspectRatio,
-                        resolution,
-                        batchId,
-                    });
+        try {
+            results = await Promise.all(
+                args.imageModels.map(async (model) => {
+                    const startedAt = Date.now();
+                    try {
+                        const imageResult = await generateImage({
+                            caption: "",
+                            instructions: args.message,
+                            model,
+                            aspectRatio,
+                            resolution,
+                            ...(args.referenceImageUrls.length > 0
+                                ? { referenceImageUrls: args.referenceImageUrls }
+                                : {}),
+                        });
 
-                    // Remove from pending
-                    await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
-                        id: batchId,
-                        model,
-                    });
+                        const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (char) =>
+                            char.charCodeAt(0)
+                        );
+                        const blob = new Blob([binaryData], { type: imageResult.mimeType });
+                        const storageId = await ctx.storage.store(blob);
 
-                    console.log(`[GENERATE_IMAGES] Successfully generated with ${model}`);
-                    return { success: true as const, model };
-                } catch (err) {
-                    console.error(`[GENERATE_IMAGES] Generation failed for ${model}:`, err);
-                    await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
-                        id: batchId,
-                        model,
-                    });
-                    return {
-                        success: false as const,
-                        model,
-                        errorMessage: err instanceof Error ? err.message : "Erro ao gerar imagem",
-                    };
-                }
-            })
-        );
+                        await ctx.runMutation(internal.mediaItems.create, {
+                            userId: args.userId,
+                            ...(args.projectId && { projectId: args.projectId }),
+                            storageId,
+                            mimeType: imageResult.mimeType,
+                            width: imageResult.dimensions?.width ?? dimensions.width,
+                            height: imageResult.dimensions?.height ?? dimensions.height,
+                            sourceType: "generated",
+                            model,
+                            prompt: imageResult.prompt,
+                            userPrompt: args.message,
+                            generationDurationMs: Date.now() - startedAt,
+                            aspectRatio,
+                            resolution,
+                            batchId: args.batchId,
+                        });
+
+                        await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
+                            id: args.batchId,
+                            model,
+                        });
+
+                        return { success: true as const, model };
+                    } catch (err) {
+                        console.error(`[GENERATE_IMAGES] Generation failed for ${model}:`, err);
+                        await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
+                            id: args.batchId,
+                            model,
+                        });
+                        return {
+                            success: false as const,
+                            model,
+                            errorMessage:
+                                err instanceof Error ? err.message : "Erro ao gerar imagem",
+                        };
+                    }
+                })
+            );
+        } catch (err) {
+            console.error(`[GENERATE_IMAGES] Async batch ${args.batchId} failed:`, err);
+            await refundImageUsage(ctx, args.reservedCount);
+            await ctx.runMutation(internal.mediaGenerationBatches.markError, {
+                id: args.batchId,
+                clearPending: true,
+            });
+            return;
+        }
 
         const failedResults = results.filter((result) => !result.success);
         const failedCount = failedResults.length;
@@ -170,19 +225,10 @@ export const generate = action({
             await refundImageUsage(ctx, failedCount);
         }
 
-        if (failedCount === imageModels.length) {
-            await ctx.runMutation(internal.mediaGenerationBatches.markError, { id: batchId });
-            const firstFailure = failedResults[0];
-            throw new Error(
-                firstFailure?.errorMessage ?? "Não foi possível gerar imagens com os modelos selecionados."
-            );
+        if (failedCount === args.imageModels.length) {
+            await ctx.runMutation(internal.mediaGenerationBatches.markError, {
+                id: args.batchId,
+            });
         }
-
-        console.log(`[GENERATE_IMAGES] Batch ${batchId} complete`);
-
-        return {
-            success: true,
-            batchId,
-        };
     },
 });

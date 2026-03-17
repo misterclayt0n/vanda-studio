@@ -1,6 +1,69 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
+
+type MediaCard = Pick<
+    Doc<"media_items">,
+    | "_id"
+    | "_creationTime"
+    | "storageId"
+    | "mimeType"
+    | "sourceType"
+    | "width"
+    | "height"
+    | "createdAt"
+> & {
+    url: string | null;
+    model?: string;
+    prompt?: string;
+    userPrompt?: string;
+    generationDurationMs?: number;
+    aspectRatio?: string;
+    resolution?: string;
+    projectId?: Id<"projects">;
+    batchId?: Id<"media_generation_batches">;
+    sourceConversationId?: Id<"image_edit_conversations">;
+    sourceTurnId?: Id<"image_edit_turns">;
+    sourceOutputId?: Id<"image_edit_outputs">;
+};
+
+function toMediaCard(
+    item: Doc<"media_items">,
+    url: string | null
+): MediaCard {
+    return {
+        _id: item._id,
+        _creationTime: item._creationTime,
+        storageId: item.storageId,
+        mimeType: item.mimeType,
+        sourceType: item.sourceType,
+        width: item.width,
+        height: item.height,
+        createdAt: item.createdAt,
+        url,
+        ...(item.model && { model: item.model }),
+        ...(item.prompt && { prompt: item.prompt }),
+        ...(item.userPrompt && { userPrompt: item.userPrompt }),
+        ...(item.generationDurationMs !== undefined
+            ? { generationDurationMs: item.generationDurationMs }
+            : {}),
+        ...(item.aspectRatio && { aspectRatio: item.aspectRatio }),
+        ...(item.resolution && { resolution: item.resolution }),
+        ...(item.projectId && { projectId: item.projectId }),
+        ...(item.batchId && { batchId: item.batchId }),
+        ...(item.sourceConversationId && { sourceConversationId: item.sourceConversationId }),
+        ...(item.sourceTurnId && { sourceTurnId: item.sourceTurnId }),
+        ...(item.sourceOutputId && { sourceOutputId: item.sourceOutputId }),
+    };
+}
+
+async function resolveMediaCards(
+    ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+    items: Doc<"media_items">[]
+): Promise<MediaCard[]> {
+    const urls = await Promise.all(items.map((item) => ctx.storage.getUrl(item.storageId)));
+    return items.map((item, index) => toMediaCard(item, urls[index] ?? null));
+}
 
 // ============================================================================
 // Internal Mutations (called by actions/migrations)
@@ -17,6 +80,8 @@ export const create = internalMutation({
         sourceType: v.string(),
         model: v.optional(v.string()),
         prompt: v.optional(v.string()),
+        userPrompt: v.optional(v.string()),
+        generationDurationMs: v.optional(v.number()),
         aspectRatio: v.optional(v.string()),
         resolution: v.optional(v.string()),
         parentMediaId: v.optional(v.id("media_items")),
@@ -39,6 +104,10 @@ export const create = internalMutation({
             sourceType: args.sourceType,
             ...(args.model && { model: args.model }),
             ...(args.prompt && { prompt: args.prompt }),
+            ...(args.userPrompt && { userPrompt: args.userPrompt }),
+            ...(args.generationDurationMs !== undefined
+                ? { generationDurationMs: args.generationDurationMs }
+                : {}),
             ...(args.aspectRatio && { aspectRatio: args.aspectRatio }),
             ...(args.resolution && { resolution: args.resolution }),
             ...(args.parentMediaId && { parentMediaId: args.parentMediaId }),
@@ -285,6 +354,43 @@ export const listByUser = query({
     },
 });
 
+export const listCardsByUser = query({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return { items: [], nextCursor: null, hasMore: false };
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return { items: [], nextCursor: null, hasMore: false };
+        }
+
+        const limit = args.limit ?? 30;
+        const result = await ctx.db
+            .query("media_items")
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .paginate({ cursor: args.cursor ?? null, numItems: limit });
+
+        const visibleItems = result.page.filter((item) => !item.deletedAt);
+
+        return {
+            items: await resolveMediaCards(ctx, visibleItems),
+            nextCursor: result.continueCursor,
+            hasMore: !result.isDone,
+        };
+    },
+});
+
 // List media items for a project
 export const listByProject = query({
     args: {
@@ -326,6 +432,43 @@ export const listByProject = query({
             ...item,
             url: urls[i] ?? null,
         }));
+    },
+});
+
+export const listCardsByProject = query({
+    args: {
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || project.userId !== user._id) {
+            return [];
+        }
+
+        const items = await ctx.db
+            .query("media_items")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .collect();
+
+        return resolveMediaCards(
+            ctx,
+            items.filter((item) => !item.deletedAt)
+        );
     },
 });
 
@@ -395,6 +538,50 @@ export const listByIds = query({
     },
 });
 
+export const listBySourceOutputIds = query({
+    args: {
+        outputIds: v.array(v.id("image_edit_outputs")),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity || args.outputIds.length === 0) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const items = await Promise.all(
+            args.outputIds.map((outputId) =>
+                ctx.db
+                    .query("media_items")
+                    .withIndex("by_source_output", (q) => q.eq("sourceOutputId", outputId))
+                    .first()
+            )
+        );
+
+        const visibleItems = items.filter(
+            (item): item is NonNullable<typeof item> =>
+                !!item && item.userId === user._id && !item.deletedAt
+        );
+
+        const urls = await Promise.all(
+            visibleItems.map((item) => ctx.storage.getUrl(item.storageId))
+        );
+
+        return visibleItems.map((item, index) => ({
+            ...item,
+            url: urls[index] ?? null,
+        }));
+    },
+});
+
 // Search media items by prompt text
 export const search = query({
     args: {
@@ -426,7 +613,11 @@ export const search = query({
 
         const matched = allItems
             .filter((item) => !item.deletedAt)
-            .filter((item) => item.prompt?.toLowerCase().includes(searchTerm))
+            .filter(
+                (item) =>
+                    item.prompt?.toLowerCase().includes(searchTerm) ||
+                    item.userPrompt?.toLowerCase().includes(searchTerm)
+            )
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, limit);
 
@@ -438,5 +629,54 @@ export const search = query({
             ...item,
             url: urls[i] ?? null,
         }));
+    },
+});
+
+export const searchCards = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const searchTerm = args.query.trim().toLowerCase();
+        if (!searchTerm) {
+            return [];
+        }
+
+        const limit = args.limit ?? 20;
+        const scanLimit = Math.max(limit * 15, 150);
+
+        const recentItems = await ctx.db
+            .query("media_items")
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .take(scanLimit);
+
+        const matched = recentItems
+            .filter((item) => !item.deletedAt)
+            .filter((item) => {
+                const promptMatch = item.prompt?.toLowerCase().includes(searchTerm) ?? false;
+                const userPromptMatch = item.userPrompt?.toLowerCase().includes(searchTerm) ?? false;
+                const modelMatch = item.model?.toLowerCase().includes(searchTerm) ?? false;
+                const sourceMatch = item.sourceType.toLowerCase().includes(searchTerm);
+                return promptMatch || userPromptMatch || modelMatch || sourceMatch;
+            })
+            .slice(0, limit);
+
+        return resolveMediaCards(ctx, matched);
     },
 });
