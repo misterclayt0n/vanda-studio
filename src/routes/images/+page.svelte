@@ -446,6 +446,48 @@
 		return cards;
 	});
 
+	let viewportWidth = $state(typeof window !== "undefined" ? window.innerWidth : 1280);
+
+	$effect(() => {
+		function onResize() {
+			viewportWidth = window.innerWidth;
+		}
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	});
+
+	let columnCount = $derived(
+		viewportWidth < 640 ? 1 :
+		viewportWidth < 1024 ? 2 :
+		viewportWidth < 1280 ? 3 :
+		viewportWidth < 1536 ? 4 : 5
+	);
+
+	const CARD_META_HEIGHT = 0.18; // estimated relative height of title+date area
+
+	function getCardEstimatedHeight(card: GridCard): number {
+		if (card.type === "item") {
+			const ratio = getMediaAspectRatio(card.item);
+			const [w, h] = ratio.split(" / ").map(Number);
+			return (w && h ? h / w : 1) + CARD_META_HEIGHT;
+		}
+		const ar = card.aspectRatio ?? "1:1";
+		const [w, h] = ar.split(":").map(Number);
+		return (w && h ? h / w : 1) + CARD_META_HEIGHT;
+	}
+
+	let columnCards = $derived(() => {
+		const cards = gridCards();
+		const cols: GridCard[][] = Array.from({ length: columnCount }, () => []);
+		const heights = new Array(columnCount).fill(0);
+		for (const card of cards) {
+			const shortest = heights.indexOf(Math.min(...heights));
+			cols[shortest].push(card);
+			heights[shortest] += getCardEstimatedHeight(card);
+		}
+		return cols;
+	});
+
 	let isLoading = $derived(
 		(initialItemsQuery.isLoading && !initialLoadDone) ||
 		(!!filterProjectId && projectItemsQuery.isLoading) ||
@@ -938,9 +980,11 @@
 					{:else}
 						<div class="p-5 sm:p-6">
 							{#if viewMode === "images"}
-								<div class="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
-									{#each gridCards() as card (card.key)}
-										<div class="group relative mb-5 break-inside-avoid">
+								<div class="flex gap-5">
+									{#each columnCards() as col, colIdx (colIdx)}
+										<div class="flex min-w-0 flex-1 flex-col gap-5">
+										{#each col as card (card.key)}
+										<div class="group relative">
 											{#if card.type === "item"}
 												<button
 													type="button"
@@ -1062,6 +1106,8 @@
 													</div>
 												{/if}
 											{/if}
+										</div>
+										{/each}
 										</div>
 									{/each}
 								</div>
