@@ -707,22 +707,34 @@
 
 	<div class="flex flex-1 overflow-hidden">
 		<aside class="flex w-80 shrink-0 flex-col border-r border-border bg-muted/20 overflow-hidden">
-			<div class="space-y-3 p-4">
-				<h2 class="text-sm font-semibold text-foreground">Gerar Imagens</h2>
+			<div class="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+				<div class="shrink-0 space-y-1.5">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+						</svg>
+						Projeto
+					</p>
+					<ProjectSelector
+						value={selectedProjectId}
+						onchange={(projectId) => (selectedProjectId = projectId)}
+						description={null}
+						label={null}
+						compact
+					/>
+				</div>
 
-				<ProjectSelector
-					value={selectedProjectId}
-					onchange={(projectId) => (selectedProjectId = projectId)}
-					description={null}
-					compact
-				/>
-
-				<div class="space-y-1.5">
-					<p class="text-xs font-medium text-muted-foreground">Prompt</p>
+				<div class="shrink-0 space-y-1.5">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+						</svg>
+						Prompt
+					</p>
 					<Textarea
 						placeholder="Descreva a imagem que deseja gerar..."
 						bind:value={prompt}
-						class="min-h-[88px] resize-none text-sm"
+						class="min-h-[72px] resize-none text-sm"
 						onkeydown={(event) => {
 							if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 								event.preventDefault();
@@ -732,28 +744,45 @@
 					/>
 				</div>
 
-				<div class="space-y-1.5">
-					<p class="text-xs font-medium text-muted-foreground">Modelos</p>
-					<ImageModelSelector selected={selectedModels} onchange={(models) => (selectedModels = models)} compact />
+				<div class="flex min-h-0 flex-1 flex-col space-y-1.5">
+					<p class="shrink-0 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+						</svg>
+						Modelos
+					</p>
+					<div class="overflow-y-auto">
+						<ImageModelSelector selected={selectedModels} onchange={(models) => (selectedModels = models)} compact />
+					</div>
 				</div>
 
-				<div class="space-y-1.5">
-					<p class="text-xs font-medium text-muted-foreground">Proporção</p>
+				<div class="shrink-0 space-y-1.5">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+						</svg>
+						Proporção
+					</p>
 					<AspectRatioSelector value={aspectRatio} onchange={(value) => (aspectRatio = value)} compact />
 				</div>
 
-				<div class="space-y-1.5">
-					<p class="text-xs font-medium text-muted-foreground">Resolução</p>
+				<div class="shrink-0 space-y-1.5">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+						</svg>
+						Resolução
+					</p>
 					<ResolutionSelector value={resolution} onchange={(value) => (resolution = value)} compact />
 				</div>
 
 				{#if error}
-					<div class="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+					<div class="shrink-0 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
 						{error}
 					</div>
 				{/if}
 
-				<Button class="w-full" disabled={!prompt.trim() || isGenerating} onclick={handleGenerate}>
+				<Button class="w-full shrink-0" disabled={!prompt.trim() || isGenerating} onclick={handleGenerate}>
 					{#if isGenerating}
 						<svg class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -768,7 +797,7 @@
 					{/if}
 				</Button>
 
-				<div class="border-t border-border pt-4">
+				<div class="shrink-0 border-t border-border pt-4">
 					<input
 						bind:this={fileInputEl}
 						type="file"
