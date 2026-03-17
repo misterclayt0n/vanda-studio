@@ -180,7 +180,12 @@
 						<div class="mx-auto flex w-full max-w-4xl flex-col items-center">
 							<div class="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.24)]" style={`width: min(100%, 520px); aspect-ratio: ${getMediaAspectRatio()};`}>
 								{#if sourceMedia.url}
-									<img src={sourceMedia.url} alt={sourceMedia.userPrompt ?? sourceMedia.prompt ?? "Imagem de origem"} class="h-full w-full object-cover" />
+									<img
+										src={sourceMedia.thumbnailUrl ?? sourceMedia.url}
+										alt={sourceMedia.userPrompt ?? sourceMedia.prompt ?? "Imagem de origem"}
+										decoding="async"
+										class="h-full w-full object-cover"
+									/>
 								{/if}
 							</div>
 

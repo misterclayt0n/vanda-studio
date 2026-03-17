@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 type MediaCard = Pick<
     Doc<"media_items">,
@@ -14,6 +15,7 @@ type MediaCard = Pick<
     | "createdAt"
 > & {
     url: string | null;
+    thumbnailUrl?: string | null;
     model?: string;
     prompt?: string;
     userPrompt?: string;
@@ -29,7 +31,8 @@ type MediaCard = Pick<
 
 function toMediaCard(
     item: Doc<"media_items">,
-    url: string | null
+    url: string | null,
+    thumbnailUrl?: string | null
 ): MediaCard {
     return {
         _id: item._id,
@@ -41,6 +44,7 @@ function toMediaCard(
         height: item.height,
         createdAt: item.createdAt,
         url,
+        ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
         ...(item.model && { model: item.model }),
         ...(item.prompt && { prompt: item.prompt }),
         ...(item.userPrompt && { userPrompt: item.userPrompt }),
@@ -57,12 +61,81 @@ function toMediaCard(
     };
 }
 
+async function resolveStorageUrlMap(
+    ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+    storageIds: Array<Id<"_storage"> | undefined>
+) {
+    const uniqueStorageIds = [...new Set(storageIds.filter((id): id is Id<"_storage"> => !!id))];
+    const urls = await Promise.all(uniqueStorageIds.map((storageId) => ctx.storage.getUrl(storageId)));
+    return new Map(uniqueStorageIds.map((storageId, index) => [storageId, urls[index] ?? null]));
+}
+
 async function resolveMediaCards(
     ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
     items: Doc<"media_items">[]
 ): Promise<MediaCard[]> {
-    const urls = await Promise.all(items.map((item) => ctx.storage.getUrl(item.storageId)));
-    return items.map((item, index) => toMediaCard(item, urls[index] ?? null));
+    const urlMap = await resolveStorageUrlMap(
+        ctx,
+        items.flatMap((item) => [item.storageId, item.thumbnailStorageId])
+    );
+
+    return items.map((item) =>
+        toMediaCard(
+            item,
+            urlMap.get(item.storageId) ?? null,
+            item.thumbnailStorageId ? (urlMap.get(item.thumbnailStorageId) ?? null) : null
+        )
+    );
+}
+
+async function resolveMediaItems(
+    ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+    items: Doc<"media_items">[]
+) {
+    const urlMap = await resolveStorageUrlMap(
+        ctx,
+        items.flatMap((item) => [item.storageId, item.thumbnailStorageId])
+    );
+
+    return items.map((item) => ({
+        ...item,
+        url: urlMap.get(item.storageId) ?? null,
+        ...(item.thumbnailStorageId
+            ? { thumbnailUrl: urlMap.get(item.thumbnailStorageId) ?? null }
+            : {}),
+    }));
+}
+
+async function scheduleThumbnailGeneration(
+    ctx: {
+        scheduler: {
+            runAfter: (
+                delayMs: number,
+                fn: typeof internal.mediaProcessing.generateThumbnailForMedia,
+                args: { mediaItemId: Id<"media_items"> }
+            ) => Promise<unknown>;
+        };
+        db: {
+            patch: (
+                id: Id<"media_items">,
+                value: Partial<Doc<"media_items">>
+            ) => Promise<void>;
+        };
+    },
+    mediaItemId: Id<"media_items">
+) {
+    try {
+        await ctx.scheduler.runAfter(0, internal.mediaProcessing.generateThumbnailForMedia, {
+            mediaItemId,
+        });
+    } catch (error) {
+        console.error("[MEDIA_ITEMS] Failed to schedule thumbnail generation:", error);
+        await ctx.db.patch(mediaItemId, {
+            thumbnailStatus: "error",
+            thumbnailUpdatedAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+    }
 }
 
 // ============================================================================
@@ -74,6 +147,7 @@ export const create = internalMutation({
         userId: v.id("users"),
         projectId: v.optional(v.id("projects")),
         storageId: v.id("_storage"),
+        thumbnailStorageId: v.optional(v.id("_storage")),
         mimeType: v.string(),
         width: v.number(),
         height: v.number(),
@@ -94,10 +168,13 @@ export const create = internalMutation({
     },
     handler: async (ctx, args) => {
         const now = Date.now();
-        return await ctx.db.insert("media_items", {
+        const mediaItemId = await ctx.db.insert("media_items", {
             userId: args.userId,
             ...(args.projectId && { projectId: args.projectId }),
             storageId: args.storageId,
+            ...(args.thumbnailStorageId && { thumbnailStorageId: args.thumbnailStorageId }),
+            thumbnailStatus: args.thumbnailStorageId ? "ready" : "pending",
+            thumbnailUpdatedAt: now,
             mimeType: args.mimeType,
             width: args.width,
             height: args.height,
@@ -119,6 +196,49 @@ export const create = internalMutation({
             ...(args.legacyPostId && { legacyPostId: args.legacyPostId }),
             createdAt: now,
             updatedAt: now,
+        });
+
+        if (!args.thumbnailStorageId) {
+            await scheduleThumbnailGeneration(ctx, mediaItemId);
+        }
+
+        return mediaItemId;
+    },
+});
+
+export const getInternal = internalQuery({
+    args: {
+        id: v.id("media_items"),
+    },
+    handler: async (ctx, args) => {
+        return ctx.db.get(args.id);
+    },
+});
+
+export const setThumbnailReady = internalMutation({
+    args: {
+        id: v.id("media_items"),
+        thumbnailStorageId: v.id("_storage"),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.id, {
+            thumbnailStorageId: args.thumbnailStorageId,
+            thumbnailStatus: "ready",
+            thumbnailUpdatedAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+export const setThumbnailError = internalMutation({
+    args: {
+        id: v.id("media_items"),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.id, {
+            thumbnailStatus: "error",
+            thumbnailUpdatedAt: Date.now(),
+            updatedAt: Date.now(),
         });
     },
 });
@@ -159,10 +279,12 @@ export const createUploaded = mutation({
         }
 
         const now = Date.now();
-        return await ctx.db.insert("media_items", {
+        const mediaItemId = await ctx.db.insert("media_items", {
             userId: user._id,
             ...(args.projectId && { projectId: args.projectId }),
             storageId: args.storageId,
+            thumbnailStatus: "pending",
+            thumbnailUpdatedAt: now,
             mimeType: args.mimeType,
             width: args.width,
             height: args.height,
@@ -170,6 +292,9 @@ export const createUploaded = mutation({
             createdAt: now,
             updatedAt: now,
         });
+
+        await scheduleThumbnailGeneration(ctx, mediaItemId);
+        return mediaItemId;
     },
 });
 
@@ -277,6 +402,52 @@ export const updateProject = mutation({
     },
 });
 
+export const ensureThumbnails = mutation({
+    args: {
+        ids: v.array(v.id("media_items")),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity || args.ids.length === 0) {
+            return 0;
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return 0;
+        }
+
+        let scheduled = 0;
+        const uniqueIds = [...new Set(args.ids)];
+
+        for (const id of uniqueIds) {
+            const item = await ctx.db.get(id);
+            if (!item || item.userId !== user._id || item.deletedAt || item.thumbnailStorageId) {
+                continue;
+            }
+
+            if (item.thumbnailStatus === "pending") {
+                continue;
+            }
+
+            const now = Date.now();
+            await ctx.db.patch(id, {
+                thumbnailStatus: "pending",
+                thumbnailUpdatedAt: now,
+                updatedAt: now,
+            });
+            await scheduleThumbnailGeneration(ctx, id);
+            scheduled += 1;
+        }
+
+        return scheduled;
+    },
+});
+
 // ============================================================================
 // Queries
 // ============================================================================
@@ -297,12 +468,7 @@ export const get = query({
             return null;
         }
 
-        const url = await ctx.storage.getUrl(item.storageId);
-
-        return {
-            ...item,
-            url,
-        };
+        return (await resolveMediaItems(ctx, [item]))[0] ?? null;
     },
 });
 
@@ -336,15 +502,7 @@ export const listByUser = query({
 
         const visibleItems = result.page.filter((item) => !item.deletedAt);
 
-        // Batch resolve storage URLs
-        const urls = await Promise.all(
-            visibleItems.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        const items = visibleItems.map((item, i) => ({
-            ...item,
-            url: urls[i] ?? null,
-        }));
+        const items = await resolveMediaItems(ctx, visibleItems);
 
         return {
             items,
@@ -424,14 +582,7 @@ export const listByProject = query({
 
         const visibleItems = items.filter((item) => !item.deletedAt);
 
-        const urls = await Promise.all(
-            visibleItems.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        return visibleItems.map((item, i) => ({
-            ...item,
-            url: urls[i] ?? null,
-        }));
+        return resolveMediaItems(ctx, visibleItems);
     },
 });
 
@@ -489,14 +640,7 @@ export const listByBatch = query({
             .order("desc")
             .collect();
 
-        const urls = await Promise.all(
-            items.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        return items.map((item, i) => ({
-            ...item,
-            url: urls[i] ?? null,
-        }));
+        return resolveMediaItems(ctx, items);
     },
 });
 
@@ -527,14 +671,7 @@ export const listByIds = query({
                 !!item && item.userId === user._id && !item.deletedAt
         );
 
-        const urls = await Promise.all(
-            visibleItems.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        return visibleItems.map((item, index) => ({
-            ...item,
-            url: urls[index] ?? null,
-        }));
+        return resolveMediaItems(ctx, visibleItems);
     },
 });
 
@@ -571,14 +708,7 @@ export const listBySourceOutputIds = query({
                 !!item && item.userId === user._id && !item.deletedAt
         );
 
-        const urls = await Promise.all(
-            visibleItems.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        return visibleItems.map((item, index) => ({
-            ...item,
-            url: urls[index] ?? null,
-        }));
+        return resolveMediaItems(ctx, visibleItems);
     },
 });
 
@@ -621,14 +751,7 @@ export const search = query({
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, limit);
 
-        const urls = await Promise.all(
-            matched.map((item) => ctx.storage.getUrl(item.storageId))
-        );
-
-        return matched.map((item, i) => ({
-            ...item,
-            url: urls[i] ?? null,
-        }));
+        return resolveMediaItems(ctx, matched);
     },
 });
 

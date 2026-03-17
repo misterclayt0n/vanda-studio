@@ -6,6 +6,7 @@ import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
 import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
+import { createThumbnailBlob } from "../mediaProcessing";
 import {
     type AspectRatio,
     type Resolution,
@@ -298,12 +299,17 @@ export const processTurn = internalAction({
                             char.charCodeAt(0)
                         );
                         const blob = new Blob([binaryData], { type: result.mimeType });
+                        const thumbnailBlob = await createThumbnailBlob(blob);
                         const storageId = await ctx.storage.store(blob);
+                        const thumbnailStorageId = thumbnailBlob
+                            ? await ctx.storage.store(thumbnailBlob)
+                            : undefined;
 
                         await ctx.runMutation(internal.imageEditOutputs.create, {
                             turnId: args.turnId,
                             conversationId: args.conversationId,
                             storageId,
+                            ...(thumbnailStorageId && { thumbnailStorageId }),
                             mimeType: result.mimeType,
                             model,
                             prompt: result.prompt,

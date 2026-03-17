@@ -25,6 +25,7 @@
 		"convex-svelte": "^0.0.12",
 		"diff": "^8.0.2",
 		"effect": "^3.19.14",
+		"jimp": "^1.6.0",
 		"lucide-svelte": "^0.469.0",
 		"mode-watcher": "^0.5.1",
 		"svelte-clerk": "^0.20.3",

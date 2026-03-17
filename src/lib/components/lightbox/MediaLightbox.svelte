@@ -10,6 +10,7 @@
 	interface MediaItem {
 		_id: Id<"media_items">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model?: string;
 		sourceType: string;
 		prompt?: string;
@@ -31,6 +32,7 @@
 	interface TurnOutput {
 		_id: Id<"image_edit_outputs">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model: string;
 		width: number;
 		height: number;
@@ -548,7 +550,13 @@
 											>
 												<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(card.item.aspectRatio, card.item.width, card.item.height)};`}>
 													{#if card.item.url}
-														<img src={card.item.url} alt={card.item.userPrompt ?? card.item.prompt ?? "Output"} class="h-full w-full object-cover" />
+														<img
+															src={card.item.thumbnailUrl ?? card.item.url}
+															alt={card.item.userPrompt ?? card.item.prompt ?? "Output"}
+															loading="lazy"
+															decoding="async"
+															class="h-full w-full object-cover"
+														/>
 													{/if}
 												</div>
 												<div class="px-2 py-2">

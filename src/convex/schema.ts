@@ -223,6 +223,9 @@ export default defineSchema({
         userId: v.id("users"),
         projectId: v.optional(v.id("projects")),
         storageId: v.id("_storage"),
+        thumbnailStorageId: v.optional(v.id("_storage")),
+        thumbnailStatus: v.optional(v.string()), // "pending" | "ready" | "error"
+        thumbnailUpdatedAt: v.optional(v.number()),
         mimeType: v.string(),
         width: v.number(),
         height: v.number(),
@@ -314,6 +317,7 @@ export default defineSchema({
                 v.object({
                     outputId: v.id("image_edit_outputs"),
                     storageId: v.id("_storage"),
+                    thumbnailStorageId: v.optional(v.id("_storage")),
                     model: v.string(),
                     width: v.number(),
                     height: v.number(),
@@ -366,6 +370,7 @@ export default defineSchema({
 
         // Image data
         storageId: v.id("_storage"),
+        thumbnailStorageId: v.optional(v.id("_storage")),
         model: v.string(),
         prompt: v.string(), // The prompt used
         width: v.number(),

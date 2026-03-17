@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 function sortOutputsBySelectedModels<T extends { model: string }>(
     outputs: T[],
@@ -42,6 +42,7 @@ function summarizeOutputs(
     return sortOutputsBySelectedModels(outputs, selectedModels).map((output) => ({
         outputId: output._id,
         storageId: output.storageId,
+        ...(output.thumbnailStorageId && { thumbnailStorageId: output.thumbnailStorageId }),
         model: output.model,
         width: output.width,
         height: output.height,
@@ -115,12 +116,22 @@ async function loadTurnWithOutputs(ctx: any, turn: any) {
         .withIndex("by_turn", (q: any) => q.eq("turnId", turn._id))
         .collect();
 
-    const outputsWithUrls = await Promise.all(
-        outputs.map(async (output: any) => ({
-            ...output,
-            url: await ctx.storage.getUrl(output.storageId),
-        }))
+    const resolvedStorageIds = outputs
+        .flatMap((output: any) => [output.storageId, output.thumbnailStorageId])
+        .filter((id: unknown): id is Id<"_storage"> => typeof id === "string");
+    const uniqueStorageIds = [...new Set<Id<"_storage">>(resolvedStorageIds)];
+    const urls = await Promise.all(
+        uniqueStorageIds.map((storageId: Id<"_storage">) => ctx.storage.getUrl(storageId))
     );
+    const urlMap = new Map(uniqueStorageIds.map((storageId, index) => [storageId, urls[index] ?? null]));
+
+    const outputsWithUrls = outputs.map((output: any) => ({
+        ...output,
+        url: urlMap.get(output.storageId) ?? null,
+        ...(output.thumbnailStorageId
+            ? { thumbnailUrl: urlMap.get(output.thumbnailStorageId) ?? null }
+            : {}),
+    }));
 
     return {
         ...withTurnDefaults(turn, conversation),

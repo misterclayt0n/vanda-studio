@@ -43,6 +43,7 @@ import type * as instagram from "../instagram.js";
 import type * as instagramPosts from "../instagramPosts.js";
 import type * as mediaGenerationBatches from "../mediaGenerationBatches.js";
 import type * as mediaItems from "../mediaItems.js";
+import type * as mediaProcessing from "../mediaProcessing.js";
 import type * as migrations_backfillMediaItems from "../migrations/backfillMediaItems.js";
 import type * as postMediaItems from "../postMediaItems.js";
 import type * as projects from "../projects.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   instagramPosts: typeof instagramPosts;
   mediaGenerationBatches: typeof mediaGenerationBatches;
   mediaItems: typeof mediaItems;
+  mediaProcessing: typeof mediaProcessing;
   "migrations/backfillMediaItems": typeof migrations_backfillMediaItems;
   postMediaItems: typeof postMediaItems;
   projects: typeof projects;

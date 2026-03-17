@@ -55,6 +55,9 @@ async function buildConversationSummary(
             height: output.height,
             createdAt: output.createdAt,
             url: await ctx.storage.getUrl(output.storageId),
+            ...(output.thumbnailStorageId
+                ? { thumbnailUrl: await ctx.storage.getUrl(output.thumbnailStorageId) }
+                : {}),
         }))
     );
     const fallbackThumbnailUrl =
@@ -109,6 +112,9 @@ async function buildConversationSummaryLegacy(
                   ).map(async (output) => ({
                       ...output,
                       url: await ctx.storage.getUrl(output.storageId),
+                      ...(output.thumbnailStorageId
+                          ? { thumbnailUrl: await ctx.storage.getUrl(output.thumbnailStorageId) }
+                          : {}),
                   }))
               ),
               latestTurn.selectedModels

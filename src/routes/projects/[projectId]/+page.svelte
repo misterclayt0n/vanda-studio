@@ -15,6 +15,7 @@
 	type MediaItem = {
 		_id: Id<"media_items">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		storageId: Id<"_storage">;
 		mimeType: string;
 		model?: string;
@@ -60,6 +61,7 @@
 	let lightboxMediaId = $derived($page.url.searchParams.get("media"));
 	let showDeleteConfirm = $state(false);
 	let isDeletingProject = $state(false);
+	let requestedThumbnailIds = $state<string[]>([]);
 
 	const projectQuery = useQuery(api.projects.get, () => ({ projectId }));
 	const postsQuery = useQuery(api.generatedPosts.listByProject, () => ({ projectId }));
@@ -70,6 +72,21 @@
 	let mediaItems = $derived((mediaQuery.data ?? []) as MediaItem[]);
 	let legacyPosts = $derived(posts.filter((post) => !post.isComposed));
 	let isLoading = $derived(projectQuery.isLoading);
+
+	$effect(() => {
+		const idsToEnsure = mediaItems
+			.filter((item) => item.url && !item.thumbnailUrl)
+			.map((item) => item._id)
+			.filter((id) => !requestedThumbnailIds.includes(id))
+			.slice(0, 24);
+
+		if (idsToEnsure.length === 0) return;
+
+		requestedThumbnailIds = [...requestedThumbnailIds, ...idsToEnsure];
+		void client.mutation(api.mediaItems.ensureThumbnails, { ids: idsToEnsure }).catch((err) => {
+			console.error("Failed to queue thumbnails:", err);
+		});
+	});
 
 	function setTab(tab: ProjectTab) {
 		const url = new URL($page.url);
@@ -313,7 +330,13 @@
 								>
 									<div class="relative aspect-square overflow-hidden bg-muted">
 										{#if item.url}
-											<img src={item.url} alt="" class="h-full w-full object-cover transition-transform group-hover:scale-105" />
+											<img
+												src={item.thumbnailUrl ?? item.url}
+												alt=""
+												loading="lazy"
+												decoding="async"
+												class="h-full w-full object-cover transition-transform group-hover:scale-105"
+											/>
 										{/if}
 										<div class="absolute left-3 top-3 flex items-center gap-2">
 											<Badge variant="secondary">{sourceLabels[item.sourceType] ?? item.sourceType}</Badge>

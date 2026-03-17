@@ -21,6 +21,7 @@
 	interface TurnOutput {
 		_id: Id<"image_edit_outputs">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model: string;
 		width: number;
 		height: number;
@@ -44,6 +45,7 @@
 	interface LightboxMediaItem {
 		_id: Id<"media_items">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model?: string;
 		sourceType: string;
 		prompt?: string;
@@ -452,7 +454,13 @@
 														>
 															<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(undefined, output.width, output.height)};`}>
 																{#if output.url}
-																	<img src={output.url} alt="Resultado" class="h-full w-full object-cover" />
+																	<img
+																		src={output.thumbnailUrl ?? output.url}
+																		alt="Resultado"
+																		loading="lazy"
+																		decoding="async"
+																		class="h-full w-full object-cover"
+																	/>
 																{/if}
 															</div>
 															<div class="px-3 py-3">
@@ -536,7 +544,13 @@
 														>
 															<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${getAspectRatioValue(undefined, output.width, output.height)};`}>
 																{#if output.url}
-																	<img src={output.url} alt="Resultado" class="h-full w-full object-cover" />
+																	<img
+																		src={output.thumbnailUrl ?? output.url}
+																		alt="Resultado"
+																		loading="lazy"
+																		decoding="async"
+																		class="h-full w-full object-cover"
+																	/>
 																{/if}
 															</div>
 															<div class="px-4 py-3">

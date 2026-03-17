@@ -142,3 +142,44 @@ export const backfillFromEditOutputs = internalMutation({
         };
     },
 });
+
+export const backfillMissingThumbnails = internalMutation({
+    args: {
+        cursor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const result = await ctx.db
+            .query("media_items")
+            .paginate({ cursor: args.cursor ?? null, numItems: BATCH_SIZE });
+
+        let scheduled = 0;
+        const now = Date.now();
+
+        for (const item of result.page) {
+            if (item.deletedAt || item.thumbnailStorageId || item.thumbnailStatus === "pending") {
+                continue;
+            }
+
+            await ctx.db.patch(item._id, {
+                thumbnailStatus: "pending",
+                thumbnailUpdatedAt: now,
+                updatedAt: now,
+            });
+            await ctx.scheduler.runAfter(0, internal.mediaProcessing.generateThumbnailForMedia, {
+                mediaItemId: item._id,
+            });
+            scheduled++;
+        }
+
+        if (!result.isDone) {
+            await ctx.scheduler.runAfter(0, internal.migrations.backfillMediaItems.backfillMissingThumbnails, {
+                cursor: result.continueCursor,
+            });
+        }
+
+        return {
+            scheduled,
+            hasMore: !result.isDone,
+        };
+    },
+});

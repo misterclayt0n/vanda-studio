@@ -16,6 +16,7 @@
 	type MediaItem = {
 		_id: Id<"media_items">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model?: string;
 		prompt?: string;
 		sourceType: string;
@@ -113,6 +114,7 @@
 	let projectLibraryCache = $state<Record<string, MediaItem[]>>({});
 	let libraryLoading = $state(false);
 	let libraryRequestToken = 0;
+	let requestedThumbnailIds = $state<string[]>([]);
 
 	const composerPostId = $derived(activePostId ?? postIdFromUrl);
 
@@ -259,6 +261,21 @@
 				}
 			}
 		})();
+	});
+
+	$effect(() => {
+		const idsToEnsure = libraryBaseItems
+			.filter((item) => item.url && !item.thumbnailUrl)
+			.map((item) => item._id)
+			.filter((id) => !requestedThumbnailIds.includes(id))
+			.slice(0, 24);
+
+		if (idsToEnsure.length === 0) return;
+
+		requestedThumbnailIds = [...requestedThumbnailIds, ...idsToEnsure];
+		void client.mutation(api.mediaItems.ensureThumbnails, { ids: idsToEnsure }).catch((err) => {
+			console.error("Failed to queue thumbnails:", err);
+		});
 	});
 
 	function isSelected(mediaId: Id<"media_items">): boolean {
@@ -491,7 +508,7 @@
 									<div class="overflow-hidden border border-border bg-card">
 										<div class="relative aspect-square overflow-hidden bg-muted">
 											{#if item.url}
-												<img src={item.url} alt="" class="h-full w-full object-cover" />
+												<img src={item.thumbnailUrl ?? item.url} alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
 											{/if}
 											<div class="absolute left-3 top-3 flex items-center gap-2">
 												<Badge variant="secondary">{index === 0 ? "Capa" : `#${index + 1}`}</Badge>
@@ -599,7 +616,7 @@
 									>
 										<div class="relative aspect-square overflow-hidden bg-muted">
 											{#if item.url}
-												<img src={item.url} alt="" class="h-full w-full object-cover" />
+												<img src={item.thumbnailUrl ?? item.url} alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
 											{/if}
 											<div class="absolute left-3 top-3 flex items-center gap-2">
 												<Badge variant="secondary">
@@ -640,7 +657,7 @@
 
 						{#if coverMedia?.url}
 							<div class="overflow-hidden border border-border bg-card">
-								<img src={coverMedia.url} alt="" class="aspect-square h-full w-full object-cover" />
+								<img src={coverMedia.thumbnailUrl ?? coverMedia.url} alt="" decoding="async" class="aspect-square h-full w-full object-cover" />
 							</div>
 						{:else}
 							<div class="flex aspect-square items-center justify-center border border-dashed border-border bg-background">

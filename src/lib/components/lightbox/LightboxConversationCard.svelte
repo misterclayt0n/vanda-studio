@@ -6,6 +6,7 @@
 	interface ConversationOutput {
 		_id: Id<"image_edit_outputs">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model: string;
 	}
 
@@ -132,7 +133,13 @@
 						<div class="overflow-hidden rounded-xl border border-border bg-background">
 							<div class="aspect-square overflow-hidden bg-muted">
 								{#if output.url}
-									<img src={output.url} alt={getModelDisplayName(output.model)} class="h-full w-full object-cover" />
+									<img
+										src={output.thumbnailUrl ?? output.url}
+										alt={getModelDisplayName(output.model)}
+										loading="lazy"
+										decoding="async"
+										class="h-full w-full object-cover"
+									/>
 								{/if}
 							</div>
 							<div class="px-2 py-1.5">

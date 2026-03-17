@@ -30,6 +30,7 @@
 		_id: Id<"media_items">;
 		_creationTime: number;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model?: string;
 		sourceType: string;
 		prompt?: string;
@@ -65,6 +66,7 @@
 	type ConversationOutput = {
 		_id: Id<"image_edit_outputs">;
 		url: string | null;
+		thumbnailUrl?: string | null;
 		model: string;
 		width: number;
 		height: number;
@@ -148,6 +150,7 @@
 	let sentinelEl = $state<HTMLDivElement | null>(null);
 	let activeBatchId = $state<Id<"media_generation_batches"> | null>(null);
 	let staleCleanupStarted = $state(false);
+	let requestedThumbnailIds = $state<string[]>([]);
 
 	let initialProjectId = $derived($page.url.searchParams.get("projectId") as Id<"projects"> | null);
 	let lightboxMediaId = $derived($page.url.searchParams.get("view"));
@@ -366,6 +369,23 @@
 		);
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
+	});
+
+	$effect(() => {
+		if (viewMode !== "images") return;
+
+		const idsToEnsure = items()
+			.filter((item) => item.url && !item.thumbnailUrl)
+			.map((item) => item._id)
+			.filter((id) => !requestedThumbnailIds.includes(id))
+			.slice(0, 24);
+
+		if (idsToEnsure.length === 0) return;
+
+		requestedThumbnailIds = [...requestedThumbnailIds, ...idsToEnsure];
+		void client.mutation(api.mediaItems.ensureThumbnails, { ids: idsToEnsure }).catch((err) => {
+			console.error("Failed to queue thumbnails:", err);
+		});
 	});
 
 	let items = $derived(() => {
@@ -930,8 +950,10 @@
 													<div class="relative overflow-hidden bg-muted" style={`aspect-ratio: ${getMediaAspectRatio(card.item)};`}>
 														{#if card.item.url}
 															<img
-																src={card.item.url}
+																src={card.item.thumbnailUrl ?? card.item.url}
 																alt={card.item.userPrompt ?? card.item.prompt ?? "Imagem"}
+																loading="lazy"
+																decoding="async"
 																class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
 															/>
 														{:else}
@@ -1100,7 +1122,7 @@
 														<div class="w-[168px] shrink-0 overflow-hidden rounded-2xl border border-border bg-background/80">
 															<div class="overflow-hidden bg-muted" style={`aspect-ratio: ${output.width} / ${output.height};`}>
 																{#if output.url}
-																	<img src={output.url} alt={getModelDisplayName(output.model)} class="h-full w-full object-cover" />
+																	<img src={output.thumbnailUrl ?? output.url} alt={getModelDisplayName(output.model)} loading="lazy" decoding="async" class="h-full w-full object-cover" />
 																{/if}
 															</div>
 															<div class="px-3 py-3">
