@@ -124,7 +124,7 @@
 	};
 
 	let prompt = $state("");
-	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
+	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let selectedProjectId = $state<Id<"projects"> | null>(null);

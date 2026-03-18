@@ -135,7 +135,7 @@
 		turns.some((turn) => turn.status === "generating" || (turn.pendingModels?.length ?? 0) > 0)
 	);
 
-	let selectedModels = $state<string[]>(["google/gemini-3-pro-image-preview"]);
+	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let editPrompt = $state("");
@@ -157,7 +157,7 @@
 
 	$effect(() => {
 		if (!conversation || settingsInitialized) return;
-		selectedModels = ["google/gemini-3-pro-image-preview"];
+		selectedModels = ["bytedance-seed/seedream-4.5"];
 		aspectRatio = (conversation.aspectRatio as AspectRatio | undefined) ?? "1:1";
 		resolution = (conversation.resolution as Resolution | undefined) ?? "standard";
 		settingsInitialized = true;
