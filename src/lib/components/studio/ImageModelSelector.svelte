@@ -4,6 +4,7 @@
 	// Model definitions (mirroring backend)
 	const IMAGE_MODELS = {
 		NANO_BANANA: "google/gemini-2.5-flash-image",
+		NANO_BANANA_2: "google/gemini-3.1-flash-image-preview",
 		NANO_BANANA_PRO: "google/gemini-3-pro-image-preview",
 		SEEDREAM_4_5: "bytedance-seed/seedream-4.5",
 		FLUX_2_FLEX: "black-forest-labs/flux.2-flex",
@@ -23,6 +24,12 @@
 		{
 			id: IMAGE_MODELS.NANO_BANANA,
 			name: "Nano Banana",
+			provider: "Google",
+			color: "#FACC15",
+		},
+		{
+			id: IMAGE_MODELS.NANO_BANANA_2,
+			name: "Nano Banana 2",
 			provider: "Google",
 			color: "#FACC15",
 		},
@@ -52,7 +59,7 @@
 		},
 	];
 
-	const DEFAULT_MODEL = IMAGE_MODELS.NANO_BANANA_PRO;
+	const DEFAULT_MODEL = IMAGE_MODELS.SEEDREAM_4_5;
 
 	interface Props {
 		selected: string[];

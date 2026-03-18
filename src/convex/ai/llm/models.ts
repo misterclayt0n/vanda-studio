@@ -25,6 +25,7 @@ export const DEFAULT_MODEL = MODELS.GEMINI_2_5_FLASH;
 
 export const IMAGE_MODELS = {
     NANO_BANANA: "google/gemini-2.5-flash-image",
+    NANO_BANANA_2: "google/gemini-3.1-flash-image-preview",
     NANO_BANANA_PRO: "google/gemini-3-pro-image-preview",
     SEEDREAM_4_5: "bytedance-seed/seedream-4.5",
     FLUX_2_FLEX: "black-forest-labs/flux.2-flex",
@@ -33,7 +34,7 @@ export const IMAGE_MODELS = {
 
 export type ImageModelName = (typeof IMAGE_MODELS)[keyof typeof IMAGE_MODELS];
 
-export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.NANO_BANANA_PRO;
+export const DEFAULT_IMAGE_MODEL = IMAGE_MODELS.SEEDREAM_4_5;
 
 /**
  * Model capabilities for image generation
@@ -47,6 +48,11 @@ export const IMAGE_MODEL_CAPABILITIES: Record<
     }
 > = {
     [IMAGE_MODELS.NANO_BANANA]: {
+        supportsImageSize: true,
+        type: "multimodal",
+        outputModalities: ["image", "text"],
+    },
+    [IMAGE_MODELS.NANO_BANANA_2]: {
         supportsImageSize: true,
         type: "multimodal",
         outputModalities: ["image", "text"],
@@ -82,6 +88,11 @@ export const IMAGE_MODEL_INFO: Record<
 > = {
     [IMAGE_MODELS.NANO_BANANA]: {
         name: "Nano Banana",
+        provider: "Google",
+        color: "#FACC15", // yellow
+    },
+    [IMAGE_MODELS.NANO_BANANA_2]: {
+        name: "Nano Banana 2",
         provider: "Google",
         color: "#FACC15", // yellow
     },

@@ -116,6 +116,7 @@
 
 	const modelDisplayNames: Record<string, string> = {
 		"google/gemini-2.5-flash-image": "Nano Banana",
+		"google/gemini-3.1-flash-image-preview": "Nano Banana 2",
 		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
 		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
 		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
