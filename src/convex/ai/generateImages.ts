@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
 import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
 import { createThumbnailBlob } from "../mediaProcessing";
+import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
     DEFAULT_IMAGE_MODEL,
     type AspectRatio,
@@ -66,8 +67,13 @@ export const generate = action({
         }
 
         const imageModels = args.imageModels ?? [DEFAULT_IMAGE_MODEL];
-        const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
-        const resolution = (args.resolution ?? "standard") as Resolution;
+        const normalizedSettings = coerceImageGenerationSettings(
+            imageModels,
+            args.aspectRatio,
+            args.resolution
+        );
+        const aspectRatio = normalizedSettings.aspectRatio as AspectRatio;
+        const resolution = normalizedSettings.resolution as Resolution;
 
         const reservedCount = await reserveImageUsage(ctx, imageModels.length);
 

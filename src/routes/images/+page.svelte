@@ -23,9 +23,13 @@
 	import { page } from "$app/stores";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { MediaLightbox } from "$lib/components/lightbox";
-
-	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
-	type Resolution = "standard" | "high" | "ultra";
+	import {
+		coerceImageGenerationSettings,
+		getSupportedAspectRatios,
+		getSupportedResolutions,
+		type AspectRatio,
+		type Resolution,
+	} from "$lib/studio/imageGenerationCapabilities";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -237,6 +241,8 @@
 	let selectedFilterProject = $derived(projects.find((project) => project._id === filterProjectId) ?? null);
 	let batchData = $derived(batchQuery.data);
 	let batchItems = $derived(batchItemsQuery.data ?? []);
+	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
+	let supportedResolutions = $derived(getSupportedResolutions(selectedModels));
 	let showGeneratingBatchCards = $derived(
 		!!activeBatchId &&
 		!!batchData &&
@@ -245,6 +251,16 @@
 		!searchQuery.trim() &&
 		(!filterProjectId || batchData.projectId === filterProjectId)
 	);
+
+	$effect(() => {
+		const normalized = coerceImageGenerationSettings(selectedModels, aspectRatio, resolution);
+		if (normalized.aspectRatio !== aspectRatio) {
+			aspectRatio = normalized.aspectRatio;
+		}
+		if (normalized.resolution !== resolution) {
+			resolution = normalized.resolution;
+		}
+	});
 
 	$effect(() => {
 		if (initialProjectId && !selectedProjectId) {
@@ -606,6 +622,10 @@
 		error = null;
 
 		try {
+			const normalized = coerceImageGenerationSettings(selectedModels, aspectRatio, resolution);
+			aspectRatio = normalized.aspectRatio;
+			resolution = normalized.resolution;
+
 			const contextImageUrls = contextImages
 				.map((image) => image.url)
 				.filter((url): url is string => !!url);
@@ -620,8 +640,8 @@
 				...(selectedProjectId && { projectId: selectedProjectId }),
 				message: prompt.trim(),
 				imageModels: selectedModels,
-				aspectRatio,
-				resolution,
+				aspectRatio: normalized.aspectRatio,
+				resolution: normalized.resolution,
 				...(projectContext && { projectContext }),
 				...(manualReferences.length > 0 && {
 					manualReferenceIds: manualReferences.map((r) => r.storageId),
@@ -788,7 +808,12 @@
 						</svg>
 						Proporção
 					</p>
-					<AspectRatioSelector value={aspectRatio} onchange={(value) => (aspectRatio = value)} compact />
+					<AspectRatioSelector
+						value={aspectRatio}
+						onchange={(value) => (aspectRatio = value)}
+						supportedValues={supportedAspectRatios}
+						compact
+					/>
 				</div>
 
 				<div class="space-y-2">
@@ -798,7 +823,12 @@
 						</svg>
 						Resolução
 					</p>
-					<ResolutionSelector value={resolution} onchange={(value) => (resolution = value)} compact />
+					<ResolutionSelector
+						value={resolution}
+						onchange={(value) => (resolution = value)}
+						supportedValues={supportedResolutions}
+						compact
+					/>
 				</div>
 
 			</div>

@@ -7,6 +7,7 @@ import type { Id, Doc } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
 import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
 import { createThumbnailBlob } from "../mediaProcessing";
+import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
     type AspectRatio,
     type Resolution,
@@ -134,6 +135,11 @@ export const sendEdit = action({
         const turnCount = await ctx.runQuery(api.imageEditTurns.countByConversation, {
             conversationId: args.conversationId,
         });
+        const normalizedSettings = coerceImageGenerationSettings(
+            args.selectedModels,
+            args.aspectRatio,
+            args.resolution
+        );
 
         const turnId = await ctx.runMutation(internal.imageEditTurns.create, {
             conversationId: args.conversationId,
@@ -144,8 +150,8 @@ export const sendEdit = action({
                 ? { selectedOutputIds: args.selectedOutputIds }
                 : {}),
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
-            aspectRatio: args.aspectRatio,
-            resolution: args.resolution,
+            aspectRatio: normalizedSettings.aspectRatio,
+            resolution: normalizedSettings.resolution,
         });
 
         await scheduleTurnGeneration(ctx, {

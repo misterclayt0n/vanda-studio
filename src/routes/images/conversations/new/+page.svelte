@@ -12,9 +12,13 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import Logo from "$lib/components/Logo.svelte";
-
-	type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "21:9";
-	type Resolution = "standard" | "high" | "ultra";
+	import {
+		coerceImageGenerationSettings,
+		getSupportedAspectRatios,
+		getSupportedResolutions,
+		type AspectRatio,
+		type Resolution,
+	} from "$lib/studio/imageGenerationCapabilities";
 
 	const client = useConvexClient();
 
@@ -41,6 +45,8 @@
 	let editPrompt = $state("");
 	let isStarting = $state(false);
 	let initializedFromSource = $state(false);
+	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
+	let supportedResolutions = $derived(getSupportedResolutions(selectedModels));
 
 	$effect(() => {
 		if (!sourceMedia || initializedFromSource) return;
@@ -48,6 +54,16 @@
 		aspectRatio = (sourceMedia.aspectRatio as AspectRatio | undefined) ?? "1:1";
 		resolution = (sourceMedia.resolution as Resolution | undefined) ?? "standard";
 		initializedFromSource = true;
+	});
+
+	$effect(() => {
+		const normalized = coerceImageGenerationSettings(selectedModels, aspectRatio, resolution);
+		if (normalized.aspectRatio !== aspectRatio) {
+			aspectRatio = normalized.aspectRatio;
+		}
+		if (normalized.resolution !== resolution) {
+			resolution = normalized.resolution;
+		}
 	});
 
 	function getModelDisplayName(model?: string): string {
@@ -69,12 +85,16 @@
 		if (!sourceMediaId || !editPrompt.trim() || selectedModels.length === 0 || isStarting) return;
 		isStarting = true;
 		try {
+			const normalized = coerceImageGenerationSettings(selectedModels, aspectRatio, resolution);
+			aspectRatio = normalized.aspectRatio;
+			resolution = normalized.resolution;
+
 			const result = await client.mutation(api.imageEditConversations.startWithTurn, {
 				sourceMediaId,
 				userMessage: editPrompt.trim(),
 				selectedModels,
-				aspectRatio,
-				resolution,
+				aspectRatio: normalized.aspectRatio,
+				resolution: normalized.resolution,
 			});
 
 			goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
@@ -147,12 +167,22 @@
 
 				<div class="space-y-2">
 					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Proporção</p>
-					<AspectRatioSelector value={aspectRatio} onchange={(value) => (aspectRatio = value)} compact />
+					<AspectRatioSelector
+						value={aspectRatio}
+						onchange={(value) => (aspectRatio = value)}
+						supportedValues={supportedAspectRatios}
+						compact
+					/>
 				</div>
 
 				<div class="space-y-2">
 					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Resolução</p>
-					<ResolutionSelector value={resolution} onchange={(value) => (resolution = value)} compact />
+					<ResolutionSelector
+						value={resolution}
+						onchange={(value) => (resolution = value)}
+						supportedValues={supportedResolutions}
+						compact
+					/>
 				</div>
 			</div>
 		</aside>

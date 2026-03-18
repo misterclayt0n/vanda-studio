@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalQuery, type QueryCtx } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
+import { coerceImageGenerationSettings } from "../lib/studio/imageGenerationCapabilities";
 
 function sortOutputsBySelectedModels<T extends { model: string }>(
     outputs: T[],
@@ -571,8 +572,13 @@ export const startWithTurn = mutation({
             defaultResolution = sourceImage.resolution ?? "standard";
         }
 
-        const aspectRatio = args.aspectRatio ?? defaultAspectRatio;
-        const resolution = args.resolution ?? defaultResolution;
+        const normalizedSettings = coerceImageGenerationSettings(
+            args.selectedModels,
+            args.aspectRatio ?? defaultAspectRatio,
+            args.resolution ?? defaultResolution
+        );
+        const aspectRatio = normalizedSettings.aspectRatio;
+        const resolution = normalizedSettings.resolution;
 
         const now = Date.now();
 

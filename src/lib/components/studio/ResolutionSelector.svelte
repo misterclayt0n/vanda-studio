@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { cn } from "$lib/utils";
+	import {
+		RESOLUTION_LIST,
+		type Resolution,
+	} from "$lib/studio/imageGenerationCapabilities";
 
-	// Resolution definitions (mirroring backend)
 	const RESOLUTIONS = {
 		standard: {
 			label: "Standard",
@@ -17,41 +20,55 @@
 		},
 	} as const;
 
-	type Resolution = keyof typeof RESOLUTIONS;
-
-	const RESOLUTION_LIST: Resolution[] = ["standard", "high", "ultra"];
 	const DEFAULT_RESOLUTION: Resolution = "standard";
 
 	interface Props {
 		value: Resolution;
 		onchange: (resolution: Resolution) => void;
+		supportedValues?: Resolution[];
 		class?: string;
 		compact?: boolean;
 	}
 
-	let { value, onchange, class: className, compact = false }: Props = $props();
+	let {
+		value,
+		onchange,
+		supportedValues = RESOLUTION_LIST,
+		class: className,
+		compact = false,
+	}: Props = $props();
+
+	function isSupported(resolution: Resolution): boolean {
+		return supportedValues.includes(resolution);
+	}
 </script>
 
 <div class={cn("grid grid-cols-3 gap-2", className)}>
 	{#each RESOLUTION_LIST as resolution (resolution)}
 		{@const info = RESOLUTIONS[resolution]}
+		{@const supported = isSupported(resolution)}
 		<button
 			type="button"
+			disabled={!supported}
+			aria-disabled={!supported}
+			title={!supported ? "Nao compativel com os modelos selecionados" : undefined}
 			class={cn(
 				compact
 					? "flex flex-1 flex-col items-center gap-0.5 rounded-lg border px-2 py-2 transition-all"
 					: "flex flex-1 flex-col items-center gap-0.5 rounded-none border px-3 py-2 transition-all",
-				value === resolution
+				!supported
+					? "cursor-not-allowed border-border/50 bg-background/50 opacity-45"
+					: value === resolution
 					? "border-primary bg-primary/10"
 					: "border-border bg-background hover:bg-muted/50"
 			)}
-			onclick={() => onchange(resolution)}
+			onclick={() => supported && onchange(resolution)}
 		>
 			<div class="flex items-center gap-1.5">
 				<span
 					class={cn(
 						compact ? "text-[13px] font-medium" : "text-sm font-medium",
-						value === resolution ? "text-primary" : "text-foreground"
+						!supported ? "text-muted-foreground/50" : value === resolution ? "text-primary" : "text-foreground"
 					)}
 				>
 					{info.label}
@@ -68,7 +85,7 @@
 			<span
 				class={cn(
 					compact ? "text-[10px]" : "text-xs",
-					value === resolution ? "text-primary/70" : "text-muted-foreground"
+					!supported ? "text-muted-foreground/40" : value === resolution ? "text-primary/70" : "text-muted-foreground"
 				)}
 			>
 				{compact ? info.description.replace(" resolution", "") : info.description}
