@@ -16,6 +16,7 @@
 		{ href: "/posts/create", label: "Posts", icon: "sparkles" },
 		{ href: "/calendar", label: "Calendário", icon: "calendar" },
 		{ href: "/projects", label: "Projetos", icon: "projects" },
+		{ href: "/account#planos", activeHref: "/account", label: "Planos", icon: "plans" },
 	];
 
 	function isActive(href: string): boolean {
@@ -37,10 +38,10 @@
 			<nav class="flex items-center gap-1">
 				{#each navItems as item}
 					<Button
-						variant={isActive(item.href) ? "secondary" : "ghost"}
+						variant={isActive(item.activeHref ?? item.href) ? "secondary" : "ghost"}
 						size="sm"
 						onclick={() => goto(item.href)}
-						class="gap-2 transition-all {isActive(item.href) ? 'shadow-sm' : ''}"
+						class="gap-2 transition-all {isActive(item.activeHref ?? item.href) ? 'shadow-sm' : ''}"
 					>
 						{#if item.icon === "sparkles"}
 							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -57,6 +58,10 @@
 						{:else if item.icon === "projects"}
 							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" />
+							</svg>
+						{:else if item.icon === "plans"}
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5A2.25 2.25 0 004.5 19.5z" />
 							</svg>
 						{/if}
 						{item.label}

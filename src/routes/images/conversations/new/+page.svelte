@@ -147,7 +147,12 @@
 				</SignInButton>
 			</SignedOut>
 			<SignedIn>
-				<UserButton />
+				<div class="flex items-center gap-3">
+					<Button variant="ghost" size="sm" onclick={() => goto("/account#planos")}>
+						Planos
+					</Button>
+					<UserButton />
+				</div>
 			</SignedIn>
 		</div>
 	</header>

@@ -75,10 +75,7 @@ export const startConversation = action({
             throw new Error("Você precisa estar autenticado");
         }
 
-        const user = await ctx.runQuery(api.users.current, {});
-        if (!user) {
-            throw new Error("Usuário não encontrado");
-        }
+        const user = await ctx.runMutation(api.users.ensureCurrent, {});
 
         const result = await ctx.runMutation(api.imageEditConversations.startWithTurn, {
             sourceImageId: args.sourceImageId,
@@ -120,10 +117,7 @@ export const sendEdit = action({
             throw new Error("Você precisa estar autenticado");
         }
 
-        const user = await ctx.runQuery(api.users.current, {});
-        if (!user) {
-            throw new Error("Usuário não encontrado");
-        }
+        const user = await ctx.runMutation(api.users.ensureCurrent, {});
 
         const conversation = await ctx.runQuery(api.imageEditConversations.get, {
             id: args.conversationId,
@@ -179,10 +173,7 @@ export const generateForTurn = action({
             throw new Error("Você precisa estar autenticado");
         }
 
-        const user = await ctx.runQuery(api.users.current, {});
-        if (!user) {
-            throw new Error("Usuário não encontrado");
-        }
+        const user = await ctx.runMutation(api.users.ensureCurrent, {});
 
         const turn = await ctx.runQuery(api.imageEditTurns.get, {
             id: args.turnId,

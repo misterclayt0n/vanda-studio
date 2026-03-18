@@ -55,10 +55,7 @@ export const generate = action({
             throwImageGenerationError("AUTH_REQUIRED");
         }
 
-        const user = await ctx.runQuery(api.users.current, {});
-        if (!user) {
-            throwImageGenerationError("AUTH_REQUIRED");
-        }
+        const user = await ctx.runMutation(api.users.ensureCurrent, {});
 
         // 2. Verify project access if provided
         if (args.projectId) {

@@ -1,6 +1,24 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+function normalizeName(name: string | undefined | null, email: string | undefined | null): string {
+    const trimmedName = name?.trim();
+    if (trimmedName) {
+        return trimmedName;
+    }
+
+    const emailLocalPart = email?.split("@")[0]?.trim();
+    if (emailLocalPart) {
+        return emailLocalPart;
+    }
+
+    return "Usuário";
+}
+
+function normalizeEmail(email: string | undefined | null): string {
+    return email?.trim() || "";
+}
+
 export const store = mutation({
     args: {
         name: v.string(),
@@ -36,6 +54,59 @@ export const store = mutation({
         });
 
         return userId;
+    },
+});
+
+export const ensureCurrent = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Called ensureCurrentUser without authentication present");
+        }
+
+        const normalizedName = normalizeName(
+            typeof identity.name === "string" ? identity.name : undefined,
+            typeof identity.email === "string" ? identity.email : undefined
+        );
+        const normalizedEmail = normalizeEmail(
+            typeof identity.email === "string" ? identity.email : undefined
+        );
+
+        const existingUser = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (existingUser) {
+            if (existingUser.name !== normalizedName || existingUser.email !== normalizedEmail) {
+                await ctx.db.patch(existingUser._id, {
+                    name: normalizedName,
+                    email: normalizedEmail,
+                });
+                return {
+                    ...existingUser,
+                    name: normalizedName,
+                    email: normalizedEmail,
+                };
+            }
+
+            return existingUser;
+        }
+
+        const userId = await ctx.db.insert("users", {
+            name: normalizedName,
+            email: normalizedEmail,
+            clerkId: identity.subject,
+        });
+
+        return {
+            _id: userId,
+            _creationTime: Date.now(),
+            name: normalizedName,
+            email: normalizedEmail,
+            clerkId: identity.subject,
+        };
     },
 });
 
