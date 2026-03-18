@@ -270,6 +270,8 @@ export default defineSchema({
         status: v.string(), // "generating" | "completed" | "error"
         pendingModels: v.optional(v.array(v.string())),
         lastProgressAt: v.optional(v.number()),
+        lastErrorCode: v.optional(v.string()),
+        lastErrorMessage: v.optional(v.string()),
         requestedModels: v.optional(v.array(v.string())),
         totalModels: v.number(),
         prompt: v.string(),

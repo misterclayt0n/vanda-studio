@@ -1,13 +1,14 @@
 import { autumn } from "../autumn";
+import { throwImageGenerationError } from "../imageGenerationErrors";
 
 const IMAGE_FEATURE_ID = "images_generated";
 
 function formatInsufficientCredits(required: number, remaining?: number): string {
     if (remaining === undefined) {
-        return `Créditos insuficientes. Necessário: ${required}.`;
+        return `Você precisa de ${required} crédito(s) para esta geração. Veja seus planos para continuar.`;
     }
 
-    return `Créditos insuficientes. Você tem ${remaining} crédito(s), mas precisa de ${required}.`;
+    return `Você precisa de ${required} crédito(s) para esta geração, mas só tem ${remaining}. Veja seus planos para continuar.`;
 }
 
 function getRemainingBalance(data: any): number | undefined {
@@ -45,12 +46,36 @@ export async function reserveImageUsage(ctx: any, count: number): Promise<number
     });
 
     if (result.error) {
-        throw new Error(result.error.message || "Falha ao verificar créditos");
+        throwImageGenerationError("GENERATION_FAILED", {
+            title: "Não foi possível verificar seu plano",
+            message: "Houve um problema ao verificar seus créditos. Tente novamente em instantes.",
+        });
     }
 
     if (!result.data?.allowed) {
+        const customerResult = await autumn.customers.get(ctx);
+        if (customerResult.error) {
+            throwImageGenerationError("GENERATION_FAILED", {
+                title: "Não foi possível verificar seu plano",
+                message: "Houve um problema ao verificar seus créditos. Tente novamente em instantes.",
+            });
+        }
+
+        const hasActivePlan = !!customerResult.data?.products?.some(
+            (product: { status?: string }) =>
+                product.status === "active" || product.status === "trialing"
+        );
+
+        if (!hasActivePlan) {
+            throwImageGenerationError("PLAN_REQUIRED", {
+                message: "Você ainda não tem um plano ativo. Assine um plano para liberar a geração de imagens.",
+            });
+        }
+
         const remaining = getRemainingBalance(result.data);
-        throw new Error(formatInsufficientCredits(normalized, remaining));
+        throwImageGenerationError("CREDITS_EXHAUSTED", {
+            message: formatInsufficientCredits(normalized, remaining),
+        });
     }
 
     return normalized;

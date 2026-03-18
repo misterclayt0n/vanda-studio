@@ -58,11 +58,15 @@ export const markError = internalMutation({
     args: {
         id: v.id("media_generation_batches"),
         clearPending: v.optional(v.boolean()),
+        errorCode: v.optional(v.string()),
+        errorMessage: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         await ctx.db.patch(args.id, {
             status: "error",
             lastProgressAt: Date.now(),
+            ...(args.errorCode ? { lastErrorCode: args.errorCode } : {}),
+            ...(args.errorMessage ? { lastErrorMessage: args.errorMessage } : {}),
             ...(args.clearPending ? { pendingModels: [] } : {}),
         });
     },
@@ -108,6 +112,9 @@ export const cleanupStaleByUser = mutation({
                     status: "error",
                     pendingModels: [],
                     lastProgressAt: Date.now(),
+                    lastErrorCode: "GENERATION_FAILED",
+                    lastErrorMessage:
+                        "A geração ficou sem progresso por muito tempo e foi encerrada.",
                 });
                 cleaned += 1;
             }

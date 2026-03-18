@@ -9,6 +9,10 @@ import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
 import { createThumbnailBlob } from "../mediaProcessing";
 import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
+    getStoredImageGenerationError,
+    throwImageGenerationError,
+} from "../imageGenerationErrors";
+import {
     DEFAULT_IMAGE_MODEL,
     type AspectRatio,
     type Resolution,
@@ -48,12 +52,12 @@ export const generate = action({
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Você precisa estar autenticado");
+            throwImageGenerationError("AUTH_REQUIRED");
         }
 
         const user = await ctx.runQuery(api.users.current, {});
         if (!user) {
-            throw new Error("Usuário não encontrado");
+            throwImageGenerationError("AUTH_REQUIRED");
         }
 
         // 2. Verify project access if provided
@@ -62,7 +66,7 @@ export const generate = action({
                 projectId: args.projectId,
             });
             if (!project) {
-                throw new Error("Projeto não encontrado");
+                throwImageGenerationError("PROJECT_NOT_FOUND");
             }
         }
 
@@ -117,10 +121,13 @@ export const generate = action({
                 reservedCount,
             });
         } catch (err) {
+            const storedError = getStoredImageGenerationError(err);
             await refundImageUsage(ctx, reservedCount);
             await ctx.runMutation(internal.mediaGenerationBatches.markError, {
                 id: batchId,
                 clearPending: true,
+                errorCode: storedError.code,
+                errorMessage: storedError.message,
             });
             throw err;
         }
@@ -223,10 +230,13 @@ export const processBatch = internalAction({
             );
         } catch (err) {
             console.error(`[GENERATE_IMAGES] Async batch ${args.batchId} failed:`, err);
+            const storedError = getStoredImageGenerationError(err);
             await refundImageUsage(ctx, args.reservedCount);
             await ctx.runMutation(internal.mediaGenerationBatches.markError, {
                 id: args.batchId,
                 clearPending: true,
+                errorCode: storedError.code,
+                errorMessage: storedError.message,
             });
             return;
         }
@@ -238,8 +248,14 @@ export const processBatch = internalAction({
         }
 
         if (failedCount === args.imageModels.length) {
+            const storedError = getStoredImageGenerationError(
+                failedResults[0],
+                "GENERATION_FAILED"
+            );
             await ctx.runMutation(internal.mediaGenerationBatches.markError, {
                 id: args.batchId,
+                errorCode: storedError.code,
+                errorMessage: storedError.message,
             });
         }
     },

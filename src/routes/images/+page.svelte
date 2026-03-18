@@ -14,6 +14,7 @@
 		ProjectSelector,
 		ImageSkeleton,
 		ReferenceImagePicker,
+		ImageGenerationErrorModal,
 	} from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
@@ -31,6 +32,12 @@
 		type AspectRatio,
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
+	import {
+		createImageGenerationUiError,
+		isImageGenerationErrorCode,
+		normalizeImageGenerationError,
+		type ImageGenerationUiError,
+	} from "$lib/studio/imageGenerationErrors";
 	import {
 		loadImagesPageState,
 		saveImagesPageState,
@@ -141,7 +148,7 @@
 	let selectedProjectId = $state<Id<"projects"> | null>(null);
 	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
 	let isGenerating = $state(false);
-	let error = $state<string | null>(null);
+	let errorState = $state<ImageGenerationUiError | null>(null);
 
 	let fileInputEl = $state<HTMLInputElement | null>(null);
 	let isUploading = $state(false);
@@ -372,7 +379,16 @@
 		}
 
 		if (batchData?.status === "error") {
-			error = "Não foi possível gerar imagens com os modelos selecionados. Tente novamente ou troque o modelo.";
+			errorState = createImageGenerationUiError(
+				isImageGenerationErrorCode(batchData.lastErrorCode)
+					? batchData.lastErrorCode
+					: "GENERATION_FAILED",
+				{
+					message:
+						batchData.lastErrorMessage ??
+						"Não foi possível gerar imagens com os modelos selecionados. Tente novamente ou troque o modelo.",
+				}
+			);
 			activeBatchId = null;
 		}
 	});
@@ -664,10 +680,18 @@
 		goto(`/images/conversations/${conversationId}`);
 	}
 
+	function clearErrorState() {
+		errorState = null;
+	}
+
+	function showError(error: unknown, fallbackCode?: Parameters<typeof normalizeImageGenerationError>[1]) {
+		errorState = normalizeImageGenerationError(error, fallbackCode);
+	}
+
 	async function handleGenerate() {
 		if (!prompt.trim() || isGenerating) return;
 		isGenerating = true;
-		error = null;
+		clearErrorState();
 
 		try {
 			const normalized = coerceImageGenerationSettings(selectedModels, aspectRatio, resolution);
@@ -699,7 +723,7 @@
 			activeBatchId = result.batchId;
 			prompt = "";
 		} catch (err: any) {
-			error = err.message ?? "Erro ao gerar imagens";
+			showError(err, "GENERATION_FAILED");
 		} finally {
 			isGenerating = false;
 		}
@@ -710,6 +734,7 @@
 		if (!input.files || input.files.length === 0) return;
 
 		isUploading = true;
+		clearErrorState();
 		try {
 			for (const file of Array.from(input.files)) {
 				if (!file.type.startsWith("image/")) continue;
@@ -734,7 +759,7 @@
 
 			initialLoadDone = false;
 		} catch (err: any) {
-			error = err.message ?? "Erro ao fazer upload";
+			showError(err, "UPLOAD_FAILED");
 		} finally {
 			isUploading = false;
 			input.value = "";
@@ -883,9 +908,51 @@
 
 			<!-- Fixed footer -->
 			<div class="shrink-0 space-y-3 border-t border-border px-4 pt-4 pb-5">
-				{#if error}
-					<div class="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-						{error}
+				{#if errorState?.surface === "inline"}
+					<div class="flex items-start gap-3 rounded-xl border border-destructive/35 bg-destructive/8 px-3 py-3 text-sm">
+						<div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 6h.008v.008H12v-.008z" />
+							</svg>
+						</div>
+
+						<div class="min-w-0 flex-1">
+							<p class="font-medium text-destructive">{errorState.title}</p>
+							<p class="mt-1 text-xs leading-5 text-muted-foreground">
+								{errorState.summary}
+							</p>
+						</div>
+
+						<div class="flex items-center gap-1">
+							<Popover>
+								<PopoverTrigger>
+									<button
+										type="button"
+										aria-label="Ver detalhes do erro"
+										class="flex h-8 w-8 items-center justify-center rounded-full border border-border/80 bg-background/60 text-muted-foreground transition-colors hover:text-foreground"
+									>
+										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+										</svg>
+									</button>
+								</PopoverTrigger>
+								<PopoverContent class="w-72 space-y-2 border border-border bg-card p-4 text-sm" align="start">
+									<p class="font-medium text-foreground">{errorState.title}</p>
+									<p class="leading-6 text-muted-foreground">{errorState.message}</p>
+								</PopoverContent>
+							</Popover>
+
+							<button
+								type="button"
+								aria-label="Dispensar erro"
+								class="flex h-8 w-8 items-center justify-center rounded-full border border-border/80 bg-background/60 text-muted-foreground transition-colors hover:text-foreground"
+								onclick={clearErrorState}
+							>
+								<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
 					</div>
 				{/if}
 
@@ -1049,11 +1116,11 @@
 								<path stroke-linecap="round" stroke-linejoin="round" d="M4.75 4.75h5.5v5.5h-5.5zm9 0h5.5v5.5h-5.5zm-9 9h5.5v5.5h-5.5zm9 0h5.5v5.5h-5.5z" />
 							</svg>
 						</button>
-						<button
-							type="button"
-							class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'conversations' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
-							aria-label="Ver conversas"
-							onclick={() => setViewMode("conversations")}
+					<button
+						type="button"
+						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'conversations' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						aria-label="Ver conversas"
+						onclick={() => setViewMode("conversations")}
 						>
 							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
@@ -1345,6 +1412,8 @@
 		</main>
 	</div>
 </div>
+
+<ImageGenerationErrorModal error={errorState} onclose={clearErrorState} />
 
 {#if viewMode === "images" && lightboxOpen && lightboxMediaId && items().length > 0}
 	<MediaLightbox

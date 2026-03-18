@@ -39,6 +39,7 @@ import type * as googleCalendar from "../googleCalendar.js";
 import type * as imageEditConversations from "../imageEditConversations.js";
 import type * as imageEditOutputs from "../imageEditOutputs.js";
 import type * as imageEditTurns from "../imageEditTurns.js";
+import type * as imageGenerationErrors from "../imageGenerationErrors.js";
 import type * as instagram from "../instagram.js";
 import type * as instagramPosts from "../instagramPosts.js";
 import type * as mediaGenerationBatches from "../mediaGenerationBatches.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   imageEditConversations: typeof imageEditConversations;
   imageEditOutputs: typeof imageEditOutputs;
   imageEditTurns: typeof imageEditTurns;
+  imageGenerationErrors: typeof imageGenerationErrors;
   instagram: typeof instagram;
   instagramPosts: typeof instagramPosts;
   mediaGenerationBatches: typeof mediaGenerationBatches;

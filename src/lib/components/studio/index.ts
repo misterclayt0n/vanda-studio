@@ -4,6 +4,7 @@ export { default as AspectRatioSelector } from "./AspectRatioSelector.svelte";
 export { default as ResolutionSelector } from "./ResolutionSelector.svelte";
 export { default as ImageSkeleton } from "./ImageSkeleton.svelte";
 export { default as EditImageModal } from "./EditImageModal.svelte";
+export { default as ImageGenerationErrorModal } from "./ImageGenerationErrorModal.svelte";
 export { default as EditableCaption } from "./EditableCaption.svelte";
 export { default as ProjectSelector } from "./ProjectSelector.svelte";
 export { default as ReferenceImagePicker } from "./ReferenceImagePicker.svelte";
