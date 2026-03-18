@@ -21,6 +21,7 @@
 	import type { Id } from "../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
+	import { onMount } from "svelte";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { MediaLightbox } from "$lib/components/lightbox";
 	import {
@@ -30,6 +31,11 @@
 		type AspectRatio,
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
+	import {
+		loadImagesPageState,
+		saveImagesPageState,
+		type ImagesPageReference,
+	} from "$lib/studio/imagesPageState";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -158,10 +164,33 @@
 	let activeBatchId = $state<Id<"media_generation_batches"> | null>(null);
 	let staleCleanupStarted = $state(false);
 	let requestedThumbnailIds = $state<string[]>([]);
+	let persistedStateRestored = $state(false);
 
 	let initialProjectId = $derived($page.url.searchParams.get("projectId") as Id<"projects"> | null);
 	let lightboxMediaId = $derived($page.url.searchParams.get("view"));
 	let lightboxOpen = $derived(!!lightboxMediaId);
+
+	onMount(() => {
+		const savedState = loadImagesPageState();
+		if (savedState) {
+			prompt = savedState.prompt;
+			selectedModels = savedState.selectedModels.length > 0 ? savedState.selectedModels : selectedModels;
+			aspectRatio = savedState.aspectRatio;
+			resolution = savedState.resolution;
+			selectedProjectId = initialProjectId ?? (savedState.selectedProjectId as Id<"projects"> | null);
+			manualReferences = savedState.manualReferences as ImagesPageReference[] as {
+				storageId: Id<"_storage">;
+				previewUrl: string;
+			}[];
+			searchQuery = savedState.searchQuery;
+			filterProjectId = savedState.filterProjectId as Id<"projects"> | null;
+			if (!$page.url.searchParams.has("tab")) {
+				viewMode = savedState.viewMode;
+			}
+		}
+
+		persistedStateRestored = true;
+	});
 
 	function openLightbox(mediaId: string) {
 		const url = new URL($page.url);
@@ -273,9 +302,28 @@
 			($page.url.searchParams.get("tab") as ViewMode | null) === "conversations"
 				? "conversations"
 				: "images";
-		if (nextMode !== viewMode) {
+		if ($page.url.searchParams.has("tab") && nextMode !== viewMode) {
 			viewMode = nextMode;
 		}
+	});
+
+	$effect(() => {
+		if (!persistedStateRestored) return;
+
+		saveImagesPageState({
+			prompt,
+			selectedModels,
+			aspectRatio,
+			resolution,
+			selectedProjectId,
+			manualReferences: manualReferences.map((reference) => ({
+				storageId: reference.storageId,
+				previewUrl: reference.previewUrl,
+			})),
+			searchQuery,
+			filterProjectId,
+			viewMode,
+		});
 	});
 
 	$effect(() => {
