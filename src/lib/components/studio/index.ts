@@ -6,3 +6,4 @@ export { default as ImageSkeleton } from "./ImageSkeleton.svelte";
 export { default as EditImageModal } from "./EditImageModal.svelte";
 export { default as EditableCaption } from "./EditableCaption.svelte";
 export { default as ProjectSelector } from "./ProjectSelector.svelte";
+export { default as ReferenceImagePicker } from "./ReferenceImagePicker.svelte";

@@ -13,6 +13,7 @@
 		ResolutionSelector,
 		ProjectSelector,
 		ImageSkeleton,
+		ReferenceImagePicker,
 	} from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
@@ -128,6 +129,7 @@
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let selectedProjectId = $state<Id<"projects"> | null>(null);
+	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
 	let isGenerating = $state(false);
 	let error = $state<string | null>(null);
 
@@ -486,17 +488,19 @@
 		return (w && h ? h / w : 1) + CARD_META_HEIGHT;
 	}
 
-	let columnCards = $derived(() => {
-		const cards = gridCards();
-		const cols: GridCard[][] = Array.from({ length: columnCount }, () => []);
-		const heights = new Array(columnCount).fill(0);
-		for (const card of cards) {
-			const shortest = heights.indexOf(Math.min(...heights));
-			cols[shortest].push(card);
-			heights[shortest] += getCardEstimatedHeight(card);
-		}
-		return cols;
-	});
+		let columnCards = $derived(() => {
+			const cards = gridCards();
+			const cols: GridCard[][] = Array.from({ length: columnCount }, () => []);
+			const heights = new Array(columnCount).fill(0);
+			for (const card of cards) {
+				const shortest = heights.indexOf(Math.min(...heights));
+				const column = cols[shortest];
+				if (!column) continue;
+				column.push(card);
+				heights[shortest] += getCardEstimatedHeight(card);
+			}
+			return cols;
+		});
 
 	let isLoading = $derived(
 		(initialItemsQuery.isLoading && !initialLoadDone) ||
@@ -619,6 +623,9 @@
 				aspectRatio,
 				resolution,
 				...(projectContext && { projectContext }),
+				...(manualReferences.length > 0 && {
+					manualReferenceIds: manualReferences.map((r) => r.storageId),
+				}),
 			});
 
 			activeBatchId = result.batchId;
@@ -759,6 +766,11 @@
 					/>
 				</div>
 
+
+				<ReferenceImagePicker
+					references={manualReferences}
+					onchange={(refs) => (manualReferences = refs)}
+				/>
 				<div class="space-y-2">
 					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
