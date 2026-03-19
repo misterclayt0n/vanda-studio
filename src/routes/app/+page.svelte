@@ -1,5 +1,8 @@
 <script lang="ts">
-	import AppHome from "$lib/pages/AppHome.svelte";
-</script>
+	import { goto } from "$app/navigation";
+	import { onMount } from "svelte";
 
-<AppHome />
+	onMount(() => {
+		goto("/images", { replaceState: true });
+	});
+</script>

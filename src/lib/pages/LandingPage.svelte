@@ -8,7 +8,7 @@
 	let animatingCard = $state<number | null>(null);
 	let isAnimating = $state(false);
 	let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
-	const appUrl = "/app";
+	const appUrl = "/images";
 
 	const cards = [
 		{
