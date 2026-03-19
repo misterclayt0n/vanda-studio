@@ -65,6 +65,8 @@ export default defineSchema({
     generated_posts: defineTable({
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
         userId: v.optional(v.id("users")), // Direct user ownership for standalone posts
+        platform: v.optional(v.string()), // "instagram" | "twitter" | "linkedin"
+        title: v.optional(v.string()),
         caption: v.string(),
         // Legacy fields - kept for backwards compatibility with existing data
         additionalContext: v.optional(v.string()),

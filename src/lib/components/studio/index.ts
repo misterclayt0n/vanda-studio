@@ -8,3 +8,4 @@ export { default as ImageGenerationErrorModal } from "./ImageGenerationErrorModa
 export { default as EditableCaption } from "./EditableCaption.svelte";
 export { default as ProjectSelector } from "./ProjectSelector.svelte";
 export { default as ReferenceImagePicker } from "./ReferenceImagePicker.svelte";
+export { default as MediaBrowserFilterBar } from "./MediaBrowserFilterBar.svelte";

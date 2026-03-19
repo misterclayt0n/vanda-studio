@@ -2,6 +2,220 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
+import { rankSearchMatch } from "./search";
+
+type ResolvedPostMedia = {
+    _id: Id<"media_items">;
+    position: number;
+    role: string;
+    mediaItemId: Id<"media_items">;
+    url: string | null;
+    thumbnailUrl?: string | null;
+    mimeType: string;
+    width: number;
+    height: number;
+    createdAt: number;
+    sourceType: string;
+    model?: string;
+    prompt?: string;
+};
+
+type PostCard = {
+    _id: Id<"generated_posts">;
+    caption: string;
+    title?: string;
+    platform: string;
+    status: string;
+    createdAt: number;
+    updatedAt: number;
+    projectId?: Id<"projects">;
+    projectName?: string;
+    scheduledFor?: number;
+    schedulingStatus?: string;
+    mediaCount: number;
+    coverUrl: string | null;
+    coverThumbnailUrl?: string | null;
+    mediaPreview: Array<{
+        mediaItemId: Id<"media_items">;
+        url: string | null;
+        thumbnailUrl?: string | null;
+        mimeType: string;
+    }>;
+};
+
+function normalizePostPlatform(platform?: string | null): string {
+    if (platform === "twitter" || platform === "linkedin" || platform === "instagram") {
+        return platform;
+    }
+    return "instagram";
+}
+
+async function getCurrentUser(
+    ctx: Pick<QueryCtx, "auth" | "db">,
+) {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+        return null;
+    }
+
+    const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .unique();
+
+    return user ?? null;
+}
+
+async function canAccessPost(
+    ctx: Pick<QueryCtx, "db">,
+    userId: Id<"users">,
+    post: Doc<"generated_posts">
+) {
+    if (post.userId === userId) {
+        return true;
+    }
+
+    if (!post.projectId) {
+        return false;
+    }
+
+    const project = await ctx.db.get(post.projectId);
+    return project?.userId === userId;
+}
+
+async function resolvePostMediaByPostId(
+    ctx: QueryCtx,
+    postIds: Id<"generated_posts">[]
+) {
+    const uniquePostIds = [...new Set(postIds)];
+    const rowsByPost = await Promise.all(
+        uniquePostIds.map((postId) =>
+            ctx.db
+                .query("post_media_items")
+                .withIndex("by_post", (q) => q.eq("postId", postId))
+                .collect()
+        )
+    );
+
+    const mediaIds = [...new Set(
+        rowsByPost.flatMap((rows) => rows.map((row) => row.mediaItemId))
+    )];
+
+    const mediaItems = await Promise.all(mediaIds.map((mediaId) => ctx.db.get(mediaId)));
+    const mediaMap = new Map<Id<"media_items">, Doc<"media_items">>();
+    for (const item of mediaItems) {
+        if (item) {
+            mediaMap.set(item._id, item);
+        }
+    }
+
+    const storageIds = [...new Set(
+        [...mediaMap.values()].flatMap((item) =>
+            item.thumbnailStorageId ? [item.storageId, item.thumbnailStorageId] : [item.storageId]
+        )
+    )];
+    const storageUrls = await Promise.all(storageIds.map((storageId) => ctx.storage.getUrl(storageId)));
+    const urlMap = new Map<Id<"_storage">, string | null>();
+    for (let index = 0; index < storageIds.length; index += 1) {
+        const storageId = storageIds[index];
+        if (storageId) {
+            urlMap.set(storageId, storageUrls[index] ?? null);
+        }
+    }
+
+    const result = new Map<Id<"generated_posts">, ResolvedPostMedia[]>();
+    for (let index = 0; index < uniquePostIds.length; index += 1) {
+        const postId = uniquePostIds[index];
+        const rows = rowsByPost[index] ?? [];
+        const resolvedRows = rows
+            .sort((a, b) => a.position - b.position)
+            .flatMap((row) => {
+                const mediaItem = mediaMap.get(row.mediaItemId);
+                if (!mediaItem || mediaItem.deletedAt) {
+                    return [];
+                }
+
+                return [{
+                    _id: mediaItem._id,
+                    mediaItemId: mediaItem._id,
+                    position: row.position,
+                    role: row.role,
+                    url: urlMap.get(mediaItem.storageId) ?? null,
+                    ...(mediaItem.thumbnailStorageId
+                        ? { thumbnailUrl: urlMap.get(mediaItem.thumbnailStorageId) ?? null }
+                        : {}),
+                    mimeType: mediaItem.mimeType,
+                    width: mediaItem.width,
+                    height: mediaItem.height,
+                    createdAt: mediaItem.createdAt,
+                    sourceType: mediaItem.sourceType,
+                    ...(mediaItem.model ? { model: mediaItem.model } : {}),
+                    ...(mediaItem.prompt ? { prompt: mediaItem.prompt } : {}),
+                }];
+            });
+
+        if (postId) {
+            result.set(postId, resolvedRows);
+        }
+    }
+
+    return result;
+}
+
+async function buildPostCards(
+    ctx: QueryCtx,
+    posts: Doc<"generated_posts">[],
+    projectNameById: Map<Id<"projects">, string>
+): Promise<PostCard[]> {
+    const mediaMap = await resolvePostMediaByPostId(ctx, posts.map((post) => post._id));
+    const fallbackStorageIds = [...new Set(
+        posts
+            .filter((post) => (mediaMap.get(post._id)?.length ?? 0) === 0 && post.imageStorageId)
+            .map((post) => post.imageStorageId)
+            .filter(Boolean)
+    )] as Id<"_storage">[];
+    const fallbackStorageUrls = await Promise.all(
+        fallbackStorageIds.map((storageId) => ctx.storage.getUrl(storageId))
+    );
+    const fallbackUrlMap = new Map<Id<"_storage">, string | null>();
+    for (let index = 0; index < fallbackStorageIds.length; index += 1) {
+        const storageId = fallbackStorageIds[index];
+        if (storageId) {
+            fallbackUrlMap.set(storageId, fallbackStorageUrls[index] ?? null);
+        }
+    }
+
+    return posts.map((post): PostCard => {
+        const mediaItems = mediaMap.get(post._id) ?? [];
+        const cover = mediaItems[0];
+        const fallbackCoverUrl = !cover && post.imageStorageId
+            ? (fallbackUrlMap.get(post.imageStorageId) ?? null)
+            : null;
+        const projectName = post.projectId ? projectNameById.get(post.projectId) : undefined;
+        return {
+            _id: post._id,
+            caption: post.caption,
+            ...(post.title ? { title: post.title } : {}),
+            platform: normalizePostPlatform(post.platform),
+            status: post.status,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt,
+            ...(post.projectId ? { projectId: post.projectId } : {}),
+            ...(projectName ? { projectName } : {}),
+            ...(post.scheduledFor !== undefined ? { scheduledFor: post.scheduledFor } : {}),
+            ...(post.schedulingStatus ? { schedulingStatus: post.schedulingStatus } : {}),
+            mediaCount: mediaItems.length || (fallbackCoverUrl ? 1 : 0),
+            coverUrl: cover?.url ?? fallbackCoverUrl,
+            ...(cover?.thumbnailUrl !== undefined ? { coverThumbnailUrl: cover.thumbnailUrl } : {}),
+            mediaPreview: mediaItems.slice(0, 3).map((item) => ({
+                mediaItemId: item.mediaItemId,
+                url: item.url,
+                ...(item.thumbnailUrl !== undefined ? { thumbnailUrl: item.thumbnailUrl } : {}),
+                mimeType: item.mimeType,
+            })),
+        };
+    });
+}
 
 // Get a single generated post with resolved image URL
 export const get = query({
@@ -45,6 +259,7 @@ export const get = query({
 
         return {
             ...post,
+            platform: normalizePostPlatform(post.platform),
             imageUrl,
         };
     },
@@ -196,6 +411,8 @@ export const saveComposedDraft = mutation({
     args: {
         id: v.optional(v.id("generated_posts")),
         projectId: v.optional(v.id("projects")),
+        platform: v.optional(v.string()),
+        title: v.optional(v.string()),
         caption: v.string(),
         mediaItemIds: v.array(v.id("media_items")),
     },
@@ -258,6 +475,8 @@ export const saveComposedDraft = mutation({
             await ctx.db.patch(postId, {
                 userId: post.userId ?? user._id,
                 projectId: args.projectId,
+                platform: normalizePostPlatform(args.platform),
+                title: args.title,
                 caption: args.caption,
                 imageStorageId: firstMediaItem.storageId,
                 imagePrompt: firstMediaItem.prompt,
@@ -269,6 +488,8 @@ export const saveComposedDraft = mutation({
         } else {
             postId = await ctx.db.insert("generated_posts", {
                 userId: user._id,
+                platform: normalizePostPlatform(args.platform),
+                title: args.title,
                 caption: args.caption,
                 imageStorageId: firstMediaItem.storageId,
                 isComposed: true,
@@ -300,6 +521,190 @@ export const saveComposedDraft = mutation({
         }
 
         return postId;
+    },
+});
+
+export const getComposer = query({
+    args: {
+        id: v.id("generated_posts"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) {
+            return null;
+        }
+
+        const post = await ctx.db.get(args.id);
+        if (!post || !(await canAccessPost(ctx, user._id, post))) {
+            return null;
+        }
+
+        const mediaMap = await resolvePostMediaByPostId(ctx, [post._id]);
+        return {
+            ...post,
+            platform: normalizePostPlatform(post.platform),
+            mediaItems: mediaMap.get(post._id) ?? [],
+        };
+    },
+});
+
+export const listCardsByUser = query({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) {
+            return [];
+        }
+
+        const directPosts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .take(args.limit ?? 60);
+
+        const ownedProjects = await ctx.db
+            .query("projects")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .collect();
+
+        const projectPosts = await Promise.all(
+            ownedProjects.map((project) =>
+                ctx.db
+                    .query("generated_posts")
+                    .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                    .order("desc")
+                    .collect()
+            )
+        );
+
+        const postMap = new Map<Id<"generated_posts">, Doc<"generated_posts">>();
+        for (const post of directPosts) {
+            if (!post.deletedAt) {
+                postMap.set(post._id, post);
+            }
+        }
+        for (const rows of projectPosts) {
+            for (const post of rows) {
+                if (!post.deletedAt) {
+                    postMap.set(post._id, post);
+                }
+            }
+        }
+
+        const posts = [...postMap.values()]
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .slice(0, args.limit ?? 60);
+
+        const projectIds = [...new Set(posts.map((post) => post.projectId).filter(Boolean))] as Id<"projects">[];
+        const projects = await Promise.all(projectIds.map((projectId) => ctx.db.get(projectId)));
+        const projectMap = new Map<Id<"projects">, string>();
+        for (const project of projects) {
+            if (project) {
+                projectMap.set(project._id, project.name);
+            }
+        }
+
+        return buildPostCards(ctx, posts, projectMap);
+    },
+});
+
+export const searchCards = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number()),
+        platform: v.optional(v.string()),
+        projectId: v.optional(v.id("projects")),
+        schedulingStatus: v.optional(v.union(v.literal("scheduled"), v.literal("draft"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) {
+            return [];
+        }
+
+        const searchTerm = args.query.trim();
+        if (!searchTerm) {
+            return [];
+        }
+
+        const limit = args.limit ?? 20;
+        const ownedProjects = await ctx.db
+            .query("projects")
+            .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+            .collect();
+        const projectNameById = new Map(
+            ownedProjects.map((project) => [project._id, project.name] as const)
+        );
+
+        const candidatePosts = args.projectId
+            ? await (async () => {
+                const project = projectNameById.get(args.projectId!);
+                if (!project) {
+                    return [] as Doc<"generated_posts">[];
+                }
+
+                return ctx.db
+                    .query("generated_posts")
+                    .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId!))
+                    .collect();
+            })()
+            : await (async () => {
+                const directPosts = await ctx.db
+                    .query("generated_posts")
+                    .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+                    .collect();
+                const projectPostsArrays = await Promise.all(
+                    ownedProjects.map((project) =>
+                        ctx.db
+                            .query("generated_posts")
+                            .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                            .collect()
+                    )
+                );
+
+                const uniquePosts = new Map<Id<"generated_posts">, Doc<"generated_posts">>();
+                for (const post of [...directPosts, ...projectPostsArrays.flat()]) {
+                    uniquePosts.set(post._id, post);
+                }
+
+                return [...uniquePosts.values()];
+            })();
+
+        const matchedPosts = candidatePosts
+            .filter((post) => !post.deletedAt)
+            .filter((post) => !args.platform || normalizePostPlatform(post.platform) === args.platform)
+            .filter((post) => {
+                if (args.schedulingStatus === "scheduled") {
+                    return post.schedulingStatus === "scheduled";
+                }
+
+                if (args.schedulingStatus === "draft") {
+                    return post.schedulingStatus !== "scheduled";
+                }
+
+                return true;
+            })
+            .flatMap((post) => {
+                const match = rankSearchMatch(searchTerm, [
+                    { value: post.title, weight: 12 },
+                    { value: post.caption, weight: 10 },
+                    { value: post.imagePrompt, weight: 7 },
+                    { value: post.projectId ? projectNameById.get(post.projectId) : null, weight: 4 },
+                ]);
+
+                if (!match) {
+                    return [];
+                }
+
+                return [{ post, score: match.score }];
+            })
+            .sort((a, b) => b.score - a.score || b.post.updatedAt - a.post.updatedAt)
+            .slice(0, limit)
+            .map(({ post }) => post);
+
+        return buildPostCards(ctx, matchedPosts, projectNameById);
     },
 });
 

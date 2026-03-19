@@ -50,6 +50,7 @@ import type * as postMediaItems from "../postMediaItems.js";
 import type * as projects from "../projects.js";
 import type * as referenceImages from "../referenceImages.js";
 import type * as scheduledPosts from "../scheduledPosts.js";
+import type * as search from "../search.js";
 import type * as users from "../users.js";
 
 import type {
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   projects: typeof projects;
   referenceImages: typeof referenceImages;
   scheduledPosts: typeof scheduledPosts;
+  search: typeof search;
   users: typeof users;
 }>;
 

@@ -2,6 +2,11 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import {
+    getImageModelDisplayName,
+    getMediaSourceLabel,
+    rankSearchMatch,
+} from "./search";
 
 type MediaCard = Pick<
     Doc<"media_items">,
@@ -549,6 +554,36 @@ export const listCardsByUser = query({
     },
 });
 
+export const listAllCardsByUser = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            return [];
+        }
+
+        const items = await ctx.db
+            .query("media_items")
+            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
+            .order("desc")
+            .collect();
+
+        return resolveMediaCards(
+            ctx,
+            items.filter((item) => !item.deletedAt)
+        );
+    },
+});
+
 // List media items for a project
 export const listByProject = query({
     args: {
@@ -759,6 +794,7 @@ export const searchCards = query({
     args: {
         query: v.string(),
         limit: v.optional(v.number()),
+        projectId: v.optional(v.id("projects")),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -781,24 +817,60 @@ export const searchCards = query({
         }
 
         const limit = args.limit ?? 20;
-        const scanLimit = Math.max(limit * 15, 150);
+        let projectNameById = new Map<Id<"projects">, string>();
 
-        const recentItems = await ctx.db
-            .query("media_items")
-            .withIndex("by_user_created", (q) => q.eq("userId", user._id))
-            .order("desc")
-            .take(scanLimit);
+        const candidateItems = args.projectId
+            ? await (async () => {
+                const project = await ctx.db.get(args.projectId!);
+                if (!project || project.userId !== user._id) {
+                    return [] as Doc<"media_items">[];
+                }
 
-        const matched = recentItems
+                projectNameById = new Map([[project._id, project.name]]);
+                return ctx.db
+                    .query("media_items")
+                    .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
+                    .collect();
+            })()
+            : await ctx.db
+                .query("media_items")
+                .withIndex("by_user_id", (q) => q.eq("userId", user._id))
+                .collect();
+
+        if (!args.projectId) {
+            const projectIds = [...new Set(
+                candidateItems
+                    .map((item) => item.projectId)
+                    .filter((projectId): projectId is Id<"projects"> => !!projectId)
+            )];
+            const projects = await Promise.all(projectIds.map((projectId) => ctx.db.get(projectId)));
+            projectNameById = new Map(
+                projects.flatMap((project) => project ? [[project._id, project.name] as const] : [])
+            );
+        }
+
+        const matched = candidateItems
             .filter((item) => !item.deletedAt)
-            .filter((item) => {
-                const promptMatch = item.prompt?.toLowerCase().includes(searchTerm) ?? false;
-                const userPromptMatch = item.userPrompt?.toLowerCase().includes(searchTerm) ?? false;
-                const modelMatch = item.model?.toLowerCase().includes(searchTerm) ?? false;
-                const sourceMatch = item.sourceType.toLowerCase().includes(searchTerm);
-                return promptMatch || userPromptMatch || modelMatch || sourceMatch;
+            .flatMap((item) => {
+                const match = rankSearchMatch(searchTerm, [
+                    { value: item.userPrompt, weight: 12 },
+                    { value: item.prompt, weight: 10 },
+                    { value: getImageModelDisplayName(item.model), weight: 9 },
+                    { value: item.model, weight: 6 },
+                    { value: getMediaSourceLabel(item.sourceType), weight: 4 },
+                    { value: item.sourceType, weight: 2 },
+                    { value: item.projectId ? projectNameById.get(item.projectId) : null, weight: 3 },
+                ]);
+
+                if (!match) {
+                    return [];
+                }
+
+                return [{ item, score: match.score }];
             })
-            .slice(0, limit);
+            .sort((a, b) => b.score - a.score || b.item.createdAt - a.item.createdAt)
+            .slice(0, limit)
+            .map(({ item }) => item);
 
         return resolveMediaCards(ctx, matched);
     },

@@ -15,6 +15,7 @@
 		ImageSkeleton,
 		ReferenceImagePicker,
 		ImageGenerationErrorModal,
+		MediaBrowserFilterBar,
 	} from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
@@ -43,6 +44,14 @@
 		saveImagesPageState,
 		type ImagesPageReference,
 	} from "$lib/studio/imagesPageState";
+	import {
+		filterMediaItems,
+		getMediaModelDisplayName,
+		getMediaModelOptions,
+		getMediaSourceLabel,
+		type MediaSortOrder,
+		type MediaSourceFilter,
+	} from "$lib/studio/mediaBrowserFilters";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -132,15 +141,6 @@
 	const client = useConvexClient();
 	const ACTIVE_GENERATION_WINDOW_MS = 5 * 60 * 1000;
 
-	const modelDisplayNames: Record<string, string> = {
-		"google/gemini-2.5-flash-image": "Nano Banana",
-		"google/gemini-3.1-flash-image-preview": "Nano Banana 2",
-		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
-		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
-		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
-		"openai/gpt-5-image": "GPT Image 1.5",
-	};
-
 	let prompt = $state("");
 	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
 	let aspectRatio = $state<AspectRatio>("1:1");
@@ -153,25 +153,21 @@
 	let fileInputEl = $state<HTMLInputElement | null>(null);
 	let isUploading = $state(false);
 
-	let searchQuery = $state("");
 	let filterProjectId = $state<Id<"projects"> | null>(null);
-	let projectFilterOpen = $state(false);
+	let filterModel = $state("all");
+	let filterSource = $state<MediaSourceFilter>("all");
+	let sortOrder = $state<MediaSortOrder>("newest");
 	let viewMode = $state<ViewMode>(
 		(($page.url.searchParams.get("tab") as ViewMode | null) === "conversations")
 			? "conversations"
 			: "images"
 	);
 
-	let allItems = $state<MediaItem[]>([]);
-	let cursor = $state<string | null>(null);
-	let hasMore = $state(true);
-	let loadingMore = $state(false);
-	let initialLoadDone = $state(false);
-	let sentinelEl = $state<HTMLDivElement | null>(null);
 	let activeBatchId = $state<Id<"media_generation_batches"> | null>(null);
 	let staleCleanupStarted = $state(false);
 	let requestedThumbnailIds = $state<string[]>([]);
 	let persistedStateRestored = $state(false);
+	let hiddenItemIds = $state<string[]>([]);
 
 	let initialProjectId = $derived($page.url.searchParams.get("projectId") as Id<"projects"> | null);
 	let lightboxMediaId = $derived($page.url.searchParams.get("view"));
@@ -189,8 +185,10 @@
 				storageId: Id<"_storage">;
 				previewUrl: string;
 			}[];
-			searchQuery = savedState.searchQuery;
 			filterProjectId = savedState.filterProjectId as Id<"projects"> | null;
+			filterModel = savedState.filterModel;
+			filterSource = savedState.filterSource;
+			sortOrder = savedState.sortOrder;
 			if (!$page.url.searchParams.has("tab")) {
 				viewMode = savedState.viewMode;
 			}
@@ -230,18 +228,7 @@
 	}
 
 	const projectsQuery = useQuery(api.projects.list, () => ({}));
-	const initialItemsQuery = useQuery(
-		api.mediaItems.listCardsByUser,
-		() => (filterProjectId || searchQuery.trim()) ? "skip" : { limit: 30 }
-	);
-	const projectItemsQuery = useQuery(
-		api.mediaItems.listCardsByProject,
-		() => filterProjectId ? { projectId: filterProjectId } : "skip"
-	);
-	const searchResultsQuery = useQuery(
-		api.mediaItems.searchCards,
-		() => searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
-	);
+	const allItemsQuery = useQuery(api.mediaItems.listAllCardsByUser, () => ({}));
 	const conversationsQuery = useQuery(
 		api.imageEditConversations.listByUser,
 		() => viewMode === "conversations" ? {} : "skip"
@@ -273,19 +260,30 @@
 	let selectedProject = $derived(selectedProjectQuery.data);
 	let contextImages = $derived(contextImagesQuery.data ?? []);
 	let projects = $derived(projectsQuery.data ?? []);
+	let allUserItems = $derived(
+		((allItemsQuery.data ?? []) as MediaItem[]).filter((item) => !hiddenItemIds.includes(item._id))
+	);
 	let recentBatches = $derived(recentBatchesQuery.data ?? []);
-	let selectedFilterProject = $derived(projects.find((project) => project._id === filterProjectId) ?? null);
 	let batchData = $derived(batchQuery.data);
 	let batchItems = $derived(batchItemsQuery.data ?? []);
+	let modelOptions = $derived(getMediaModelOptions(allUserItems));
 	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
 	let supportedResolutions = $derived(getSupportedResolutions(selectedModels));
+	let filtersAreDefault = $derived(
+		filterProjectId === null &&
+		filterModel === "all" &&
+		filterSource === "all" &&
+		sortOrder === "newest"
+	);
 	let showGeneratingBatchCards = $derived(
 		!!activeBatchId &&
 		!!batchData &&
 		batchData.status === "generating" &&
 		Date.now() - batchLastProgressAt(batchData) < ACTIVE_GENERATION_WINDOW_MS &&
-		!searchQuery.trim() &&
-		(!filterProjectId || batchData.projectId === filterProjectId)
+		sortOrder === "newest" &&
+		filterSource !== "edited" &&
+		(!filterProjectId || batchData.projectId === filterProjectId) &&
+		(filterModel === "all" || (batchData?.pendingModels ?? []).includes(filterModel))
 	);
 
 	$effect(() => {
@@ -327,8 +325,10 @@
 				storageId: reference.storageId,
 				previewUrl: reference.previewUrl,
 			})),
-			searchQuery,
 			filterProjectId,
+			filterModel,
+			filterSource,
+			sortOrder,
 			viewMode,
 		});
 	});
@@ -356,17 +356,6 @@
 	});
 
 	$effect(() => {
-		if ((batchData?.status === "completed" || batchData?.status === "generating") && batchItems.length > 0) {
-			const newIds = new Set(batchItems.map((item) => item._id));
-			const merged = [...(batchItems as MediaItem[]), ...allItems.filter((item) => !newIds.has(item._id))];
-			const sameOrder =
-				allItems.length === merged.length &&
-				allItems.every((item, index) => item._id === merged[index]?._id);
-			if (!sameOrder) {
-				allItems = merged;
-			}
-		}
-
 		if (batchData?.status === "completed") {
 			activeBatchId = null;
 		}
@@ -390,74 +379,13 @@
 				}
 			);
 			activeBatchId = null;
-		}
-	});
-
-	$effect(() => {
-		if (!initialItemsQuery.data || filterProjectId || searchQuery.trim()) return;
-
-		const nextItems = initialItemsQuery.data.items as MediaItem[];
-		const nextIds = new Set(nextItems.map((item) => item._id));
-		const merged = [...nextItems, ...allItems.filter((item) => !nextIds.has(item._id))];
-		const sameOrder =
-			allItems.length === merged.length &&
-			allItems.every((item, index) => item._id === merged[index]?._id);
-
-		if (!sameOrder) {
-			allItems = merged;
-		}
-
-		cursor = initialItemsQuery.data.nextCursor;
-		hasMore = initialItemsQuery.data.hasMore;
-		if (!initialLoadDone) {
-			initialLoadDone = true;
-		}
-	});
-
-	async function loadMore() {
-		if (loadingMore || !hasMore || filterProjectId || searchQuery.trim()) return;
-		loadingMore = true;
-		try {
-			const args: { limit: number; cursor?: string } = { limit: 30 };
-			if (cursor) args.cursor = cursor;
-			const result = await client.query(api.mediaItems.listCardsByUser, args);
-			allItems = [...allItems, ...(result.items as MediaItem[])];
-			cursor = result.nextCursor;
-			hasMore = result.hasMore;
-		} catch (err) {
-			console.error("Failed to load more:", err);
-		} finally {
-			loadingMore = false;
-		}
-	}
-
-	$effect(() => {
-		if (filterProjectId || searchQuery.trim()) {
-			allItems = [];
-			cursor = null;
-			hasMore = true;
-			initialLoadDone = false;
-		}
-	});
-
-	$effect(() => {
-		if (!sentinelEl) return;
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries[0]?.isIntersecting && hasMore && !loadingMore && !filterProjectId && !searchQuery.trim()) {
-					loadMore();
-				}
-			},
-			{ rootMargin: "200px" }
-		);
-		observer.observe(sentinelEl);
-		return () => observer.disconnect();
-	});
+			}
+		});
 
 	$effect(() => {
 		if (viewMode !== "images") return;
 
-		const idsToEnsure = items()
+		const idsToEnsure = items
 			.filter((item) => item.url && !item.thumbnailUrl)
 			.map((item) => item._id)
 			.filter((id) => !requestedThumbnailIds.includes(id))
@@ -471,15 +399,18 @@
 		});
 	});
 
-	let items = $derived(() => {
-		if (searchQuery.trim()) return (searchResultsQuery.data ?? []) as MediaItem[];
-		if (filterProjectId) return (projectItemsQuery.data ?? []) as MediaItem[];
-		return allItems;
-	});
+	let items = $derived(
+		filterMediaItems(allUserItems, {
+			projectId: filterProjectId,
+			model: filterModel,
+			source: filterSource,
+			sortOrder,
+		})
+	);
 	let conversations = $derived((conversationsQuery.data ?? []) as ConversationSummary[]);
 	let pendingConversations = $derived((pendingConversationsQuery.data ?? []) as PendingConversationSummary[]);
 	let conversationPendingCards = $derived(() => {
-		if (searchQuery.trim() || filterProjectId) return [] as GridCard[];
+		if (!filtersAreDefault || filterSource === "edited") return [] as GridCard[];
 
 		return pendingConversations
 			.filter((conversation) => (conversation.latestTurn?.pendingModels?.length ?? 0) > 0)
@@ -521,7 +452,7 @@
 			}
 		}
 
-		for (const item of items()) {
+		for (const item of items) {
 			if (activeIds.has(item._id)) continue;
 			cards.push({ type: "item", key: item._id, item });
 		}
@@ -582,11 +513,7 @@
 			return cols;
 		});
 
-	let isLoading = $derived(
-		(initialItemsQuery.isLoading && !initialLoadDone) ||
-		(!!filterProjectId && projectItemsQuery.isLoading) ||
-		(!!searchQuery.trim() && searchResultsQuery.isLoading)
-	);
+	let isLoading = $derived(allItemsQuery.isLoading);
 
 	let batchPendingCount = $derived(showGeneratingBatchCards ? batchData?.pendingModels?.length ?? 0 : 0);
 	let conversationPendingCount = $derived(conversationPendingCards().length);
@@ -607,23 +534,11 @@
 	}
 
 	function getModelDisplayName(model?: string): string {
-		if (!model) return "Imagem";
-		return modelDisplayNames[model] ?? model.split("/").pop() ?? model;
+		return getMediaModelDisplayName(model);
 	}
 
 	function getSourceLabel(sourceType: string): string {
-		switch (sourceType) {
-			case "generated":
-				return "Gerada por IA";
-			case "uploaded":
-				return "Upload manual";
-			case "edited":
-				return "Imagem editada";
-			case "imported":
-				return "Imagem importada";
-			default:
-				return sourceType;
-		}
+		return getMediaSourceLabel(sourceType);
 	}
 
 	function toAspectRatioValue(aspectRatio?: string): string {
@@ -757,10 +672,9 @@
 				});
 			}
 
-			initialLoadDone = false;
-		} catch (err: any) {
-			showError(err, "UPLOAD_FAILED");
-		} finally {
+			} catch (err: any) {
+				showError(err, "UPLOAD_FAILED");
+			} finally {
 			isUploading = false;
 			input.value = "";
 		}
@@ -781,7 +695,7 @@
 	async function handleDelete(id: Id<"media_items">, event: Event) {
 		event.stopPropagation();
 		await client.mutation(api.mediaItems.softDelete, { id });
-		allItems = allItems.filter((item) => item._id !== id);
+		hiddenItemIds = [...hiddenItemIds, id];
 	}
 
 	async function handleDownload(url: string, event: Event) {
@@ -802,10 +716,6 @@
 		}
 	}
 
-	function selectProjectFilter(projectId: Id<"projects"> | null) {
-		filterProjectId = projectId;
-		projectFilterOpen = false;
-	}
 </script>
 
 <svelte:head>
@@ -1015,75 +925,29 @@
 							</svg>
 						</Button>
 						{#if viewMode === "images"}
-							<div class="relative">
-								<input
-									type="text"
-									placeholder="Buscar..."
-									class="flex h-9 w-72 rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									value={searchQuery}
-									oninput={(event) => (searchQuery = (event.target as HTMLInputElement).value)}
+								<MediaBrowserFilterBar
+									{projects}
+									selectedProjectId={filterProjectId}
+									{modelOptions}
+									selectedModel={filterModel}
+									sourceFilter={filterSource}
+									{sortOrder}
+									onprojectchange={(projectId) => {
+										filterProjectId = projectId as Id<"projects"> | null;
+									}}
+									onmodelchange={(model) => {
+										filterModel = model;
+									}}
+									onsourcechange={(source) => {
+										filterSource = source;
+									}}
+									onsortchange={(nextSortOrder) => {
+										sortOrder = nextSortOrder;
+									}}
 								/>
-								<svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-								</svg>
-								{#if searchQuery}
-									<button
-										type="button"
-										aria-label="Limpar busca"
-										class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-										onclick={() => (searchQuery = "")}
-									>
-										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-										</svg>
-									</button>
-								{/if}
-							</div>
-
-							{#if projects.length > 0}
-								<Popover bind:open={projectFilterOpen}>
-									<PopoverTrigger>
-										<button
-											type="button"
-											class="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm transition-colors hover:bg-muted"
-										>
-											{#if selectedFilterProject}
-												<span>{selectedFilterProject.name}</span>
-											{:else}
-												<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-												</svg>
-												<span class="text-muted-foreground">Filtrar projeto</span>
-											{/if}
-											<svg class="h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-											</svg>
-										</button>
-									</PopoverTrigger>
-									<PopoverContent class="w-56 p-1" align="start">
-										<button
-											type="button"
-											class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted {filterProjectId === null ? 'bg-muted' : ''}"
-											onclick={() => selectProjectFilter(null)}
-										>
-											<span>Todos os projetos</span>
-										</button>
-										<div class="my-1 border-t border-border"></div>
-										{#each projects as project (project._id)}
-											<button
-												type="button"
-												class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted {filterProjectId === project._id ? 'bg-muted' : ''}"
-												onclick={() => selectProjectFilter(project._id)}
-											>
-												<span>{project.name}</span>
-											</button>
-										{/each}
-									</PopoverContent>
-								</Popover>
-							{/if}
 
 							<span class="text-sm text-muted-foreground">
-								{items().length} {items().length !== 1 ? "imagens" : "imagem"}
+								{items.length} {items.length !== 1 ? "imagens" : "imagem"}
 							</span>
 
 							{#if pendingCount > 0}
@@ -1163,20 +1027,20 @@
 								<svg class="h-10 w-10 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
 								</svg>
-							</div>
-							<h3 class="mt-6 text-lg font-medium">
-								{#if searchQuery.trim()}
-									Nenhum resultado encontrado
-								{:else}
-									Nenhuma imagem ainda
-								{/if}
-							</h3>
-							<p class="mt-2 text-sm text-muted-foreground">
-								{#if searchQuery.trim()}
-									Tente buscar por outros termos
-								{:else}
-									Use o painel lateral para gerar ou fazer upload de imagens
-								{/if}
+								</div>
+								<h3 class="mt-6 text-lg font-medium">
+									{#if !filtersAreDefault}
+										Nenhuma imagem encontrada
+									{:else}
+										Nenhuma imagem ainda
+									{/if}
+								</h3>
+								<p class="mt-2 text-sm text-muted-foreground">
+									{#if !filtersAreDefault}
+										Ajuste os filtros para ampliar os resultados
+									{:else}
+										Use o painel lateral para gerar ou fazer upload de imagens
+									{/if}
 							</p>
 						</div>
 					{:else if viewMode === "conversations" && conversations.length === 0}
@@ -1326,18 +1190,7 @@
 									{/each}
 								</div>
 
-								{#if !filterProjectId && !searchQuery.trim()}
-									<div bind:this={sentinelEl} class="h-1" aria-hidden="true"></div>
-									{#if loadingMore}
-										<div class="flex items-center justify-center py-8">
-											<svg class="h-6 w-6 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-										</div>
-									{/if}
-								{/if}
-							{:else}
+								{:else}
 								<div class="mx-auto flex w-full max-w-5xl flex-col gap-5">
 									{#each conversations as conversation (conversation._id)}
 										<button
@@ -1415,9 +1268,9 @@
 
 <ImageGenerationErrorModal error={errorState} onclose={clearErrorState} />
 
-{#if viewMode === "images" && lightboxOpen && lightboxMediaId && items().length > 0}
+{#if viewMode === "images" && lightboxOpen && lightboxMediaId && items.length > 0}
 	<MediaLightbox
-		items={items()}
+		{items}
 		currentMediaId={lightboxMediaId}
 		onclose={closeLightbox}
 		onnavigate={navigateLightbox}

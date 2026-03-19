@@ -1,5 +1,6 @@
 import { browser } from "$app/environment";
 import type { AspectRatio, Resolution } from "$lib/studio/imageGenerationCapabilities";
+import type { MediaSortOrder, MediaSourceFilter } from "$lib/studio/mediaBrowserFilters";
 
 export type ImagesPageViewMode = "images" | "conversations";
 
@@ -15,12 +16,14 @@ export type ImagesPageState = {
 	resolution: Resolution;
 	selectedProjectId: string | null;
 	manualReferences: ImagesPageReference[];
-	searchQuery: string;
 	filterProjectId: string | null;
+	filterModel: string;
+	filterSource: MediaSourceFilter;
+	sortOrder: MediaSortOrder;
 	viewMode: ImagesPageViewMode;
 };
 
-const STORAGE_KEY = "vanda:images-page-state:v1";
+const STORAGE_KEY = "vanda:images-page-state:v2";
 
 let memoryState: ImagesPageState | null = null;
 type SessionState = Partial<ImagesPageState>;
@@ -41,15 +44,25 @@ export function loadImagesPageState(): ImagesPageState | null {
 		if (!raw) return null;
 
 		const parsed = JSON.parse(raw) as SessionState;
+		const filterSource = parsed.filterSource ?? "all";
+		const sortOrder = parsed.sortOrder ?? "newest";
+		const viewMode = parsed.viewMode ?? "images";
+
 		if (
 			typeof parsed.prompt !== "string" ||
 			!Array.isArray(parsed.selectedModels) ||
 			typeof parsed.aspectRatio !== "string" ||
 			typeof parsed.resolution !== "string" ||
-			typeof parsed.searchQuery !== "string" ||
 			(parsed.selectedProjectId !== null && typeof parsed.selectedProjectId !== "string") ||
-			(parsed.filterProjectId !== null && typeof parsed.filterProjectId !== "string") ||
-			(parsed.viewMode !== "images" && parsed.viewMode !== "conversations") ||
+			(parsed.filterProjectId !== undefined &&
+				parsed.filterProjectId !== null &&
+				typeof parsed.filterProjectId !== "string") ||
+			(parsed.filterModel !== undefined && typeof parsed.filterModel !== "string") ||
+			(filterSource !== "all" &&
+				filterSource !== "edited" &&
+				filterSource !== "generated_uploaded") ||
+			(sortOrder !== "newest" && sortOrder !== "oldest") ||
+			(viewMode !== "images" && viewMode !== "conversations") ||
 			(parsed.manualReferences !== undefined && !Array.isArray(parsed.manualReferences))
 		) {
 			return null;
@@ -70,9 +83,11 @@ export function loadImagesPageState(): ImagesPageState | null {
 					typeof reference.storageId === "string" &&
 					typeof reference.previewUrl === "string"
 			),
-			searchQuery: parsed.searchQuery,
 			filterProjectId: parsed.filterProjectId ?? null,
-			viewMode: parsed.viewMode,
+			filterModel: parsed.filterModel ?? "all",
+			filterSource,
+			sortOrder,
+			viewMode,
 		};
 	} catch (error) {
 		console.error("Failed to load /images page state:", error);
@@ -96,8 +111,10 @@ export function saveImagesPageState(state: ImagesPageState) {
 		resolution: state.resolution,
 		selectedProjectId: state.selectedProjectId,
 		manualReferences: state.manualReferences.map((reference) => ({ ...reference })),
-		searchQuery: state.searchQuery,
 		filterProjectId: state.filterProjectId,
+		filterModel: state.filterModel,
+		filterSource: state.filterSource,
+		sortOrder: state.sortOrder,
 		viewMode: state.viewMode,
 	};
 
