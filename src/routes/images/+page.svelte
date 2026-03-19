@@ -1083,7 +1083,7 @@
 							{/if}
 
 							<span class="text-sm text-muted-foreground">
-								{items().length} imagem{items().length !== 1 ? "ns" : ""}
+								{items().length} {items().length !== 1 ? "imagens" : "imagem"}
 							</span>
 
 							{#if pendingCount > 0}
