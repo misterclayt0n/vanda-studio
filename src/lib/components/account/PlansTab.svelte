@@ -4,10 +4,11 @@
 	interface SubscriptionData {
 		subscription: {
 			plan: string;
-			promptsUsed: number;
-			promptsLimit: number;
+			monthlyCreditsIncluded: number;
+			monthlyCreditsUsed: number;
+			monthlyCreditsRemaining: number;
+			totalCreditsRemaining: number;
 			periodEnd?: number;
-			trialEndsAt?: number;
 			resetAt?: number;
 		};
 		accessStatus: string;
@@ -44,14 +45,13 @@
 		{
 			id: "basico" as const,
 			name: "Básico",
-			description: "Para criadores iniciantes",
+			description: "Para quem está estruturando a rotina e precisa de espaço para criar com consistência.",
 			price: 87,
-			images: 75,
 			features: [
-				"75 imagens por mês",
-				"Geração de legendas com IA",
-				"Todos os modelos de imagem",
-				"Teste grátis de 7 dias",
+				"Limite mensal pensado para uso recorrente individual",
+				"Todos os fluxos essenciais de imagem e legenda",
+				"Todos os modelos de imagem incluídos",
+				"7 dias grátis para testar sem fricção",
 				"Suporte por email",
 			],
 			highlight: true,
@@ -59,13 +59,12 @@
 		{
 			id: "mediano" as const,
 			name: "Mediano",
-			description: "Para criadores sérios",
+			description: "Para quem publica com frequência, itera mais e quer mais liberdade no mês.",
 			price: 149,
-			images: 150,
 			features: [
-				"150 imagens por mês",
-				"Geração de legendas com IA",
-				"Todos os modelos de imagem",
+				"Faixa mensal ampliada para produção constante",
+				"Todos os modelos e estilos disponíveis",
+				"Melhor cobertura para batches, testes e variações",
 				"Suporte prioritário",
 				"Acesso antecipado a novidades",
 			],
@@ -74,13 +73,12 @@
 		{
 			id: "profissional" as const,
 			name: "Profissional",
-			description: "Para agências e times",
+			description: "Para times, estúdios e operações que precisam de folga para produzir pesado.",
 			price: 249,
-			images: 300,
 			features: [
-				"300 imagens por mês",
-				"Geração de legendas com IA",
-				"Todos os modelos de imagem",
+				"Maior capacidade mensal para volume pesado",
+				"Tudo do plano Mediano",
+				"Mais conforto para campanhas, times e múltiplas frentes",
 				"Suporte prioritário",
 				"Acesso antecipado a novidades",
 				"Consultoria de uso",
@@ -125,7 +123,7 @@
 
 <div class="space-y-6">
 	<div>
-		<h3 class="text-lg font-semibold mb-1">Planos e assinatura</h3>
+		<h3 class="mb-1 text-lg font-semibold">Planos e assinatura</h3>
 		<p class="text-sm text-muted-foreground">
 			Escolha o plano ideal para sua necessidade
 		</p>
@@ -165,14 +163,12 @@
 			{/each}
 		</div>
 	{:else}
-		<!-- Plan cards -->
 		<div class="grid gap-4 md:grid-cols-3">
 			{#each plans as plan}
 				<div class="relative flex flex-col border bg-card p-6 transition-all hover:border-primary/30
 					{plan.highlight ? 'border-2 border-primary' : 'border-border'}
 					{isCurrentPlan(plan.id) ? 'ring-2 ring-green-500' : ''}
 					{isScheduledPlan(plan.id) ? 'ring-2 ring-amber-500' : ''}">
-
 					{#if plan.highlight}
 						<div class="absolute -top-3 left-1/2 -translate-x-1/2">
 							<Badge class="bg-primary text-primary-foreground">Mais popular</Badge>
@@ -186,7 +182,7 @@
 					{/if}
 
 					<div class="mb-4">
-						<h4 class="text-xl font-semibold font-serif">{plan.name}</h4>
+						<h4 class="font-serif text-xl font-semibold">{plan.name}</h4>
 						<p class="text-sm text-muted-foreground">{plan.description}</p>
 					</div>
 
@@ -196,20 +192,13 @@
 					</div>
 
 					{#if plan.id === "basico"}
-						<div class="mb-4 flex items-center gap-2 bg-green-500/10 border border-green-500/30 p-2.5">
+						<div class="mb-4 flex items-center gap-2 border border-green-500/30 bg-green-500/10 p-2.5">
 							<svg class="h-4 w-4 shrink-0 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
 							<span class="text-sm font-semibold text-green-600">1 semana grátis para testar</span>
 						</div>
 					{/if}
-
-					<div class="mb-4 flex items-center gap-2 bg-muted/50 p-3">
-						<svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-						</svg>
-						<span class="font-semibold text-sm">{plan.images} imagens/mes</span>
-					</div>
 
 					<ul class="mb-6 flex-1 space-y-2">
 						{#each plan.features as feature}
@@ -224,7 +213,7 @@
 
 					{#if isCurrentPlan(plan.id)}
 						<div class="space-y-2">
-							<Badge class="w-full justify-center py-2 bg-green-500/10 text-green-600 hover:bg-green-500/10">
+							<Badge class="w-full justify-center bg-green-500/10 py-2 text-green-600 hover:bg-green-500/10">
 								Plano ativo
 							</Badge>
 							{#if scheduledPlan}
@@ -239,7 +228,7 @@
 						</div>
 					{:else if isScheduledPlan(plan.id)}
 						<div class="space-y-2">
-							<Badge class="w-full justify-center py-2 bg-amber-500/10 text-amber-600 hover:bg-amber-500/10">
+							<Badge class="w-full justify-center bg-amber-500/10 py-2 text-amber-600 hover:bg-amber-500/10">
 								Agendado
 							</Badge>
 							{#if scheduledPlan?.startsAt}
@@ -273,9 +262,8 @@
 			{/each}
 		</div>
 
-		<!-- Manage billing -->
 		{#if subscriptionData?.subscription?.plan}
-			<div class="border border-border bg-card p-6">
+			<div class="space-y-4 border border-border bg-card p-6">
 				<div class="flex items-center justify-between">
 					<div>
 						<h4 class="font-medium">Gerenciar assinatura</h4>

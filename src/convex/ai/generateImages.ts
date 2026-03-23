@@ -5,7 +5,7 @@ import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
-import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
+import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
 import { createThumbnailBlob } from "../mediaProcessing";
 import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
@@ -18,6 +18,10 @@ import {
     type Resolution,
     calculateDimensions,
 } from "./llm/index";
+import {
+    estimateImageBatchUsage,
+    estimateImageLineItem,
+} from "../../lib/billing/aiCredits";
 
 /**
  * Standalone image generation action.
@@ -76,7 +80,8 @@ export const generate = action({
         const aspectRatio = normalizedSettings.aspectRatio as AspectRatio;
         const resolution = normalizedSettings.resolution as Resolution;
 
-        const reservedCount = await reserveImageUsage(ctx, imageModels.length);
+        const usageItems = estimateImageBatchUsage(imageModels);
+        const reservation = await reserveAiUsage(ctx, usageItems);
 
         const batchId = await ctx.runMutation(internal.mediaGenerationBatches.create, {
             userId: user._id,
@@ -115,11 +120,10 @@ export const generate = action({
                 aspectRatio,
                 resolution,
                 referenceImageUrls,
-                reservedCount,
             });
         } catch (err) {
             const storedError = getStoredImageGenerationError(err);
-            await refundImageUsage(ctx, reservedCount);
+            await refundAiUsage(ctx, reservation);
             await ctx.runMutation(internal.mediaGenerationBatches.markError, {
                 id: batchId,
                 clearPending: true,
@@ -146,7 +150,6 @@ export const processBatch = internalAction({
         aspectRatio: v.string(),
         resolution: v.string(),
         referenceImageUrls: v.array(v.string()),
-        reservedCount: v.number(),
     },
     handler: async (ctx, args): Promise<void> => {
         const aspectRatio = args.aspectRatio as AspectRatio;
@@ -228,7 +231,7 @@ export const processBatch = internalAction({
         } catch (err) {
             console.error(`[GENERATE_IMAGES] Async batch ${args.batchId} failed:`, err);
             const storedError = getStoredImageGenerationError(err);
-            await refundImageUsage(ctx, args.reservedCount);
+            await refundAiUsage(ctx, estimateImageBatchUsage(args.imageModels));
             await ctx.runMutation(internal.mediaGenerationBatches.markError, {
                 id: args.batchId,
                 clearPending: true,
@@ -241,7 +244,10 @@ export const processBatch = internalAction({
         const failedResults = results.filter((result) => !result.success);
         const failedCount = failedResults.length;
         if (failedCount > 0) {
-            await refundImageUsage(ctx, failedCount);
+            await refundAiUsage(
+                ctx,
+                failedResults.map((result) => estimateImageLineItem(result.model))
+            );
         }
 
         if (failedCount === args.imageModels.length) {

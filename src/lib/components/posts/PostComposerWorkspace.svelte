@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
+	import { onMount } from "svelte";
 	import { ScheduleModal } from "$lib/components/calendar";
 	import { CarouselStrip, InstagramPreview } from "$lib/components/posts";
 	import { CaptionModelSelector, ProjectSelector } from "$lib/components/studio";
@@ -9,6 +10,10 @@
 		loadPostComposerState,
 		savePostComposerState,
 	} from "$lib/studio/postComposerState";
+	import {
+		estimateCaptionUsage,
+		sumUsageLineItemCredits,
+	} from "$lib/billing/aiCredits";
 	import { Badge, Button, Textarea } from "$lib/components/ui";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
@@ -39,6 +44,20 @@
 		scheduledFor?: number;
 		schedulingStatus?: string;
 		platform?: string;
+	};
+
+	type BillingOverview = {
+		activePlanId: string | null;
+		accessStatus: string;
+		trialEligible: boolean;
+		renewalAt: number | null;
+		usage: {
+			monthlyIncluded: number;
+			monthlyUsed: number;
+			monthlyRemaining: number;
+			totalRemaining: number;
+			nextResetAt?: number;
+		};
 	};
 
 	interface Props {
@@ -160,6 +179,16 @@
 	let restoredComposerStateKey = $state<string | null>(null);
 	let restoredComposerStateFromStorage = $state(false);
 	let composerPersistenceReadyKey = $state<string | null>(null);
+	let billingOverview = $state<BillingOverview | null>(null);
+	let billingOverviewLoaded = $state(false);
+	let captionCreditEstimate = $derived(
+		sumUsageLineItemCredits(estimateCaptionUsage(captionModel))
+	);
+	let captionPlanUsageEstimatePercent = $derived(
+		billingOverview?.usage?.monthlyIncluded
+			? (captionCreditEstimate / Math.max(billingOverview.usage.monthlyIncluded, 1)) * 100
+			: null
+	);
 
 	const composerPostId = $derived(postId ?? activePostId ?? postIdFromUrl);
 	const composerStateKey = $derived(composerPostId ? `post:${composerPostId}` : "new");
@@ -194,11 +223,36 @@
 	let isEditingExistingPost = $derived(!!composerPostId);
 	let coverMedia = $derived(selectedMedia[0] ?? null);
 
+	onMount(() => {
+		void loadBillingOverview();
+	});
+
 	$effect(() => {
 		if (previewIndex >= selectedMedia.length && selectedMedia.length > 0) {
 			previewIndex = selectedMedia.length - 1;
 		}
 	});
+
+	function formatPercent(value: number): string {
+		const normalized = Math.max(0, Math.min(100, value));
+		const formatter = new Intl.NumberFormat("pt-BR", {
+			minimumFractionDigits: normalized > 0 && normalized < 1 ? 1 : 0,
+			maximumFractionDigits: normalized >= 10 || Number.isInteger(normalized) ? 0 : 1,
+		});
+		return `${formatter.format(normalized)}%`;
+	}
+
+	async function loadBillingOverview() {
+		try {
+			const data = await client.action((api as any).billing.autumn.getBillingOverview, {});
+			billingOverview = data ?? null;
+		} catch (error) {
+			console.error("Failed to load billing overview for post composer:", error);
+			billingOverview = null;
+		} finally {
+			billingOverviewLoaded = true;
+		}
+	}
 
 	$effect(() => {
 		const savedState = loadPostComposerState(composerStateKey);
@@ -374,7 +428,7 @@
 			const savedPostId = await client.mutation(api.generatedPosts.saveComposedDraft, {
 				...(composerPostId && { id: composerPostId }),
 				...(selectedProjectId && { projectId: selectedProjectId }),
-				title: title || undefined,
+				...(title ? { title } : {}),
 				caption,
 				mediaItemIds: selectedMediaIds,
 				platform,
@@ -656,17 +710,33 @@
 								captionModel = v;
 								markComposerPersistenceReady();
 							}}
+							monthlyIncludedCredits={billingOverview?.usage?.monthlyIncluded ?? null}
+							usageIndicatorMode="percent"
 						/>
 					</div>
 
 					<!-- Generate button -->
-					<Button
-						class="w-full"
-						onclick={handleGenerateCaption}
-						disabled={isGeneratingCaption || !captionBrief.trim()}
-					>
-						{isGeneratingCaption ? "Gerando legenda..." : "Gerar legenda"}
-					</Button>
+					<div class="space-y-2">
+						<div class="flex items-center justify-between text-xs text-muted-foreground">
+							<span>Estimativa desta legenda</span>
+							<span>
+								{#if !billingOverviewLoaded}
+									Carregando...
+								{:else if captionPlanUsageEstimatePercent !== null}
+									{formatPercent(captionPlanUsageEstimatePercent)} do plano
+								{:else}
+									Plano indisponível
+								{/if}
+							</span>
+						</div>
+						<Button
+							class="w-full"
+							onclick={handleGenerateCaption}
+							disabled={isGeneratingCaption || !captionBrief.trim()}
+						>
+							{isGeneratingCaption ? "Gerando legenda..." : "Gerar legenda"}
+						</Button>
+					</div>
 
 					<!-- Final caption -->
 					<div class="space-y-2">

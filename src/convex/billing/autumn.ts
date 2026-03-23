@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { action, query } from "../_generated/server";
 import { autumn } from "../autumn";
+import { getBillingUsageOverview } from "./autumnUsage";
 
 const BASE_URL = process.env.PUBLIC_APP_URL || "http://localhost:5173";
 
@@ -12,6 +13,42 @@ const PlanIdSchema = v.union(
     v.literal("mediano"),
     v.literal("profissional")
 );
+
+function summarizeCustomer(customerData: any) {
+    const activeProduct = customerData?.products?.find(
+        (product: any) =>
+            product.status === "active" || product.status === "trialing"
+    );
+    const scheduled = customerData?.products?.find(
+        (product: any) => product.status === "scheduled"
+    );
+    const usage = getBillingUsageOverview(customerData);
+
+    return {
+        activePlanId: activeProduct?.id ?? null,
+        scheduledPlan: scheduled
+            ? {
+                  id: scheduled.id,
+                  startsAt:
+                      scheduled.current_period_start ??
+                      scheduled.started_at ??
+                      null,
+              }
+            : null,
+        accessStatus:
+            activeProduct?.status === "trialing"
+                ? "trialing"
+                : activeProduct
+                  ? "active"
+                  : "trial_eligible",
+        trialEligible: !activeProduct,
+        renewalAt:
+            activeProduct?.current_period_end ??
+            activeProduct?.trial_ends_at ??
+            null,
+        usage,
+    };
+}
 
 export const startCheckout = action({
     args: {
@@ -109,6 +146,24 @@ export const getAutumnCustomer = action({
         }
 
         return result.data;
+    },
+});
+
+export const getBillingOverview = action({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const result = await autumn.customers.get(ctx);
+
+        if (result.error) {
+            throw new Error(result.error.message || "Failed to load customer");
+        }
+
+        return summarizeCustomer(result.data);
     },
 });
 

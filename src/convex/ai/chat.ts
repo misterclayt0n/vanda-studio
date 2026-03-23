@@ -5,15 +5,20 @@ import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
 import { generateCaption, generateImage, type ChatMessage, type ProjectContext } from "./agents/index";
-import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
+import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
 import {
     MODELS,
-    IMAGE_MODELS,
     DEFAULT_IMAGE_MODEL,
     type AspectRatio,
     type Resolution,
     calculateDimensions,
 } from "./llm/index";
+import {
+    estimateCaptionUsage,
+    estimateImageBatchUsage,
+    estimateImageLineItem,
+    sumUsageLineItemCredits,
+} from "../../lib/billing/aiCredits";
 
 // ============================================================================
 // Types
@@ -170,10 +175,13 @@ export const generate = action({
         const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
         const resolution = (args.resolution ?? "standard") as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
-
-        // 4. Reserve usage for all requested images
-        const reservedCount = await reserveImageUsage(ctx, imageModels.length);
         const captionModel = args.captionModel ?? MODELS.GPT_4_1;
+        const captionUsageItems = estimateCaptionUsage(captionModel);
+        const imageUsageItems = estimateImageBatchUsage(imageModels);
+        const reservation = await reserveAiUsage(ctx, [
+            ...captionUsageItems,
+            ...imageUsageItems,
+        ]);
 
         let generatedPostId: Id<"generated_posts"> | null = null;
         let captionResult: { caption: string; explanation: string } | null = null;
@@ -220,7 +228,7 @@ export const generate = action({
             });
             console.log(`[GENERATE] Caption saved, starting image generation...`);
         } catch (err) {
-            await refundImageUsage(ctx, reservedCount);
+            await refundAiUsage(ctx, reservation);
             throw err;
         }
 
@@ -279,7 +287,7 @@ export const generate = action({
                     });
 
                     console.log(`[GENERATE] Successfully generated image with ${model}`);
-                    return true;
+                    return { success: true as const, model };
                 } catch (err) {
                     console.error(`[GENERATE] Image generation failed for ${model}:`, err);
                     // Still remove from pending on failure so UI doesn't hang
@@ -287,14 +295,17 @@ export const generate = action({
                         id: generatedPostId,
                         model,
                     });
-                    return false;
+                    return { success: false as const, model };
                 }
             })
         );
 
-        const failedCount = results.filter((success) => !success).length;
-        if (failedCount > 0) {
-            await refundImageUsage(ctx, failedCount);
+        const failedResults = results.filter((result) => !result.success);
+        if (failedResults.length > 0) {
+            await refundAiUsage(
+                ctx,
+                failedResults.map((result) => estimateImageLineItem(result.model))
+            );
         }
 
         // 11. Get all successful images for final state
@@ -330,7 +341,13 @@ export const generate = action({
             },
             model: captionModel,
             ...(primaryImage && { imageModel: primaryImage.model }),
-            creditsUsed: 1 + imageCount,
+            creditsUsed:
+                sumUsageLineItemCredits(captionUsageItems) +
+                sumUsageLineItemCredits(
+                    results
+                        .filter((result) => result.success)
+                        .map((result) => estimateImageLineItem(result.model))
+                ),
         });
 
         return {
@@ -351,7 +368,10 @@ export const regenerateCaption = action({
         captionModel: v.optional(v.string()), // Model for caption generation
         projectContext: projectContextValidator, // Brand context for personalization
     },
-    handler: async (ctx, args) => {
+    handler: async (
+        ctx,
+        args
+    ): Promise<{ success: boolean; caption: string }> => {
         // 1. Auth check
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
@@ -385,14 +405,23 @@ export const regenerateCaption = action({
 
         // 7. Generate new caption with full context
         const captionModel = args.captionModel ?? MODELS.GPT_4_1;
-        const captionResult = await generateCaption({
-            conversationHistory: dbMessagesToChat(messages),
-            currentCaption: post.caption,
-            userMessage: args.message,
-            ...(referenceText && { referenceText }),
-            ...(args.captionModel && { model: args.captionModel }),
-            ...(args.projectContext && { projectContext: args.projectContext }),
-        });
+        const usageItems = estimateCaptionUsage(captionModel);
+        const reservation = await reserveAiUsage(ctx, usageItems);
+        let captionResult: { caption: string; explanation: string };
+
+        try {
+            captionResult = await generateCaption({
+                conversationHistory: dbMessagesToChat(messages),
+                currentCaption: post.caption,
+                userMessage: args.message,
+                ...(referenceText && { referenceText }),
+                ...(args.captionModel && { model: args.captionModel }),
+                ...(args.projectContext && { projectContext: args.projectContext }),
+            });
+        } catch (error) {
+            await refundAiUsage(ctx, reservation);
+            throw error;
+        }
 
         // 8. Update post
         await ctx.runMutation(api.generatedPosts.updateFromChat, {
@@ -413,7 +442,7 @@ export const regenerateCaption = action({
                 ...(post.imagePrompt && { imagePrompt: post.imagePrompt }),
             },
             model: captionModel,
-            creditsUsed: 1,
+            creditsUsed: sumUsageLineItemCredits(usageItems),
         });
 
         return {
@@ -448,8 +477,9 @@ export const regenerateImage = action({
             throw new Error("Post não encontrado");
         }
 
-        // 3. Reserve usage for the new image
-        const reservedCount = await reserveImageUsage(ctx, 1);
+        const imageModel = DEFAULT_IMAGE_MODEL;
+        const usageItems = [estimateImageLineItem(imageModel)];
+        const reservation = await reserveAiUsage(ctx, usageItems);
 
         // 4. Save user message
         await ctx.runMutation(internal.chatMessages.saveMessage, {
@@ -475,6 +505,7 @@ export const regenerateImage = action({
             const imageResult = await generateImage({
                 caption: post.caption,
                 instructions: args.message,
+                model: imageModel,
                 ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
             });
 
@@ -490,7 +521,7 @@ export const regenerateImage = action({
                 id: args.generatedPostId,
                 imageStorageId,
                 imagePrompt,
-                imageModel: MODELS.GEMINI_3_PRO_IMAGE,
+                imageModel,
                 status: "regenerated",
             });
 
@@ -504,11 +535,11 @@ export const regenerateImage = action({
                     imageStorageId,
                     imagePrompt,
                 },
-                imageModel: MODELS.GEMINI_3_PRO_IMAGE,
-                creditsUsed: 1,
+                imageModel,
+                creditsUsed: sumUsageLineItemCredits(usageItems),
             });
         } catch (err) {
-            await refundImageUsage(ctx, reservedCount);
+            await refundAiUsage(ctx, reservation);
             throw err;
         }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from "$lib/utils";
+	import { getCaptionModelCreditInfo } from "$lib/billing/aiCredits";
 
 	// Caption model definitions (mirroring backend)
 	const CAPTION_MODELS = {
@@ -37,9 +38,17 @@
 		value: string;
 		onchange: (model: string) => void;
 		class?: string;
+		monthlyIncludedCredits?: number | null;
+		usageIndicatorMode?: "credits" | "percent";
 	}
 
-	let { value, onchange, class: className }: Props = $props();
+	let {
+		value,
+		onchange,
+		class: className,
+		monthlyIncludedCredits = null,
+		usageIndicatorMode = "credits",
+	}: Props = $props();
 
 	function selectModel(modelId: string) {
 		onchange(modelId);
@@ -47,6 +56,30 @@
 
 	function isSelected(modelId: string): boolean {
 		return value === modelId;
+	}
+
+	function getUsageIndicator(modelId: string): string {
+		const creditInfo = getCaptionModelCreditInfo(modelId);
+
+		if (usageIndicatorMode === "credits") {
+			return creditInfo.shortLabel;
+		}
+
+		if (monthlyIncludedCredits === null || monthlyIncludedCredits === undefined) {
+			return "···";
+		}
+
+		if (monthlyIncludedCredits <= 0) {
+			return "0%";
+		}
+
+		const percent = (creditInfo.credits / monthlyIncludedCredits) * 100;
+		const formatter = new Intl.NumberFormat("pt-BR", {
+			minimumFractionDigits: Number.isInteger(percent) ? 0 : 1,
+			maximumFractionDigits: 1,
+		});
+
+		return `${formatter.format(percent)}%`;
 	}
 </script>
 
@@ -91,6 +124,12 @@
 					{/if}
 				</div>
 				<div class="text-xs text-muted-foreground">{model.provider}</div>
+			</div>
+
+			<div class="shrink-0 text-right">
+				<div class="rounded-full border border-border/70 bg-muted/40 px-2 py-1 text-[11px] font-medium text-foreground">
+					{getUsageIndicator(model.id)}
+				</div>
 			</div>
 
 			<!-- Selection Indicator -->

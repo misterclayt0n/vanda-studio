@@ -10,10 +10,11 @@
 	interface SubscriptionData {
 		subscription: {
 			plan: string;
-			promptsUsed: number;
-			promptsLimit: number;
+			monthlyCreditsIncluded: number;
+			monthlyCreditsUsed: number;
+			monthlyCreditsRemaining: number;
+			totalCreditsRemaining: number;
 			periodEnd?: number;
-			trialEndsAt?: number;
 			resetAt?: number;
 		};
 		accessStatus: string;
@@ -44,23 +45,39 @@
 		});
 	}
 
-	let usagePercent = $derived(
+	let monthlyUsagePercent = $derived(
 		subscriptionData?.subscription
 			? Math.min(
 					100,
-					(subscriptionData.subscription.promptsUsed /
-						subscriptionData.subscription.promptsLimit) *
+					(subscriptionData.subscription.monthlyCreditsUsed /
+						Math.max(subscriptionData.subscription.monthlyCreditsIncluded, 1)) *
 						100
 				)
 			: 0
 	);
 
-	let remaining = $derived(
+	let monthlyUsedPercentLabel = $derived(
+		`${Math.round(monthlyUsagePercent)}% usado`
+	);
+
+	let monthlyRemainingPercent = $derived(
 		subscriptionData?.subscription
-			? subscriptionData.subscription.promptsLimit -
-					subscriptionData.subscription.promptsUsed
+			? Math.max(
+					0,
+					Math.min(
+						100,
+						(subscriptionData.subscription.monthlyCreditsRemaining /
+							Math.max(subscriptionData.subscription.monthlyCreditsIncluded, 1)) *
+							100
+					)
+				)
 			: 0
 	);
+
+	let monthlyRemainingPercentLabel = $derived(
+		`${Math.round(monthlyRemainingPercent)}% restante`
+	);
+
 </script>
 
 <aside class="hidden lg:flex w-80 shrink-0 flex-col border-r border-border bg-card/30 p-6 overflow-y-auto">
@@ -119,32 +136,32 @@
 			<div class="h-3 w-24 bg-muted animate-pulse"></div>
 		</div>
 	{:else if subscriptionData?.subscription?.plan}
-		<div class="space-y-3">
+		<div class="space-y-4">
 			<div class="flex items-baseline justify-between">
-				<span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Uso</span>
+				<span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Uso semântico</span>
 				<span class="text-xs text-muted-foreground">
-					{subscriptionData.subscription.promptsUsed}/{subscriptionData.subscription.promptsLimit}
+					{monthlyRemainingPercentLabel}
 				</span>
 			</div>
 
-			<!-- Progress bar -->
-			<div class="relative h-1.5 w-full bg-muted overflow-hidden">
-				<div
-					class="absolute inset-y-0 left-0 bg-primary transition-all duration-500 ease-out"
-					style="width: {usagePercent}%"
-				></div>
+			<div class="space-y-2">
+				<div class="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+					<span>Créditos do plano</span>
+					<span>{monthlyUsedPercentLabel}</span>
+				</div>
+				<div class="relative h-1.5 w-full overflow-hidden bg-muted">
+					<div
+						class="absolute inset-y-0 left-0 bg-primary transition-all duration-500 ease-out"
+						style="width: {monthlyUsagePercent}%"
+					></div>
+				</div>
 			</div>
 
-			<div class="flex items-center justify-between">
-				<p class="text-xs text-muted-foreground">
-					{remaining} imagens restantes
+			{#if subscriptionData.subscription.resetAt}
+				<p class="text-right text-xs text-muted-foreground">
+					Renova {formatDate(subscriptionData.subscription.resetAt)}
 				</p>
-				{#if subscriptionData.subscription.resetAt}
-					<p class="text-xs text-muted-foreground">
-						Reseta {formatDate(subscriptionData.subscription.resetAt)}
-					</p>
-				{/if}
-			</div>
+			{/if}
 		</div>
 	{:else}
 		<div class="border border-dashed border-border p-4 text-center">

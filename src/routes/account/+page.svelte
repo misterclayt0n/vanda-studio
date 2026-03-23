@@ -22,17 +22,34 @@
 	type SubscriptionData = {
 		subscription: {
 			plan: string;
-			promptsUsed: number;
-			promptsLimit: number;
+			monthlyCreditsIncluded: number;
+			monthlyCreditsUsed: number;
+			monthlyCreditsRemaining: number;
+			totalCreditsRemaining: number;
 			periodEnd?: number;
-			trialEndsAt?: number;
 			resetAt?: number;
 		};
 		accessStatus: AccessStatus;
 		trialEligible: boolean;
 	};
+	type BillingOverview = {
+		activePlanId: string | null;
+		scheduledPlan: { id: string; startsAt: number | null } | null;
+		accessStatus: AccessStatus;
+		trialEligible: boolean;
+		renewalAt: number | null;
+		usage: {
+			monthlyIncluded: number;
+			monthlyUsed: number;
+			monthlyRemaining: number;
+			extraIncluded: number;
+			extraRemaining: number;
+			totalRemaining: number;
+			nextResetAt?: number;
+		};
+	};
 
-	let customerData = $state<any | null>(null);
+	let billingOverview = $state<BillingOverview | null>(null);
 	let isLoading = $state(true);
 	let loadError = $state<string | null>(null);
 	let subscriptionData = $state<SubscriptionData | null>(null);
@@ -42,14 +59,14 @@
 		loadError = null;
 		try {
 			const data = await client.action(
-				(api as any).billing.autumn.getAutumnCustomer,
+				(api as any).billing.autumn.getBillingOverview,
 				{}
 			);
-			customerData = data ?? null;
+			billingOverview = data ?? null;
 		} catch (err) {
 			loadError =
 				err instanceof Error ? err.message : "Erro ao carregar assinatura";
-			customerData = null;
+			billingOverview = null;
 		} finally {
 			isLoading = false;
 		}
@@ -63,44 +80,35 @@
 	let scheduledPlan = $state<{ id: string; startsAt: number } | null>(null);
 
 	$effect(() => {
-		if (!customerData) {
+		if (!billingOverview) {
 			subscriptionData = null;
 			scheduledPlan = null;
 			return;
 		}
 
-		const activeProduct = customerData.products?.find(
-			(product: any) =>
-				product.status === "active" || product.status === "trialing"
-		);
-
-		const scheduled = customerData.products?.find(
-			(product: any) => product.status === "scheduled"
-		);
-		scheduledPlan = scheduled
-			? { id: scheduled.id, startsAt: scheduled.current_period_start ?? scheduled.started_at }
+		scheduledPlan = billingOverview.scheduledPlan?.startsAt
+			? {
+					id: billingOverview.scheduledPlan.id,
+					startsAt: billingOverview.scheduledPlan.startsAt,
+				}
 			: null;
-
-		const feature = customerData.features?.images_generated;
-		const used = feature?.usage ?? 0;
-		const limit =
-			feature?.included_usage ?? feature?.usage_limit ?? feature?.balance ?? 0;
 
 		subscriptionData = {
 			subscription: {
-				plan: activeProduct?.id ?? "",
-				promptsUsed: used,
-				promptsLimit: limit,
-				periodEnd: activeProduct?.current_period_end ?? undefined,
-				trialEndsAt: activeProduct?.trial_ends_at ?? undefined,
-				resetAt: feature?.next_reset_at ?? undefined,
+				plan: billingOverview.activePlanId ?? "",
+				monthlyCreditsIncluded: billingOverview.usage.monthlyIncluded,
+				monthlyCreditsUsed: billingOverview.usage.monthlyUsed,
+				monthlyCreditsRemaining: billingOverview.usage.monthlyRemaining,
+				totalCreditsRemaining: billingOverview.usage.totalRemaining,
+				...(billingOverview.renewalAt
+					? { periodEnd: billingOverview.renewalAt }
+					: {}),
+				...(billingOverview.usage.nextResetAt
+					? { resetAt: billingOverview.usage.nextResetAt }
+					: {}),
 			},
-			accessStatus: activeProduct?.status === "trialing"
-				? "trialing"
-				: activeProduct
-					? "active"
-					: "trial_eligible",
-			trialEligible: !activeProduct,
+			accessStatus: billingOverview.accessStatus,
+			trialEligible: billingOverview.trialEligible,
 		};
 	});
 

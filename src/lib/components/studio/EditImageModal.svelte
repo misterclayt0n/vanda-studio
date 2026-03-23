@@ -5,6 +5,11 @@
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
     import { goto } from "$app/navigation";
+    import {
+        estimateImageEditUsage,
+        formatCredits,
+        sumUsageLineItemCredits,
+    } from "$lib/billing/aiCredits";
 
     interface GeneratedImage {
         _id: Id<"generated_images">;
@@ -69,6 +74,9 @@
     let isStarting = $state(false);
     let error = $state<string | null>(null);
     let fileInputEl = $state<HTMLInputElement | null>(null);
+    let creditEstimate = $derived(
+        sumUsageLineItemCredits(estimateImageEditUsage(selectedModels))
+    );
 
     // Initialize selected models when source changes
     $effect(() => {
@@ -202,7 +210,7 @@
                 startArgs.sourceImageId = source.id;
             }
 
-            const result = await client.mutation(api.imageEditConversations.startWithTurn, startArgs as any);
+            const result = await client.action(api.ai.imageEdit.startConversation, startArgs as any);
 
             // Navigate to the conversation page under images
             goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
@@ -424,6 +432,9 @@
                 para enviar
             </p>
             <div class="flex items-center gap-3">
+                <p class="text-xs text-muted-foreground">
+                    Estimativa: {formatCredits(creditEstimate, 2)} crédito(s)
+                </p>
                 <Button variant="outline" onclick={handleClose} disabled={isStarting}>
                     Cancelar
                 </Button>

@@ -489,7 +489,7 @@ export const saveComposedDraft = mutation({
             postId = await ctx.db.insert("generated_posts", {
                 userId: user._id,
                 platform: normalizePostPlatform(args.platform),
-                title: args.title,
+                ...(args.title ? { title: args.title } : {}),
                 caption: args.caption,
                 imageStorageId: firstMediaItem.storageId,
                 isComposed: true,

@@ -5,7 +5,7 @@ import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
 import { generateImage } from "./agents/index";
-import { reserveImageUsage, refundImageUsage } from "../billing/autumnUsage";
+import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
 import { createThumbnailBlob } from "../mediaProcessing";
 import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
@@ -13,6 +13,10 @@ import {
     type Resolution,
     calculateDimensions,
 } from "./llm/index";
+import {
+    estimateImageEditUsage,
+    estimateImageLineItem,
+} from "../../lib/billing/aiCredits";
 
 async function storageIdsToUrls(
     ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
@@ -38,20 +42,21 @@ async function scheduleTurnGeneration(
         conversationId: Id<"image_edit_conversations">;
         turnId: Id<"image_edit_turns">;
         userId: Id<"users">;
-        selectedModelCount: number;
+        selectedModels: string[];
     }
 ) {
-    const reservedCount = await reserveImageUsage(ctx, args.selectedModelCount);
+    const usageItems = estimateImageEditUsage(args.selectedModels);
+    const reservation = await reserveAiUsage(ctx, usageItems);
 
     try {
         await ctx.scheduler.runAfter(0, internal.ai.imageEdit.processTurn, {
             conversationId: args.conversationId,
             turnId: args.turnId,
             userId: args.userId,
-            reservedCount,
+            selectedModels: args.selectedModels,
         });
     } catch (err) {
-        await refundImageUsage(ctx, reservedCount);
+        await refundAiUsage(ctx, reservation);
         await ctx.runMutation(internal.imageEditTurns.markError, {
             id: args.turnId,
         });
@@ -61,14 +66,18 @@ async function scheduleTurnGeneration(
 
 export const startConversation = action({
     args: {
-        sourceImageId: v.id("generated_images"),
+        sourceImageId: v.optional(v.id("generated_images")),
+        sourceMediaId: v.optional(v.id("media_items")),
         userMessage: v.string(),
         selectedModels: v.array(v.string()),
+        aspectRatio: v.optional(v.string()),
+        resolution: v.optional(v.string()),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
         conversationId: Id<"image_edit_conversations">;
+        turnId: Id<"image_edit_turns">;
     }> => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
@@ -78,9 +87,12 @@ export const startConversation = action({
         const user = await ctx.runMutation(api.users.ensureCurrent, {});
 
         const result = await ctx.runMutation(api.imageEditConversations.startWithTurn, {
-            sourceImageId: args.sourceImageId,
+            ...(args.sourceImageId && { sourceImageId: args.sourceImageId }),
+            ...(args.sourceMediaId && { sourceMediaId: args.sourceMediaId }),
             userMessage: args.userMessage,
             selectedModels: args.selectedModels,
+            ...(args.aspectRatio && { aspectRatio: args.aspectRatio }),
+            ...(args.resolution && { resolution: args.resolution }),
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
         });
 
@@ -88,12 +100,13 @@ export const startConversation = action({
             conversationId: result.conversationId,
             turnId: result.turnId,
             userId: user._id,
-            selectedModelCount: args.selectedModels.length,
+            selectedModels: args.selectedModels,
         });
 
         return {
             success: true,
             conversationId: result.conversationId,
+            turnId: result.turnId,
         };
     },
 });
@@ -152,7 +165,7 @@ export const sendEdit = action({
             conversationId: args.conversationId,
             turnId,
             userId: user._id,
-            selectedModelCount: args.selectedModels.length,
+            selectedModels: args.selectedModels,
         });
 
         return {
@@ -186,7 +199,7 @@ export const generateForTurn = action({
             conversationId: args.conversationId,
             turnId: args.turnId,
             userId: user._id,
-            selectedModelCount: turn.selectedModels.length,
+            selectedModels: turn.selectedModels,
         });
 
         return { success: true };
@@ -244,14 +257,14 @@ export const processTurn = internalAction({
         conversationId: v.id("image_edit_conversations"),
         turnId: v.id("image_edit_turns"),
         userId: v.id("users"),
-        reservedCount: v.number(),
+        selectedModels: v.array(v.string()),
     },
     handler: async (ctx, args): Promise<void> => {
         const conversation = await ctx.runQuery(internal.imageEditConversations.getInternal, {
             id: args.conversationId,
         });
         if (!conversation) {
-            await refundImageUsage(ctx, args.reservedCount);
+            await refundAiUsage(ctx, estimateImageEditUsage(args.selectedModels));
             return;
         }
 
@@ -259,7 +272,7 @@ export const processTurn = internalAction({
             id: args.turnId,
         });
         if (!turn) {
-            await refundImageUsage(ctx, args.reservedCount);
+            await refundAiUsage(ctx, estimateImageEditUsage(args.selectedModels));
             return;
         }
 
@@ -277,7 +290,7 @@ export const processTurn = internalAction({
             const resolution = (turn.resolution ?? conversation.resolution) as Resolution;
             const dimensions = calculateDimensions(aspectRatio, resolution);
 
-            const results = await Promise.all(
+            const results: boolean[] = await Promise.all(
                 turn.selectedModels.map(async (model: string) => {
                     const startedAt = Date.now();
                     try {
@@ -337,9 +350,14 @@ export const processTurn = internalAction({
                 })
             );
 
-            const failedCount = results.filter((success) => !success).length;
+            const failedCount = results.filter((success: boolean) => !success).length;
             if (failedCount > 0) {
-                await refundImageUsage(ctx, failedCount);
+                await refundAiUsage(
+                    ctx,
+                    turn.selectedModels
+                        .filter((model: string, index: number) => !results[index])
+                        .map((model: string) => estimateImageLineItem(model, `edit:${model}`))
+                );
             }
 
             if (failedCount === turn.selectedModels.length) {
@@ -349,7 +367,7 @@ export const processTurn = internalAction({
             }
         } catch (err) {
             console.error(`[IMAGE_EDIT] Async turn ${args.turnId} failed:`, err);
-            await refundImageUsage(ctx, args.reservedCount);
+            await refundAiUsage(ctx, estimateImageEditUsage(args.selectedModels));
             await ctx.runMutation(internal.imageEditTurns.markError, {
                 id: args.turnId,
             });

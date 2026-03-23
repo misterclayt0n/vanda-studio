@@ -52,6 +52,11 @@
 		type MediaSortOrder,
 		type MediaSourceFilter,
 	} from "$lib/studio/mediaBrowserFilters";
+	import {
+		estimateImageBatchUsage,
+		formatCredits,
+		sumUsageLineItemCredits,
+	} from "$lib/billing/aiCredits";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -138,6 +143,20 @@
 		} | null;
 	};
 
+	type BillingOverview = {
+		activePlanId: string | null;
+		accessStatus: string;
+		trialEligible: boolean;
+		renewalAt: number | null;
+		usage: {
+			monthlyIncluded: number;
+			monthlyUsed: number;
+			monthlyRemaining: number;
+			totalRemaining: number;
+			nextResetAt?: number;
+		};
+	};
+
 	const client = useConvexClient();
 	const ACTIVE_GENERATION_WINDOW_MS = 5 * 60 * 1000;
 
@@ -149,6 +168,11 @@
 	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
 	let isGenerating = $state(false);
 	let errorState = $state<ImageGenerationUiError | null>(null);
+	let creditEstimate = $derived(
+		sumUsageLineItemCredits(estimateImageBatchUsage(selectedModels))
+	);
+	let billingOverview = $state<BillingOverview | null>(null);
+	let billingOverviewLoaded = $state(false);
 
 	let fileInputEl = $state<HTMLInputElement | null>(null);
 	let isUploading = $state(false);
@@ -195,7 +219,30 @@
 		}
 
 		persistedStateRestored = true;
+
+		void loadBillingOverview();
 	});
+
+	async function loadBillingOverview() {
+		try {
+			const data = await client.action((api as any).billing.autumn.getBillingOverview, {});
+			billingOverview = data ?? null;
+		} catch (error) {
+			console.error("Failed to load billing overview for images page:", error);
+			billingOverview = null;
+		} finally {
+			billingOverviewLoaded = true;
+		}
+	}
+
+	function formatPercent(value: number): string {
+		const normalized = Math.max(0, Math.min(100, value));
+		const formatter = new Intl.NumberFormat("pt-BR", {
+			minimumFractionDigits: normalized > 0 && normalized < 1 ? 1 : 0,
+			maximumFractionDigits: normalized >= 10 || Number.isInteger(normalized) ? 0 : 1,
+		});
+		return `${formatter.format(normalized)}%`;
+	}
 
 	function openLightbox(mediaId: string) {
 		const url = new URL($page.url);
@@ -523,6 +570,18 @@
 			(conversation) => (conversation.latestTurn?.pendingModels?.length ?? 0) > 0
 		).length
 	);
+	let planUsageEstimatePercent = $derived(
+		billingOverview?.usage?.monthlyIncluded
+			? (creditEstimate / Math.max(billingOverview.usage.monthlyIncluded, 1)) * 100
+			: null
+	);
+	let monthlyRemainingPercent = $derived(
+		billingOverview?.usage?.monthlyIncluded
+			? (billingOverview.usage.monthlyRemaining /
+				Math.max(billingOverview.usage.monthlyIncluded, 1)) *
+				100
+			: null
+	);
 
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -637,6 +696,7 @@
 
 			activeBatchId = result.batchId;
 			prompt = "";
+			void loadBillingOverview();
 		} catch (err: any) {
 			showError(err, "GENERATION_FAILED");
 		} finally {
@@ -781,7 +841,13 @@
 						</svg>
 						Modelos
 					</p>
-					<ImageModelSelector selected={selectedModels} onchange={(models) => (selectedModels = models)} compact />
+					<ImageModelSelector
+						selected={selectedModels}
+						onchange={(models) => (selectedModels = models)}
+						monthlyIncludedCredits={billingOverview?.usage?.monthlyIncluded ?? null}
+						usageIndicatorMode="percent"
+						compact
+					/>
 				</div>
 
 				<div class="space-y-2">
@@ -880,6 +946,15 @@
 						Gerar
 					{/if}
 				</Button>
+				<p class="text-center text-xs text-muted-foreground">
+					{#if !billingOverviewLoaded}
+						Estimativa do plano carregando...
+					{:else if planUsageEstimatePercent !== null && monthlyRemainingPercent !== null}
+						Estimativa deste lote: {formatPercent(planUsageEstimatePercent)} do plano · {formatPercent(monthlyRemainingPercent)} restante
+					{:else}
+						Estimativa do plano indisponível no momento
+					{/if}
+				</p>
 
 				<input
 					bind:this={fileInputEl}

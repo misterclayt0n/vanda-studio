@@ -19,6 +19,11 @@
 		type AspectRatio,
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
+	import {
+		estimateImageEditUsage,
+		formatCredits,
+		sumUsageLineItemCredits,
+	} from "$lib/billing/aiCredits";
 
 	const client = useConvexClient();
 
@@ -47,6 +52,9 @@
 	let initializedFromSource = $state(false);
 	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
 	let supportedResolutions = $derived(getSupportedResolutions(selectedModels));
+	let creditEstimate = $derived(
+		sumUsageLineItemCredits(estimateImageEditUsage(selectedModels))
+	);
 
 	$effect(() => {
 		if (!sourceMedia || initializedFromSource) return;
@@ -89,7 +97,7 @@
 			aspectRatio = normalized.aspectRatio;
 			resolution = normalized.resolution;
 
-			const result = await client.mutation(api.imageEditConversations.startWithTurn, {
+			const result = await client.action(api.ai.imageEdit.startConversation, {
 				sourceMediaId,
 				userMessage: editPrompt.trim(),
 				selectedModels,
@@ -254,6 +262,9 @@
 								{/if}
 							</Button>
 						</div>
+						<p class="mx-auto mt-2 max-w-3xl text-xs text-muted-foreground">
+							Estimativa desta edição: {formatCredits(creditEstimate, 2)} crédito(s)
+						</p>
 						<p class="mx-auto mt-2 max-w-3xl text-xs text-muted-foreground">
 							<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Cmd</kbd>+<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd> para iniciar a conversa
 						</p>

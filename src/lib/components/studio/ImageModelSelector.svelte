@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from "$lib/utils";
+	import { getImageModelCreditInfo } from "$lib/billing/aiCredits";
 
 	// Model definitions (mirroring backend)
 	const IMAGE_MODELS = {
@@ -66,9 +67,18 @@
 		onchange: (models: string[]) => void;
 		class?: string;
 		compact?: boolean;
+		monthlyIncludedCredits?: number | null;
+		usageIndicatorMode?: "credits" | "percent";
 	}
 
-	let { selected, onchange, class: className, compact = false }: Props = $props();
+	let {
+		selected,
+		onchange,
+		class: className,
+		compact = false,
+		monthlyIncludedCredits = null,
+		usageIndicatorMode = "credits",
+	}: Props = $props();
 
 	function toggleModel(modelId: string) {
 		if (selected.includes(modelId)) {
@@ -83,6 +93,30 @@
 
 	function isSelected(modelId: string): boolean {
 		return selected.includes(modelId);
+	}
+
+	function getUsageIndicator(modelId: string): string {
+		const creditInfo = getImageModelCreditInfo(modelId);
+
+		if (usageIndicatorMode === "credits") {
+			return creditInfo.shortLabel;
+		}
+
+		if (monthlyIncludedCredits === null || monthlyIncludedCredits === undefined) {
+			return "···";
+		}
+
+		if (monthlyIncludedCredits <= 0) {
+			return "0%";
+		}
+
+		const percent = (creditInfo.credits / monthlyIncludedCredits) * 100;
+		const formatter = new Intl.NumberFormat("pt-BR", {
+			minimumFractionDigits: Number.isInteger(percent) ? 0 : 1,
+			maximumFractionDigits: 1,
+		});
+
+		return `${formatter.format(percent)}%`;
 	}
 </script>
 
@@ -114,6 +148,15 @@
 					{/if}
 				</div>
 				<div class={cn("text-muted-foreground", compact ? "text-[12px] leading-tight" : "text-xs")}>{model.provider}</div>
+			</div>
+
+			<div class="shrink-0">
+				<div class={cn(
+					"rounded-full border border-border/70 bg-muted/40 px-2 py-1 font-medium text-foreground",
+					compact ? "text-[10px]" : "text-[11px]"
+				)}>
+					{getUsageIndicator(model.id)}
+				</div>
 			</div>
 
 			<!-- Selection Indicator -->

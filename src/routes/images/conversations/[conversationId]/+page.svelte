@@ -20,6 +20,11 @@
 		type AspectRatio,
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
+	import {
+		estimateImageEditUsage,
+		formatCredits,
+		sumUsageLineItemCredits,
+	} from "$lib/billing/aiCredits";
 	type CanvasMode = "canvas" | "history";
 
 	interface TurnOutput {
@@ -144,6 +149,9 @@
 	let resolution = $state<Resolution>("standard");
 	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
 	let supportedResolutions = $derived(getSupportedResolutions(selectedModels));
+	let creditEstimate = $derived(
+		sumUsageLineItemCredits(estimateImageEditUsage(selectedModels))
+	);
 	let editPrompt = $state("");
 	let isSending = $state(false);
 	let settingsInitialized = $state(false);
@@ -679,6 +687,9 @@
 									{/if}
 								</Button>
 							</div>
+							<p class="mt-2 text-xs text-muted-foreground">
+								Estimativa desta edição: {formatCredits(creditEstimate, 2)} crédito(s)
+							</p>
 							<p class="mt-2 text-xs text-muted-foreground">
 								<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Cmd</kbd>+<kbd class="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd> para enviar
 							</p>
