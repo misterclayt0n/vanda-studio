@@ -6,6 +6,9 @@ import { Effect } from "effect";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 import { TextGeneration, MODELS, runAiEffectOrThrow } from "./llm/index";
+
+/** OpenRouter model id for brand onboarding actions (structured JSON). */
+const BRAND_ONBOARDING_MODEL = MODELS.GEMINI_2_5_FLASH; // google/gemini-2.5-flash
 import { assertSafePublicHttpUrl, UnsafeUrlError } from "../urlSafety";
 import type { Doc } from "../_generated/dataModel";
 
@@ -234,7 +237,7 @@ Seja específico e evite clichês vazios.`;
                         { role: "user", content: userPrompt },
                     ],
                     schema: BrandKitSuggestionSchema,
-                    model: MODELS.GEMINI_2_5_FLASH,
+                    model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.75,
                     maxTokens: 2048,
                 });
@@ -288,9 +291,9 @@ export const suggestBrandSection = action({
                             { role: "user", content: userPrompt },
                         ],
                         schema: PositioningSectionSchema,
-                        model: MODELS.GEMINI_2_5_FLASH,
+                        model: BRAND_ONBOARDING_MODEL,
                         temperature: 0.7,
-                        maxTokens: 1536,
+                        maxTokens: 3072,
                     });
                 })
             );
@@ -310,9 +313,9 @@ export const suggestBrandSection = action({
                             { role: "user", content: userPrompt },
                         ],
                         schema: VoiceSectionSchema,
-                        model: MODELS.GEMINI_2_5_FLASH,
+                        model: BRAND_ONBOARDING_MODEL,
                         temperature: 0.75,
-                        maxTokens: 1536,
+                        maxTokens: 3072,
                     });
                 })
             );
@@ -331,9 +334,9 @@ export const suggestBrandSection = action({
                         { role: "user", content: userPrompt },
                     ],
                     schema: VisualSectionSchema,
-                    model: MODELS.GEMINI_2_5_FLASH,
+                    model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.65,
-                    maxTokens: 1536,
+                    maxTokens: 3072,
                 });
             })
         );
@@ -427,7 +430,7 @@ Não invente fatos específicos não suportados pelo texto; prefira inferências
                         { role: "user", content: userPrompt },
                     ],
                     schema: BrandKitSuggestionSchema,
-                    model: MODELS.GEMINI_2_5_FLASH,
+                    model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.55,
                     maxTokens: 2048,
                 });

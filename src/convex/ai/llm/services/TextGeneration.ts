@@ -1,6 +1,13 @@
 import { Context, Effect, Layer } from "effect";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText, Output, type LanguageModel } from "ai";
+import {
+    generateText,
+    NoObjectGeneratedError,
+    NoOutputGeneratedError,
+    NoOutputSpecifiedError,
+    Output,
+    type LanguageModel,
+} from "ai";
 import { z } from "zod";
 import { MODELS, type ModelName } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
@@ -81,6 +88,27 @@ function mapAiSdkError(error: unknown): AiError {
         return new NetworkError({ cause: error });
     }
 
+    if (NoObjectGeneratedError.isInstance(error)) {
+        return new MalformedResponseError({
+            rawResponse: error.text ?? error.message,
+            parseError: error.message,
+        });
+    }
+
+    if (NoOutputSpecifiedError.isInstance(error)) {
+        return new MalformedResponseError({
+            rawResponse: error.message,
+            parseError: "no_output_specified",
+        });
+    }
+
+    if (NoOutputGeneratedError.isInstance(error)) {
+        return new MalformedResponseError({
+            rawResponse: error.message,
+            parseError: "no_output_generated",
+        });
+    }
+
     // Handle AI SDK specific errors
     if (error instanceof Error) {
         const message = error.message.toLowerCase();
@@ -128,6 +156,35 @@ const CaptionSchema = z.object({
     reasoning: z.string(),
 });
 
+/**
+ * AI SDK 5 only fills `experimental_output` when the last step's `finishReason` is `"stop"`.
+ * For `"length"`, `"content-filter"`, etc., `resolvedOutput` is never set and the getter throws
+ * `NoOutputSpecifiedError` even though `text` contains a usable JSON blob. Parse manually in that case.
+ */
+async function parseStructuredFromGenerateTextResult<T>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GenerateTextResult is generic-heavy
+    result: any,
+    schema: z.ZodSchema<T>
+): Promise<T> {
+    try {
+        return result.experimental_output as T;
+    } catch (e) {
+        if (!NoOutputSpecifiedError.isInstance(e)) {
+            throw e;
+        }
+    }
+
+    const spec = Output.object({ schema });
+    return (await spec.parseOutput(
+        { text: result.text },
+        {
+            response: result.response,
+            usage: result.usage,
+            finishReason: result.finishReason,
+        }
+    )) as T;
+}
+
 export const TextGenerationLive = Layer.effect(
     TextGeneration,
     Effect.gen(function* () {
@@ -159,7 +216,7 @@ export const TextGenerationLive = Layer.effect(
                             (m) => m.role !== "system"
                         );
 
-                        const { experimental_output } = await generateText({
+                        const result = await generateText({
                             model: getModel(model),
                             ...(systemMessage?.content && { system: systemMessage.content }),
                             messages: userMessages.map((m) => ({
@@ -173,7 +230,7 @@ export const TextGenerationLive = Layer.effect(
                             }),
                         });
 
-                        return experimental_output as CaptionResponse;
+                        return await parseStructuredFromGenerateTextResult(result, CaptionSchema);
                     },
                     catch: mapAiSdkError,
                 }),
@@ -190,7 +247,7 @@ export const TextGenerationLive = Layer.effect(
                             (m) => m.role !== "system"
                         );
 
-                        const { experimental_output } = await generateText({
+                        const result = await generateText({
                             model: getModel(model),
                             ...(systemMessage?.content && { system: systemMessage.content }),
                             messages: userMessages.map((m) => ({
@@ -204,7 +261,7 @@ export const TextGenerationLive = Layer.effect(
                             }),
                         });
 
-                        return experimental_output as T;
+                        return await parseStructuredFromGenerateTextResult(result, params.schema);
                     },
                     catch: (error: unknown) => {
                         console.error("[TextGeneration.generateStructured]", error);

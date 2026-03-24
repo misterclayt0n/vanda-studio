@@ -157,13 +157,30 @@ export const getBillingOverview = action({
             return null;
         }
 
-        const result = await autumn.customers.get(ctx);
+        try {
+            const result = await autumn.customers.get(ctx);
 
-        if (result.error) {
-            throw new Error(result.error.message || "Failed to load customer");
+            if (result.error) {
+                throw new Error(result.error.message || "Failed to load customer");
+            }
+
+            return summarizeCustomer(result.data);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            // Autumn HTTP layer sometimes returns an HTML error page (wrong key, outage, proxy) → JSON.parse fails
+            if (
+                msg.includes("Unexpected token") ||
+                msg.includes("not valid JSON") ||
+                msg.includes("<html")
+            ) {
+                console.error(
+                    "[getBillingOverview] Non-JSON response from billing API — check AUTUMN_SECRET_KEY and Autumn status:",
+                    msg.slice(0, 240)
+                );
+                return null;
+            }
+            throw err;
         }
-
-        return summarizeCustomer(result.data);
     },
 });
 
