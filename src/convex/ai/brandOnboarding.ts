@@ -16,47 +16,67 @@ const LLM_TEXT_SNIPPET_CHARS = 12_000;
 // ============================================================================
 // Zod — full kit suggestion (no storage ids)
 // ============================================================================
+//
+// LLMs (esp. via OpenRouter) often emit JSON with `null` for "empty" optional
+// fields. Zod's `.optional()` only allows `undefined`, not `null`, which makes
+// `generateText` + `Output.object` throw after JSON parse → MalformedResponseError.
+
+const llmOptStr = z.string().nullish();
+/** Accept [], null, or a single comma-separated string from sloppy models. */
+const llmOptStrArray = z.preprocess((val) => {
+    if (val == null) return undefined;
+    if (Array.isArray(val)) {
+        return val.filter((x): x is string => typeof x === "string");
+    }
+    if (typeof val === "string") {
+        return val
+            .split(/[,;\n]/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+    }
+    return undefined;
+}, z.array(z.string()).nullish());
 
 const BrandKitSuggestionSchema = z.object({
-    elevatorPitch: z.string().optional(),
-    whatWeSell: z.string().optional(),
-    whoWeServe: z.string().optional(),
-    differentiators: z.string().optional(),
-    competitorsNotes: z.string().optional(),
-    toneAdjectives: z.array(z.string()).optional(),
-    writingRules: z.string().optional(),
-    languages: z.array(z.string()).optional(),
-    emojiPolicy: z.string().optional(),
-    ctaStyle: z.string().optional(),
-    primaryColors: z.array(z.string()).optional(),
-    secondaryColors: z.array(z.string()).optional(),
-    typographyPrimary: z.string().optional(),
-    typographySecondary: z.string().optional(),
-    imageryGuidelines: z.string().optional(),
+    elevatorPitch: llmOptStr,
+    whatWeSell: llmOptStr,
+    whoWeServe: llmOptStr,
+    differentiators: llmOptStr,
+    competitorsNotes: llmOptStr,
+    toneAdjectives: llmOptStrArray,
+    writingRules: llmOptStr,
+    languages: llmOptStrArray,
+    emojiPolicy: llmOptStr,
+    ctaStyle: llmOptStr,
+    primaryColors: llmOptStrArray,
+    secondaryColors: llmOptStrArray,
+    typographyPrimary: llmOptStr,
+    typographySecondary: llmOptStr,
+    imageryGuidelines: llmOptStr,
 });
 
 const PositioningSectionSchema = z.object({
-    elevatorPitch: z.string().optional(),
-    whatWeSell: z.string().optional(),
-    whoWeServe: z.string().optional(),
-    differentiators: z.string().optional(),
-    competitorsNotes: z.string().optional(),
+    elevatorPitch: llmOptStr,
+    whatWeSell: llmOptStr,
+    whoWeServe: llmOptStr,
+    differentiators: llmOptStr,
+    competitorsNotes: llmOptStr,
 });
 
 const VoiceSectionSchema = z.object({
-    toneAdjectives: z.array(z.string()).optional(),
-    writingRules: z.string().optional(),
-    languages: z.array(z.string()).optional(),
-    emojiPolicy: z.string().optional(),
-    ctaStyle: z.string().optional(),
+    toneAdjectives: llmOptStrArray,
+    writingRules: llmOptStr,
+    languages: llmOptStrArray,
+    emojiPolicy: llmOptStr,
+    ctaStyle: llmOptStr,
 });
 
 const VisualSectionSchema = z.object({
-    primaryColors: z.array(z.string()).optional(),
-    secondaryColors: z.array(z.string()).optional(),
-    typographyPrimary: z.string().optional(),
-    typographySecondary: z.string().optional(),
-    imageryGuidelines: z.string().optional(),
+    primaryColors: llmOptStrArray,
+    secondaryColors: llmOptStrArray,
+    typographyPrimary: llmOptStr,
+    typographySecondary: llmOptStr,
+    imageryGuidelines: llmOptStr,
 });
 
 export type BrandKitSuggestion = z.infer<typeof BrandKitSuggestionSchema>;

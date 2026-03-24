@@ -206,7 +206,10 @@ export const TextGenerationLive = Layer.effect(
 
                         return experimental_output as T;
                     },
-                    catch: mapAiSdkError,
+                    catch: (error: unknown) => {
+                        console.error("[TextGeneration.generateStructured]", error);
+                        return mapAiSdkError(error);
+                    },
                 }),
 
             generateText: (params) =>
