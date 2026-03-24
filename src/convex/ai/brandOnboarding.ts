@@ -8,7 +8,7 @@ import { api } from "../_generated/api";
 import { TextGeneration, MODELS, runAiEffectOrThrow } from "./llm/index";
 
 /** OpenRouter model id for brand onboarding actions (structured JSON). */
-const BRAND_ONBOARDING_MODEL = MODELS.GEMINI_2_5_FLASH; // google/gemini-2.5-flash
+const BRAND_ONBOARDING_MODEL = MODELS.GEMINI_3_FLASH_PREVIEW;
 import { assertSafePublicHttpUrl, UnsafeUrlError } from "../urlSafety";
 import type { Doc } from "../_generated/dataModel";
 
@@ -24,7 +24,19 @@ const LLM_TEXT_SNIPPET_CHARS = 12_000;
 // fields. Zod's `.optional()` only allows `undefined`, not `null`, which makes
 // `generateText` + `Output.object` throw after JSON parse → MalformedResponseError.
 
-const llmOptStr = z.string().nullish();
+/** Max lengths keep JSON small so OpenRouter finishes inside token budget (avoids truncated JSON). */
+const MAX_ELEVATOR = 500;
+const MAX_SHORT_PARA = 600;
+const MAX_WHO_SERVE = 500;
+const MAX_WRITING_RULES = 1200;
+const MAX_IMAGERY = 1200;
+const MAX_TYPO = 200;
+const MAX_POLICY = 280;
+const MAX_ARRAY_ITEM = 120;
+const MAX_ARRAY_ITEMS = 16;
+
+const llmBoundedStr = (max: number) => z.string().max(max).nullish();
+
 /** Accept [], null, or a single comma-separated string from sloppy models. */
 const llmOptStrArray = z.preprocess((val) => {
     if (val == null) return undefined;
@@ -38,49 +50,53 @@ const llmOptStrArray = z.preprocess((val) => {
             .filter(Boolean);
     }
     return undefined;
-}, z.array(z.string()).nullish());
+}, z.array(z.string().max(MAX_ARRAY_ITEM)).max(MAX_ARRAY_ITEMS).nullish());
 
 const BrandKitSuggestionSchema = z.object({
-    elevatorPitch: llmOptStr,
-    whatWeSell: llmOptStr,
-    whoWeServe: llmOptStr,
-    differentiators: llmOptStr,
-    competitorsNotes: llmOptStr,
+    elevatorPitch: llmBoundedStr(MAX_ELEVATOR),
+    whatWeSell: llmBoundedStr(MAX_SHORT_PARA),
+    whoWeServe: llmBoundedStr(MAX_WHO_SERVE),
+    differentiators: llmBoundedStr(MAX_SHORT_PARA),
+    competitorsNotes: llmBoundedStr(MAX_SHORT_PARA),
     toneAdjectives: llmOptStrArray,
-    writingRules: llmOptStr,
+    writingRules: llmBoundedStr(MAX_WRITING_RULES),
     languages: llmOptStrArray,
-    emojiPolicy: llmOptStr,
-    ctaStyle: llmOptStr,
+    emojiPolicy: llmBoundedStr(MAX_POLICY),
+    ctaStyle: llmBoundedStr(MAX_POLICY),
     primaryColors: llmOptStrArray,
     secondaryColors: llmOptStrArray,
-    typographyPrimary: llmOptStr,
-    typographySecondary: llmOptStr,
-    imageryGuidelines: llmOptStr,
+    typographyPrimary: llmBoundedStr(MAX_TYPO),
+    typographySecondary: llmBoundedStr(MAX_TYPO),
+    imageryGuidelines: llmBoundedStr(MAX_IMAGERY),
 });
 
 const PositioningSectionSchema = z.object({
-    elevatorPitch: llmOptStr,
-    whatWeSell: llmOptStr,
-    whoWeServe: llmOptStr,
-    differentiators: llmOptStr,
-    competitorsNotes: llmOptStr,
+    elevatorPitch: llmBoundedStr(MAX_ELEVATOR),
+    whatWeSell: llmBoundedStr(MAX_SHORT_PARA),
+    whoWeServe: llmBoundedStr(MAX_WHO_SERVE),
+    differentiators: llmBoundedStr(MAX_SHORT_PARA),
+    competitorsNotes: llmBoundedStr(MAX_SHORT_PARA),
 });
 
 const VoiceSectionSchema = z.object({
     toneAdjectives: llmOptStrArray,
-    writingRules: llmOptStr,
+    writingRules: llmBoundedStr(MAX_WRITING_RULES),
     languages: llmOptStrArray,
-    emojiPolicy: llmOptStr,
-    ctaStyle: llmOptStr,
+    emojiPolicy: llmBoundedStr(MAX_POLICY),
+    ctaStyle: llmBoundedStr(MAX_POLICY),
 });
 
 const VisualSectionSchema = z.object({
     primaryColors: llmOptStrArray,
     secondaryColors: llmOptStrArray,
-    typographyPrimary: llmOptStr,
-    typographySecondary: llmOptStr,
-    imageryGuidelines: llmOptStr,
+    typographyPrimary: llmBoundedStr(MAX_TYPO),
+    typographySecondary: llmBoundedStr(MAX_TYPO),
+    imageryGuidelines: llmBoundedStr(MAX_IMAGERY),
 });
+
+/** Appended to system prompts so the model does not loop or ramble in one field. */
+const BREVITY_RULE =
+    "Seja breve: cada campo de texto = no máximo 2–3 frases; listas com poucos itens (ex.: 3–10). Não repita a mesma ideia em campos diferentes.";
 
 export type BrandKitSuggestion = z.infer<typeof BrandKitSuggestionSchema>;
 
@@ -220,13 +236,13 @@ export const suggestBrandKitFromDescription = action({
             userPrompt += `\n## Marcas de referência\n${args.referenceBrands.trim()}\n`;
         }
         userPrompt +=
-            "\nGere sugestões coerentes de marca em português brasileiro. Use hex para cores quando possível (ex: #1a1a1a).";
+            "\nGere sugestões coerentes de marca em português brasileiro. Use hex para cores quando possível (ex: #1a1a1a). Respostas curtas por campo.";
 
         const system = `Você é estrategista de marca para redes sociais. Retorne apenas JSON válido que siga o schema:
 campos opcionais: elevatorPitch, whatWeSell, whoWeServe, differentiators, competitorsNotes,
 toneAdjectives[], writingRules, languages[], emojiPolicy, ctaStyle,
 primaryColors[], secondaryColors[], typographyPrimary, typographySecondary, imageryGuidelines.
-Seja específico e evite clichês vazios.`;
+Seja específico e evite clichês vazios. ${BREVITY_RULE}`;
 
         return await runAiEffectOrThrow(
             Effect.gen(function* () {
@@ -239,7 +255,7 @@ Seja específico e evite clichês vazios.`;
                     schema: BrandKitSuggestionSchema,
                     model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.75,
-                    maxTokens: 2048,
+                    maxTokens: 2500,
                 });
             })
         );
@@ -279,9 +295,8 @@ export const suggestBrandSection = action({
 
         if (args.section === "positioning") {
             userPrompt +=
-                "\nSugira apenas posicionamento: elevatorPitch, whatWeSell, whoWeServe, differentiators, competitorsNotes (todos opcionais no JSON). pt-BR.";
-            const system =
-                "Você é estrategista de marca. Responda só com JSON válido para o schema pedido.";
+                "\nSugira apenas posicionamento: elevatorPitch, whatWeSell, whoWeServe, differentiators, competitorsNotes (todos opcionais no JSON). pt-BR. Cada texto: poucas frases; não liste públicos infinitos em whoWeServe.";
+            const system = `Você é estrategista de marca. Responda só com JSON válido para o schema pedido. ${BREVITY_RULE}`;
             return await runAiEffectOrThrow(
                 Effect.gen(function* () {
                     const textGen = yield* TextGeneration;
@@ -293,7 +308,7 @@ export const suggestBrandSection = action({
                         schema: PositioningSectionSchema,
                         model: BRAND_ONBOARDING_MODEL,
                         temperature: 0.7,
-                        maxTokens: 3072,
+                        maxTokens: 2048,
                     });
                 })
             );
@@ -301,9 +316,8 @@ export const suggestBrandSection = action({
 
         if (args.section === "voice") {
             userPrompt +=
-                "\nSugira apenas voz/estilo verbal: toneAdjectives, writingRules, languages, emojiPolicy, ctaStyle. pt-BR. JSON.";
-            const system =
-                "Você é redator de marca. Responda só com JSON válido para o schema pedido.";
+                "\nSugira apenas voz/estilo verbal: toneAdjectives, writingRules, languages, emojiPolicy, ctaStyle. pt-BR. JSON. Listas curtas.";
+            const system = `Você é redator de marca. Responda só com JSON válido para o schema pedido. ${BREVITY_RULE}`;
             return await runAiEffectOrThrow(
                 Effect.gen(function* () {
                     const textGen = yield* TextGeneration;
@@ -315,16 +329,15 @@ export const suggestBrandSection = action({
                         schema: VoiceSectionSchema,
                         model: BRAND_ONBOARDING_MODEL,
                         temperature: 0.75,
-                        maxTokens: 3072,
+                        maxTokens: 2048,
                     });
                 })
             );
         }
 
         userPrompt +=
-            "\nSugira apenas identidade visual: primaryColors, secondaryColors (hex), typographyPrimary, typographySecondary, imageryGuidelines. JSON.";
-        const system =
-            "Você é designer de marca. Responda só com JSON válido para o schema pedido.";
+            "\nSugira apenas identidade visual: primaryColors, secondaryColors (hex), typographyPrimary, typographySecondary, imageryGuidelines. JSON. Poucas cores e frases.";
+        const system = `Você é designer de marca. Responda só com JSON válido para o schema pedido. ${BREVITY_RULE}`;
         return await runAiEffectOrThrow(
             Effect.gen(function* () {
                 const textGen = yield* TextGeneration;
@@ -336,7 +349,7 @@ export const suggestBrandSection = action({
                     schema: VisualSectionSchema,
                     model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.65,
-                    maxTokens: 3072,
+                    maxTokens: 2048,
                 });
             })
         );
@@ -419,7 +432,7 @@ export const ingestWebsiteForBrand = action({
 Retorne JSON no schema: elevatorPitch, whatWeSell, whoWeServe, differentiators, competitorsNotes,
 toneAdjectives[], writingRules, languages[], emojiPolicy, ctaStyle,
 primaryColors[], secondaryColors[], typographyPrimary, typographySecondary, imageryGuidelines.
-Não invente fatos específicos não suportados pelo texto; prefira inferências modestas.`;
+Não invente fatos específicos não suportados pelo texto; prefira inferências modestas. ${BREVITY_RULE}`;
 
         const suggestion = await runAiEffectOrThrow(
             Effect.gen(function* () {
@@ -432,7 +445,7 @@ Não invente fatos específicos não suportados pelo texto; prefira inferências
                     schema: BrandKitSuggestionSchema,
                     model: BRAND_ONBOARDING_MODEL,
                     temperature: 0.55,
-                    maxTokens: 2048,
+                    maxTokens: 2500,
                 });
             })
         );
