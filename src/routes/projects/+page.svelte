@@ -1,6 +1,7 @@
 <script lang="ts">
+    import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui";
-    import { CreateProjectModal, ProjectCard } from "$lib/components/projects";
+    import { ProjectCard } from "$lib/components/projects";
     import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
     import { useConvexClient, useQuery } from "convex-svelte";
     import { api } from "../../convex/_generated/api.js";
@@ -8,9 +9,6 @@
     import Navbar from "$lib/components/Navbar.svelte";
 
     const client = useConvexClient();
-
-    // Modal state
-    let showCreateModal = $state(false);
 
     // Queries
     const projectsQuery = useQuery(api.projects.listSummaries, () => ({}));
@@ -59,10 +57,10 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-xl font-semibold">Projetos</h1>
-                <p class="text-sm text-muted-foreground">Organize seus posts por conta do Instagram</p>
+                <p class="text-sm text-muted-foreground">Organize posts e contexto de marca por projeto</p>
             </div>
             <SignedIn>
-                <Button onclick={() => showCreateModal = true}>
+                <Button onclick={() => goto("/projects/new")}>
                     <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
@@ -79,7 +77,7 @@
                 <div class="text-center">
                     <h2 class="text-2xl font-bold">Entre para ver seus projetos</h2>
                     <p class="mt-2 text-muted-foreground">
-                        Faça login para gerenciar suas contas do Instagram
+                        Faça login para gerenciar seus projetos
                     </p>
                 </div>
                 <SignInButton mode="modal">
@@ -110,9 +108,9 @@
                     </div>
                     <h3 class="mt-6 text-lg font-medium">Nenhum projeto ainda</h3>
                     <p class="mt-2 text-sm text-muted-foreground">
-                        Crie seu primeiro projeto para começar a organizar seus posts
+                        Crie seu primeiro projeto e defina o contexto da marca
                     </p>
-                    <Button class="mt-6" onclick={() => showCreateModal = true}>
+                    <Button class="mt-6" onclick={() => goto("/projects/new")}>
                         <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
@@ -134,12 +132,6 @@
         </SignedIn>
     </main>
 </div>
-
-<!-- Create Project Modal -->
-<CreateProjectModal
-    open={showCreateModal}
-    onclose={() => showCreateModal = false}
-/>
 
 <!-- Delete Confirmation Modal -->
 {#if deleteConfirmId}

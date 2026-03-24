@@ -1,6 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import {
+    compileBrandContextMarkdown,
+    mergeBrandKit,
+    mergeBrandKitFillEmpty,
+} from "./brandContextCompile";
+import {
+    brandKitValidator,
+    onboardingPathValidator,
+    onboardingStatusValidator,
+} from "./brandKitShape";
 
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
@@ -17,6 +27,20 @@ async function getCurrentUser(ctx: QueryCtx, clerkId: string) {
         .query("users")
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
         .unique();
+}
+
+function brandCompileFromDoc(project: Doc<"projects">): string {
+    return compileBrandContextMarkdown({
+        name: project.name,
+        ...(project.brandKit ? { brandKit: project.brandKit } : {}),
+        ...(project.accountDescription?.trim()
+            ? { accountDescription: project.accountDescription }
+            : {}),
+        ...(project.brandTraits?.length ? { brandTraits: project.brandTraits } : {}),
+        ...(project.additionalContext?.trim()
+            ? { additionalContext: project.additionalContext }
+            : {}),
+    });
 }
 
 async function resolveProjectsWithUrls(
@@ -40,7 +64,13 @@ async function resolveProjectsWithUrls(
 export const create = mutation({
     args: {
         name: v.string(),
-        instagramUrl: v.string(),
+        instagramUrl: v.optional(v.string()),
+        brandKit: v.optional(brandKitValidator),
+        onboardingPath: v.optional(onboardingPathValidator),
+        onboardingStatus: v.optional(onboardingStatusValidator),
+        accountDescription: v.optional(v.string()),
+        brandTraits: v.optional(v.array(v.string())),
+        additionalContext: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -57,13 +87,56 @@ export const create = mutation({
             throw new Error("User not found");
         }
 
-        const projectId = await ctx.db.insert("projects", {
-            userId: user._id,
-            name: args.name,
-            instagramUrl: args.instagramUrl,
-            isFetching: true,
-            createdAt: Date.now(),
+        const trimmedName = args.name.trim();
+        const trimmedIg = args.instagramUrl?.trim();
+        const hasInstagram = Boolean(trimmedIg);
+
+        const brandKit = args.brandKit ? { ...args.brandKit } : undefined;
+        const brandContextMarkdown = compileBrandContextMarkdown({
+            name: trimmedName,
+            ...(brandKit ? { brandKit } : {}),
+            ...(args.accountDescription?.trim()
+                ? { accountDescription: args.accountDescription.trim() }
+                : {}),
+            ...(args.brandTraits?.length ? { brandTraits: args.brandTraits } : {}),
+            ...(args.additionalContext?.trim()
+                ? { additionalContext: args.additionalContext.trim() }
+                : {}),
         });
+
+        const insertFields: Record<string, unknown> = {
+            userId: user._id,
+            name: trimmedName,
+            isFetching: hasInstagram,
+            createdAt: Date.now(),
+            onboardingStatus: args.onboardingStatus ?? "complete",
+        };
+        if (hasInstagram && trimmedIg) {
+            insertFields.instagramUrl = trimmedIg;
+        }
+        if (brandKit) {
+            insertFields.brandKit = brandKit;
+        }
+        if (args.onboardingPath !== undefined) {
+            insertFields.onboardingPath = args.onboardingPath;
+        }
+        const ad = args.accountDescription?.trim();
+        if (ad) {
+            insertFields.accountDescription = ad;
+        }
+        if (args.brandTraits !== undefined && args.brandTraits.length > 0) {
+            insertFields.brandTraits = args.brandTraits;
+        }
+        const ac = args.additionalContext?.trim();
+        if (ac) {
+            insertFields.additionalContext = ac;
+        }
+        if (brandContextMarkdown) {
+            insertFields.brandContextMarkdown = brandContextMarkdown;
+        }
+
+        /* eslint-disable @typescript-eslint/no-explicit-any -- dynamic optional fields for insert */
+        const projectId = await ctx.db.insert("projects", insertFields as any);
 
         return projectId;
     },
@@ -247,6 +320,31 @@ export const remove = mutation({
             throw new Error("Not authorized to delete this project");
         }
 
+        const contextImages = await ctx.db
+            .query("context_images")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of contextImages) {
+            await ctx.storage.delete(doc.storageId);
+            await ctx.db.delete(doc._id);
+        }
+
+        if (project.brandKit?.logoStorageId) {
+            try {
+                await ctx.storage.delete(project.brandKit.logoStorageId);
+            } catch {
+                // ignore missing blob
+            }
+        }
+
+        if (project.profilePictureStorageId) {
+            try {
+                await ctx.storage.delete(project.profilePictureStorageId);
+            } catch {
+                // ignore missing blob
+            }
+        }
+
         // Clean up related data when deleting a project
         const instagramPosts = await ctx.db
             .query("instagram_posts")
@@ -317,6 +415,13 @@ export const update = mutation({
         accountDescription: v.optional(v.string()),
         brandTraits: v.optional(v.array(v.string())),
         additionalContext: v.optional(v.string()),
+        brandKit: v.optional(brandKitValidator),
+        /** merge = shallow merge; replace = use args.brandKit as full kit; fill_empty = only empty kit fields */
+        brandKitStrategy: v.optional(
+            v.union(v.literal("merge"), v.literal("replace"), v.literal("fill_empty"))
+        ),
+        onboardingStatus: v.optional(onboardingStatusValidator),
+        onboardingPath: v.optional(onboardingPathValidator),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -339,18 +444,44 @@ export const update = mutation({
         }
 
         const patch: Record<string, unknown> = {};
-        if (args.name !== undefined) patch.name = args.name;
-        if (args.instagramUrl !== undefined) patch.instagramUrl = args.instagramUrl;
+        if (args.name !== undefined) patch.name = args.name.trim();
+        if (args.instagramUrl !== undefined) {
+            const t = args.instagramUrl.trim();
+            patch.instagramUrl = t.length > 0 ? t : undefined;
+        }
         if (args.platform !== undefined) patch.platform = args.platform;
         if (args.accountDescription !== undefined) patch.accountDescription = args.accountDescription;
         if (args.brandTraits !== undefined) patch.brandTraits = args.brandTraits;
         if (args.additionalContext !== undefined) patch.additionalContext = args.additionalContext;
+        if (args.onboardingStatus !== undefined) patch.onboardingStatus = args.onboardingStatus;
+        if (args.onboardingPath !== undefined) patch.onboardingPath = args.onboardingPath;
 
-        if (Object.keys(patch).length === 0) {
-            return project;
+        if (args.brandKit !== undefined) {
+            const strategy = args.brandKitStrategy ?? "merge";
+            if (strategy === "replace") {
+                patch.brandKit = args.brandKit;
+            } else if (strategy === "fill_empty") {
+                patch.brandKit = mergeBrandKitFillEmpty(project.brandKit ?? undefined, args.brandKit);
+            } else {
+                patch.brandKit = mergeBrandKit(project.brandKit ?? undefined, args.brandKit);
+            }
         }
 
-        await ctx.db.patch(args.projectId, patch);
+        if (Object.keys(patch).length === 0) {
+            return await ctx.db.get(args.projectId);
+        }
+
+        await ctx.db.patch(args.projectId, patch as Partial<Doc<"projects">>);
+        const updated = await ctx.db.get(args.projectId);
+        if (!updated) {
+            throw new Error("Project not found after update");
+        }
+
+        const markdown = brandCompileFromDoc(updated);
+        await ctx.db.patch(args.projectId, {
+            brandContextMarkdown: markdown.length > 0 ? markdown : undefined,
+        });
+
         return await ctx.db.get(args.projectId);
     },
 });

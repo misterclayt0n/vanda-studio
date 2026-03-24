@@ -9,20 +9,12 @@ import {
     sumUsageLineItemCredits,
 } from "../../lib/billing/aiCredits";
 import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
+import { projectContextValidator } from "./projectContextValidator";
 
 /**
  * Standalone caption generation action.
  * Generates caption text WITHOUT creating any post or image records.
  */
-
-const projectContextValidator = v.optional(
-    v.object({
-        accountDescription: v.optional(v.string()),
-        brandTraits: v.optional(v.array(v.string())),
-        additionalContext: v.optional(v.string()),
-        contextImageUrls: v.optional(v.array(v.string())),
-    })
-);
 
 export const generate = action({
     args: {

@@ -6,7 +6,7 @@
     interface Project {
         _id: Id<"projects">;
         name: string;
-        instagramUrl: string;
+        instagramUrl?: string;
         instagramHandle?: string;
         profilePictureUrl?: string;
         profilePictureStorageUrl?: string | null;
@@ -29,6 +29,7 @@
     // Extract handle from Instagram URL or use stored handle
     let handle = $derived(() => {
         if (project.instagramHandle) return project.instagramHandle;
+        if (!project.instagramUrl) return null;
         try {
             const url = new URL(project.instagramUrl);
             const parts = url.pathname.split('/').filter(Boolean);
@@ -115,6 +116,8 @@
         <h3 class="font-medium">{project.name}</h3>
         {#if handle()}
             <p class="text-sm text-muted-foreground">@{handle()}</p>
+        {:else}
+            <p class="text-sm text-muted-foreground">Sem Instagram</p>
         {/if}
     </div>
 

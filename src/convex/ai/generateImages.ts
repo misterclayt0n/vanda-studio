@@ -22,21 +22,13 @@ import {
     estimateImageBatchUsage,
     estimateImageLineItem,
 } from "../../lib/billing/aiCredits";
+import { projectContextValidator } from "./projectContextValidator";
 
 /**
  * Standalone image generation action.
  * Creates media_items directly WITHOUT creating posts.
  * Returns a batchId for progressive loading.
  */
-
-const projectContextValidator = v.optional(
-    v.object({
-        accountDescription: v.optional(v.string()),
-        brandTraits: v.optional(v.array(v.string())),
-        additionalContext: v.optional(v.string()),
-        contextImageUrls: v.optional(v.array(v.string())),
-    })
-);
 
 export const generate = action({
     args: {
@@ -110,12 +102,17 @@ export const generate = action({
             referenceImageUrls.push(...args.projectContext.contextImageUrls);
         }
 
+        const brandMd = args.projectContext?.brandContextMarkdown?.trim();
+        const augmentedMessage = brandMd
+            ? `## Brief da marca\n${brandMd}\n\n## Pedido de imagem\n${args.message}`
+            : args.message;
+
         try {
             await ctx.scheduler.runAfter(0, internal.ai.generateImages.processBatch, {
                 batchId,
                 userId: user._id,
                 ...(args.projectId && { projectId: args.projectId }),
-                message: args.message,
+                message: augmentedMessage,
                 imageModels,
                 aspectRatio,
                 resolution,

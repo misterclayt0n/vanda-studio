@@ -19,6 +19,7 @@ import {
     estimateImageLineItem,
     sumUsageLineItemCredits,
 } from "../../lib/billing/aiCredits";
+import { projectContextValidator } from "./projectContextValidator";
 
 // ============================================================================
 // Types
@@ -130,15 +131,6 @@ type GeneratedImageResult = {
  * Uses progressive updates - caption and images update DB as they complete,
  * allowing frontend to show results progressively via subscriptions.
  */
-const projectContextValidator = v.optional(
-    v.object({
-        accountDescription: v.optional(v.string()),
-        brandTraits: v.optional(v.array(v.string())),
-        additionalContext: v.optional(v.string()),
-        contextImageUrls: v.optional(v.array(v.string())),
-    })
-);
-
 export const generate = action({
     args: {
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone

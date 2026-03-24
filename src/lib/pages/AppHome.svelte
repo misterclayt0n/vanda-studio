@@ -5,16 +5,12 @@
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { Button, Badge } from "$lib/components/ui";
 	import { goto } from "$app/navigation";
-	import { CreateProjectModal } from "$lib/components/projects";
-
 	const clerk = useClerkContext();
 
 	const projects = useQuery(api.projects.list, {});
 	const stats = useQuery(api.scheduledPosts.getSchedulingStats, {});
 	const recentPosts = useQuery(api.generatedPosts.listByUser, { limit: 6 });
 	const upcomingPosts = useQuery(api.scheduledPosts.getUpcomingPosts, { limit: 5 });
-
-	let showCreateModal = $state(false);
 
 	// Onboarding step tracker (persisted in localStorage)
 	let onboardingDismissed = $state(false);
@@ -73,10 +69,10 @@
 		{
 			number: "01",
 			title: "Crie um projeto",
-			description: "Conecte uma conta do Instagram para usar como referência de estilo e tom.",
+			description: "Defina nome, marca e contexto — o Instagram pode vir depois.",
 			action: "Novo projeto",
-			href: null as string | null,
-			openModal: true,
+			href: "/projects/new" as string | null,
+			openModal: false,
 		},
 		{
 			number: "02",
@@ -209,8 +205,7 @@
 										variant={i === 0 ? "default" : "outline"}
 										size="sm"
 										onclick={() => {
-											if (step.openModal) showCreateModal = true;
-											else if (step.href) goto(step.href);
+											if (step.href) goto(step.href);
 										}}
 									>
 										{step.action}
@@ -308,7 +303,7 @@
 									<Button variant="ghost" size="sm" onclick={() => goto("/projects")}>
 										Ver todos
 									</Button>
-									<Button variant="outline" size="sm" onclick={() => showCreateModal = true}>
+									<Button variant="outline" size="sm" onclick={() => goto("/projects/new")}>
 										<svg class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 										</svg>
@@ -364,8 +359,10 @@
 												<p class="text-sm font-medium truncate">{project.name}</p>
 												{#if project.instagramHandle}
 													<p class="text-xs text-muted-foreground">@{project.instagramHandle}</p>
-												{:else}
+												{:else if project.instagramUrl}
 													<p class="text-xs text-muted-foreground truncate">{project.instagramUrl}</p>
+												{:else}
+													<p class="text-xs text-muted-foreground">Sem Instagram</p>
 												{/if}
 											</div>
 
@@ -384,7 +381,7 @@
 										</svg>
 									</div>
 									<p class="text-sm text-muted-foreground mb-3">Nenhum projeto ainda</p>
-									<Button size="sm" onclick={() => showCreateModal = true}>
+									<Button size="sm" onclick={() => goto("/projects/new")}>
 										Criar primeiro projeto
 									</Button>
 								</div>
@@ -576,7 +573,7 @@
 
 								<button
 									class="flex items-center gap-3 w-full px-5 py-3 text-left transition-colors hover:bg-muted/50"
-									onclick={() => showCreateModal = true}
+									onclick={() => goto("/projects/new")}
 								>
 									<div class="flex h-8 w-8 items-center justify-center border border-border bg-primary/5">
 										<svg class="h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -585,7 +582,7 @@
 									</div>
 									<div class="flex-1">
 										<p class="text-sm font-medium">Novo projeto</p>
-										<p class="text-xs text-muted-foreground">Conectar conta do Instagram</p>
+										<p class="text-xs text-muted-foreground">Marca e contexto</p>
 									</div>
 								</button>
 
@@ -611,9 +608,3 @@
 		</SignedIn>
 	</main>
 </div>
-
-<CreateProjectModal
-	open={showCreateModal}
-	onclose={() => showCreateModal = false}
-	oncreated={(id) => goto(`/projects/${id}`)}
-/>

@@ -676,6 +676,9 @@
 				.map((image) => image.url)
 				.filter((url): url is string => !!url);
 			const projectContext = selectedProject && selectedProjectId ? {
+				...(selectedProject.brandContextMarkdown?.trim() && {
+					brandContextMarkdown: selectedProject.brandContextMarkdown.trim(),
+				}),
 				...(selectedProject.accountDescription && { accountDescription: selectedProject.accountDescription }),
 				...(selectedProject.brandTraits && { brandTraits: selectedProject.brandTraits }),
 				...(selectedProject.additionalContext && { additionalContext: selectedProject.additionalContext }),

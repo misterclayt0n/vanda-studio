@@ -221,6 +221,7 @@
 	// Get handle from a project
 	function getProjectHandle(project: typeof projects[0]): string | null {
 		if (project.instagramHandle) return project.instagramHandle;
+		if (!project.instagramUrl) return null;
 		try {
 			const url = new URL(project.instagramUrl);
 			const parts = url.pathname.split('/').filter(Boolean);

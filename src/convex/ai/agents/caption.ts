@@ -40,6 +40,8 @@ export interface ProjectContext {
     brandTraits?: string[];
     additionalContext?: string;
     contextImageUrls?: string[];
+    /** Persisted compiled brief (preferred when present). */
+    brandContextMarkdown?: string;
 }
 
 export interface CaptionInput {
@@ -70,6 +72,11 @@ export interface CaptionOutput {
  * Build brand context section for system prompt
  */
 function buildBrandContextPrompt(projectContext: ProjectContext): string {
+    const md = projectContext.brandContextMarkdown?.trim();
+    if (md) {
+        return `${md}\n`;
+    }
+
     let contextPrompt = "";
 
     if (projectContext.accountDescription) {

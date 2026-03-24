@@ -11,6 +11,7 @@
 import type * as ai_agents_caption from "../ai/agents/caption.js";
 import type * as ai_agents_image from "../ai/agents/image.js";
 import type * as ai_agents_index from "../ai/agents/index.js";
+import type * as ai_brandOnboarding from "../ai/brandOnboarding.js";
 import type * as ai_chat from "../ai/chat.js";
 import type * as ai_generateCaption from "../ai/generateCaption.js";
 import type * as ai_generateImages from "../ai/generateImages.js";
@@ -24,9 +25,12 @@ import type * as ai_llm_services_ImageGeneration from "../ai/llm/services/ImageG
 import type * as ai_llm_services_TextGeneration from "../ai/llm/services/TextGeneration.js";
 import type * as ai_llm_types from "../ai/llm/types.js";
 import type * as ai_profileAnalysis from "../ai/profileAnalysis.js";
+import type * as ai_projectContextValidator from "../ai/projectContextValidator.js";
 import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
 import type * as billing_autumnUsage from "../billing/autumnUsage.js";
+import type * as brandContextCompile from "../brandContextCompile.js";
+import type * as brandKitShape from "../brandKitShape.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as cleanup from "../cleanup.js";
 import type * as contextImages from "../contextImages.js";
@@ -51,6 +55,7 @@ import type * as projects from "../projects.js";
 import type * as referenceImages from "../referenceImages.js";
 import type * as scheduledPosts from "../scheduledPosts.js";
 import type * as search from "../search.js";
+import type * as urlSafety from "../urlSafety.js";
 import type * as users from "../users.js";
 
 import type {
@@ -63,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "ai/agents/caption": typeof ai_agents_caption;
   "ai/agents/image": typeof ai_agents_image;
   "ai/agents/index": typeof ai_agents_index;
+  "ai/brandOnboarding": typeof ai_brandOnboarding;
   "ai/chat": typeof ai_chat;
   "ai/generateCaption": typeof ai_generateCaption;
   "ai/generateImages": typeof ai_generateImages;
@@ -76,9 +82,12 @@ declare const fullApi: ApiFromModules<{
   "ai/llm/services/TextGeneration": typeof ai_llm_services_TextGeneration;
   "ai/llm/types": typeof ai_llm_types;
   "ai/profileAnalysis": typeof ai_profileAnalysis;
+  "ai/projectContextValidator": typeof ai_projectContextValidator;
   autumn: typeof autumn;
   "billing/autumn": typeof billing_autumn;
   "billing/autumnUsage": typeof billing_autumnUsage;
+  brandContextCompile: typeof brandContextCompile;
+  brandKitShape: typeof brandKitShape;
   chatMessages: typeof chatMessages;
   cleanup: typeof cleanup;
   contextImages: typeof contextImages;
@@ -103,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   referenceImages: typeof referenceImages;
   scheduledPosts: typeof scheduledPosts;
   search: typeof search;
+  urlSafety: typeof urlSafety;
   users: typeof users;
 }>;
 

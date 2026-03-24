@@ -1,5 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+    brandKitValidator,
+    onboardingPathValidator,
+    onboardingStatusValidator,
+} from "./brandKitShape";
 
 export default defineSchema({
     users: defineTable({
@@ -12,7 +17,7 @@ export default defineSchema({
     projects: defineTable({
         userId: v.id("users"),
         name: v.string(), // e.g. "Vanda Studio"
-        instagramUrl: v.string(),
+        instagramUrl: v.optional(v.string()),
         instagramHandle: v.optional(v.string()),
         profilePictureUrl: v.optional(v.string()),
         profilePictureStorageId: v.optional(v.id("_storage")),
@@ -29,6 +34,10 @@ export default defineSchema({
         brandTraits: v.optional(v.array(v.string())), // ["friendly", "witty", "concise"]
         additionalContext: v.optional(v.string()), // Free-form additional context
         latestBrandAnalysisId: v.optional(v.string()), // Legacy field kept for schema compatibility
+        brandKit: v.optional(brandKitValidator),
+        brandContextMarkdown: v.optional(v.string()),
+        onboardingStatus: v.optional(onboardingStatusValidator),
+        onboardingPath: v.optional(onboardingPathValidator),
     }).index("by_user_id", ["userId"]),
 
     // Context images for brand context

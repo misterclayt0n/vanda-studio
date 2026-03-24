@@ -144,6 +144,7 @@
 	function getHandle(): string | null {
 		if (!project) return null;
 		if (project.instagramHandle) return project.instagramHandle;
+		if (!project.instagramUrl) return null;
 		try {
 			const url = new URL(project.instagramUrl);
 			const parts = url.pathname.split("/").filter(Boolean);
@@ -252,7 +253,7 @@
 						<div class="space-y-2">
 							<div class="flex flex-wrap items-center gap-3">
 								<h1 class="text-2xl font-semibold">{project.name}</h1>
-								{#if getHandle()}
+								{#if getHandle() && project.instagramUrl}
 									<a
 										href={project.instagramUrl}
 										target="_blank"
@@ -261,6 +262,8 @@
 									>
 										@{getHandle()}
 									</a>
+								{:else}
+									<span class="text-sm text-muted-foreground">Instagram não conectado</span>
 								{/if}
 							</div>
 							<div class="flex flex-wrap items-center gap-2">
