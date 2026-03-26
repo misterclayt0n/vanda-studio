@@ -15,6 +15,7 @@ import {
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
     profilePictureStorageUrl: string | null;
+    logoStorageUrl: string | null;
 };
 
 type ProjectSummary = ProjectWithStorageUrl & {
@@ -47,17 +48,27 @@ async function resolveProjectsWithUrls(
     ctx: QueryCtx,
     projects: Doc<"projects">[]
 ): Promise<ProjectWithStorageUrl[]> {
-    const urls = await Promise.all(
-        projects.map((project) =>
-            project.profilePictureStorageId
-                ? ctx.storage.getUrl(project.profilePictureStorageId)
-                : Promise.resolve(null)
-        )
-    );
+    const [profileUrls, logoUrls] = await Promise.all([
+        Promise.all(
+            projects.map((project) =>
+                project.profilePictureStorageId
+                    ? ctx.storage.getUrl(project.profilePictureStorageId)
+                    : Promise.resolve(null)
+            )
+        ),
+        Promise.all(
+            projects.map((project) =>
+                project.brandKit?.logoStorageId
+                    ? ctx.storage.getUrl(project.brandKit.logoStorageId)
+                    : Promise.resolve(null)
+            )
+        ),
+    ]);
 
     return projects.map((project, index) => ({
         ...project,
-        profilePictureStorageUrl: urls[index] ?? null,
+        profilePictureStorageUrl: profileUrls[index] ?? null,
+        logoStorageUrl: logoUrls[index] ?? null,
     }));
 }
 
@@ -291,9 +302,15 @@ export const get = query({
             profilePictureStorageUrl = await ctx.storage.getUrl(project.profilePictureStorageId);
         }
 
+        let logoStorageUrl: string | null = null;
+        if (project.brandKit?.logoStorageId) {
+            logoStorageUrl = await ctx.storage.getUrl(project.brandKit.logoStorageId) ?? null;
+        }
+
         return {
             ...project,
             profilePictureStorageUrl,
+            logoStorageUrl,
         };
     },
 });

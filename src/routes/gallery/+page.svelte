@@ -215,7 +215,7 @@
 	// Get profile picture URL for a project
 	function getProjectProfilePicture(project: typeof projects[0] | null): string | null {
 		if (!project) return null;
-		return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
+		return project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
 	}
 
 	// Get handle from a project

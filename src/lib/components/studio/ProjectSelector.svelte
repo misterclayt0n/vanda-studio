@@ -35,10 +35,9 @@
         popoverOpen = false;
     }
 
-    // Get profile picture URL
     function getProfilePicture(project: typeof projects[0] | null): string | null {
         if (!project) return null;
-        return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
+        return project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
     }
 
     // Extract handle from Instagram URL

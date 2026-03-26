@@ -51,6 +51,11 @@
 		return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
 	}
 
+	function getLogoUrl(): string | null {
+		if (!project) return null;
+		return project.logoStorageUrl ?? getProfilePicture();
+	}
+
 	function getHandle(): string | null {
 		if (!project) return null;
 		if (project.instagramHandle) return project.instagramHandle;
@@ -189,9 +194,9 @@
 					</button>
 
 					<div class="flex items-center gap-3">
-						{#if getProfilePicture()}
-							<div class="h-7 w-7 overflow-hidden border border-border/50">
-								<img src={getProfilePicture()} alt={project.name} class="h-full w-full object-cover" />
+					{#if getLogoUrl()}
+						<div class="h-7 w-7 overflow-hidden border border-border/50">
+							<img src={getLogoUrl()} alt={project.name} class="h-full w-full object-cover" />
 							</div>
 						{/if}
 						<h1
@@ -301,7 +306,7 @@
 					<BrandSummaryCard
 						{brandKit}
 						brandName={project.name}
-						logoUrl={getProfilePicture()}
+						logoUrl={getLogoUrl()}
 						onupdate={handleBrandKitUpdate}
 					/>
 					{#if isSavingKit}

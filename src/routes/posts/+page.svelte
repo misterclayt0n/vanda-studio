@@ -524,8 +524,8 @@
 												{@const proj = projects.find(p => p._id === filterProjectId)}
 												{#if proj}
 													<div class="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-														{#if proj.profilePictureStorageUrl ?? proj.profilePictureUrl}
-															<img src={proj.profilePictureStorageUrl ?? proj.profilePictureUrl} alt="" class="h-full w-full object-cover" />
+														{#if proj.logoStorageUrl ?? proj.profilePictureStorageUrl ?? proj.profilePictureUrl}
+															<img src={proj.logoStorageUrl ?? proj.profilePictureStorageUrl ?? proj.profilePictureUrl} alt="" class="h-full w-full object-cover" />
 														{:else}
 															<span class="flex h-full w-full items-center justify-center text-[8px] font-bold text-muted-foreground">{proj.name[0]?.toUpperCase()}</span>
 														{/if}
@@ -564,8 +564,8 @@
 											onclick={() => { filterProjectId = project._id; projectFilterOpen = false; }}
 										>
 											<div class="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-												{#if project.profilePictureStorageUrl ?? project.profilePictureUrl}
-													<img src={project.profilePictureStorageUrl ?? project.profilePictureUrl} alt="" class="h-full w-full object-cover" />
+											{#if project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl}
+												<img src={project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl} alt="" class="h-full w-full object-cover" />
 												{:else}
 													<span class="flex h-full w-full items-center justify-center text-[8px] font-bold text-muted-foreground">{project.name[0]?.toUpperCase()}</span>
 												{/if}

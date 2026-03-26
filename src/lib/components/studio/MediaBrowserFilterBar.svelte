@@ -7,6 +7,7 @@
 		name: string;
 		profilePictureStorageUrl?: string | null;
 		profilePictureUrl?: string | null;
+		logoStorageUrl?: string | null;
 	};
 
 	type ModelOption = {
@@ -79,8 +80,8 @@
 				<div class="flex min-w-0 items-center gap-2">
 					{#if selectedProject}
 						<div class="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-							{#if selectedProject.profilePictureStorageUrl ?? selectedProject.profilePictureUrl}
-								<img src={selectedProject.profilePictureStorageUrl ?? selectedProject.profilePictureUrl} alt="" class="h-full w-full object-cover" />
+						{#if selectedProject.logoStorageUrl ?? selectedProject.profilePictureStorageUrl ?? selectedProject.profilePictureUrl}
+							<img src={selectedProject.logoStorageUrl ?? selectedProject.profilePictureStorageUrl ?? selectedProject.profilePictureUrl} alt="" class="h-full w-full object-cover" />
 							{:else}
 								<span class="flex h-full w-full items-center justify-center text-[8px] font-bold text-muted-foreground">
 									{selectedProject.name[0]?.toUpperCase()}
@@ -126,8 +127,8 @@
 					}}
 				>
 					<div class="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-						{#if project.profilePictureStorageUrl ?? project.profilePictureUrl}
-							<img src={project.profilePictureStorageUrl ?? project.profilePictureUrl} alt="" class="h-full w-full object-cover" />
+					{#if project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl}
+						<img src={project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl} alt="" class="h-full w-full object-cover" />
 						{:else}
 							<span class="flex h-full w-full items-center justify-center text-[8px] font-bold text-muted-foreground">{project.name[0]?.toUpperCase()}</span>
 						{/if}

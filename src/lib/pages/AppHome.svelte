@@ -333,9 +333,9 @@
 										>
 											<!-- Avatar -->
 											<div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-												{#if project.profilePictureStorageUrl ?? project.profilePictureUrl}
-													<img
-														src={project.profilePictureStorageUrl ?? project.profilePictureUrl}
+											{#if project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl}
+												<img
+													src={project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl}
 														alt={project.name}
 														class="h-full w-full object-cover"
 													/>

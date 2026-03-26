@@ -18,6 +18,7 @@
         instagramHandle?: string;
         profilePictureUrl?: string;
         profilePictureStorageUrl?: string | null;
+        logoStorageUrl?: string | null;
         platform?: string;
         accountDescription?: string;
         brandTraits?: string[];
@@ -302,7 +303,7 @@
     </div>
 
     {#if brandKit.elevatorPitch || brandKit.primaryColors?.length || brandKit.toneAdjectives?.length}
-        <BrandSummaryCard {brandKit} compact={true} />
+        <BrandSummaryCard {brandKit} compact={true} logoUrl={project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null} />
     {/if}
 
     <section class="border border-border bg-card p-6">

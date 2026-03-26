@@ -10,6 +10,7 @@
         instagramHandle?: string;
         profilePictureUrl?: string;
         profilePictureStorageUrl?: string | null;
+        logoStorageUrl?: string | null;
         isFetching?: boolean;
     }
 
@@ -21,9 +22,8 @@
 
     let { project, postCount = 0, ondelete }: Props = $props();
 
-    // Get profile picture URL (prefer storage URL over external URL)
     let profilePicture = $derived(
-        project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null
+        project.logoStorageUrl ?? project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null
     );
 
     // Extract handle from Instagram URL or use stored handle
