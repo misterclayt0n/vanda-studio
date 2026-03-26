@@ -7,10 +7,15 @@ import {
 } from "../llm/index";
 
 // ============================================================================
-// System Prompt
+// System Prompt — base rules shared across all presets
 // ============================================================================
 
-const BASE_PROMPT = `Generate a photorealistic Instagram image.
+const BASE_RULES = `## Important Rules
+- NO text, words, letters, or typography in the image UNLESS explicitly requested
+- If reference images are provided, preserve the EXACT appearance of products/packaging
+- Do not invent or change brand names, logos, or label text from references`;
+
+const PHOTOREALISTIC_PROMPT = `Generate a photorealistic Instagram image.
 
 ## Core Requirements
 - PHOTOREALISTIC - Must look like a real photograph taken with a professional camera
@@ -24,10 +29,14 @@ const BASE_PROMPT = `Generate a photorealistic Instagram image.
 - Post-processing: Subtle, realistic color grading
 - Resolution: High quality, Instagram-ready
 
-## Important Rules
-- NO text, words, letters, or typography in the image UNLESS explicitly requested
-- If reference images are provided, preserve the EXACT appearance of products/packaging
-- Do not invent or change brand names, logos, or label text from references`;
+${BASE_RULES}`;
+
+const GENERIC_BASE_PROMPT = `## Core Requirements
+- Professional quality suitable for Instagram
+- Visually compelling composition
+- High resolution, Instagram-ready
+
+${BASE_RULES}`;
 
 // ============================================================================
 // Types
@@ -46,6 +55,8 @@ export interface ImageInput {
     aspectRatio?: AspectRatio;
     /** Resolution for the image */
     resolution?: Resolution;
+    /** Style preset prompt text — replaces the default photorealistic opener */
+    stylePreset?: string;
 }
 
 export interface ImageOutput {
@@ -67,7 +78,11 @@ export interface ImageOutput {
 function buildImagePrompt(input: ImageInput): string {
     const parts: string[] = [];
 
-    parts.push("Create a photorealistic Instagram image.\n");
+    if (input.stylePreset) {
+        parts.push(`## Image Style\n${input.stylePreset}\n`);
+    } else {
+        parts.push("Create a photorealistic Instagram image.\n");
+    }
 
     // Caption context
     parts.push(`## Caption Context\nThe image should complement this caption:\n"${input.caption}"\n`);
@@ -82,8 +97,9 @@ function buildImagePrompt(input: ImageInput): string {
         parts.push(`## Reference Images\nThe attached ${input.referenceImageUrls.length} image(s) show the actual products/brand. You MUST:\n- PRESERVE the EXACT appearance (packaging, labels, colors, textures)\n- DO NOT invent or modify brand names, logos, or text\n- Reproduce the product IDENTICALLY as shown\n`);
     }
 
-    // Base requirements
-    parts.push(BASE_PROMPT);
+    // Use the full photorealistic prompt when no custom preset is given,
+    // otherwise use the generic base (the preset itself carries style direction).
+    parts.push(input.stylePreset ? GENERIC_BASE_PROMPT : PHOTOREALISTIC_PROMPT);
 
     return parts.join("\n");
 }

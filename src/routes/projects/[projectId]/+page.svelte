@@ -1,141 +1,51 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
-	import { MediaLightbox, Lightbox } from "$lib/components/lightbox";
-	import Navbar from "$lib/components/Navbar.svelte";
 	import { ProjectSettingsForm } from "$lib/components/projects";
+	import { BrandSummaryCard } from "$lib/components/wizard";
 	import { Badge, Button } from "$lib/components/ui";
+	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
+	import { loadGoogleFont, fontFamily } from "$lib/utils";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
-
-	type ProjectTab = "images" | "posts" | "settings";
-
-	type MediaItem = {
-		_id: Id<"media_items">;
-		url: string | null;
-		thumbnailUrl?: string | null;
-		storageId: Id<"_storage">;
-		mimeType: string;
-		model?: string;
-		prompt?: string;
-		sourceType: string;
-		width: number;
-		height: number;
-		aspectRatio?: string;
-		resolution?: string;
-		createdAt: number;
-	};
-
-	type ProjectPost = {
-		_id: Id<"generated_posts">;
-		caption: string;
-		imageUrl: string | null;
-		imageModel?: string;
-		createdAt: number;
-		isComposed?: boolean;
-	};
+	import {
+		ArrowLeft,
+		Settings,
+		Trash2,
+		X,
+		Sparkles,
+		Palette,
+		PenLine,
+		ImagePlus,
+		CalendarDays,
+		TrendingUp,
+		ArrowRight,
+	} from "lucide-svelte";
 
 	const client = useConvexClient();
 
-	const modelDisplayNames: Record<string, string> = {
-		"google/gemini-2.5-flash-image": "Nano Banana",
-		"google/gemini-3.1-flash-image-preview": "Nano Banana 2",
-		"google/gemini-3-pro-image-preview": "Nano Banana Pro",
-		"bytedance-seed/seedream-4.5": "SeeDream v4.5",
-		"black-forest-labs/flux.2-flex": "Flux 2 Flex",
-		"openai/gpt-5-image": "GPT Image 1.5",
-	};
-
-	const sourceLabels: Record<string, string> = {
-		generated: "Gerada",
-		uploaded: "Upload",
-		edited: "Editada",
-		imported: "Importada",
-	};
-
 	let projectId = $derived($page.params.projectId as Id<"projects">);
-	let activeTab = $derived(($page.url.searchParams.get("tab") as ProjectTab | null) ?? "images");
-	let lightboxPostId = $derived($page.url.searchParams.get("post"));
-	let lightboxImageId = $derived($page.url.searchParams.get("img"));
-	let lightboxMediaId = $derived($page.url.searchParams.get("media"));
-	let showDeleteConfirm = $state(false);
-	let isDeletingProject = $state(false);
-	let requestedThumbnailIds = $state<string[]>([]);
 
 	const projectQuery = useQuery(api.projects.get, () => ({ projectId }));
-	const postsQuery = useQuery(api.generatedPosts.listByProject, () => ({ projectId }));
-	const mediaQuery = useQuery(api.mediaItems.listCardsByProject, () => ({ projectId }));
-
 	let project = $derived(projectQuery.data);
-	let posts = $derived((postsQuery.data ?? []) as ProjectPost[]);
-	let mediaItems = $derived((mediaQuery.data ?? []) as MediaItem[]);
-	let legacyPosts = $derived(posts.filter((post) => !post.isComposed));
 	let isLoading = $derived(projectQuery.isLoading);
 
+	let brandKit = $derived<BrandKitState>(project?.brandKit ?? emptyBrandKit());
+	let brandGlowColor = $derived(brandKit.primaryColors?.[0] ?? null);
+
 	$effect(() => {
-		const idsToEnsure = mediaItems
-			.filter((item) => item.url && !item.thumbnailUrl)
-			.map((item) => item._id)
-			.filter((id) => !requestedThumbnailIds.includes(id))
-			.slice(0, 24);
-
-		if (idsToEnsure.length === 0) return;
-
-		requestedThumbnailIds = [...requestedThumbnailIds, ...idsToEnsure];
-		void client.mutation(api.mediaItems.ensureThumbnails, { ids: idsToEnsure }).catch((err) => {
-			console.error("Failed to queue thumbnails:", err);
-		});
+		if (brandKit.typographyPrimary) loadGoogleFont(brandKit.typographyPrimary);
 	});
 
-	function setTab(tab: ProjectTab) {
-		const url = new URL($page.url);
-		url.searchParams.set("tab", tab);
-		url.searchParams.delete("post");
-		url.searchParams.delete("img");
-		url.searchParams.delete("media");
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
+	// ── UI state ────────────────────────────────────────────────────────
+	let showDeleteConfirm = $state(false);
+	let isDeletingProject = $state(false);
+	let showSettings = $state(false);
+	let isSavingKit = $state(false);
 
-	function openLegacyPost(postId: string, imageId?: string | null) {
-		const url = new URL($page.url);
-		url.searchParams.set("tab", "posts");
-		url.searchParams.set("post", postId);
-		if (imageId) {
-			url.searchParams.set("img", imageId);
-		} else {
-			url.searchParams.delete("img");
-		}
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
-
-	function closeLegacyPost() {
-		const url = new URL($page.url);
-		url.searchParams.delete("post");
-		url.searchParams.delete("img");
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
-
-	function openMedia(mediaId: string) {
-		const url = new URL($page.url);
-		url.searchParams.set("tab", "images");
-		url.searchParams.set("media", mediaId);
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
-
-	function closeMedia() {
-		const url = new URL($page.url);
-		url.searchParams.delete("media");
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
-
-	function navigateMedia(mediaId: string) {
-		const url = new URL($page.url);
-		url.searchParams.set("media", mediaId);
-		goto(url.toString(), { replaceState: true, noScroll: true });
-	}
-
+	// ── Helpers ─────────────────────────────────────────────────────────
 	function getProfilePicture(): string | null {
 		if (!project) return null;
 		return project.profilePictureStorageUrl ?? project.profilePictureUrl ?? null;
@@ -154,20 +64,24 @@
 		}
 	}
 
-	function formatDate(timestamp: number): string {
-		const date = new Date(timestamp);
-		return date.toLocaleDateString("pt-BR", {
-			day: "2-digit",
-			month: "short",
-			year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
-		});
+	// ── Brand kit inline save ──────────────────────────────────────────
+	async function handleBrandKitUpdate(updated: BrandKitState) {
+		if (!project || isSavingKit) return;
+		isSavingKit = true;
+		try {
+			await client.mutation(api.projects.update, {
+				projectId,
+				brandKit: updated,
+				brandKitStrategy: "replace",
+			});
+		} catch (err) {
+			console.error("Failed to save brand kit:", err);
+		} finally {
+			isSavingKit = false;
+		}
 	}
 
-	function truncateCaption(caption: string, maxLength = 140) {
-		if (caption.length <= maxLength) return caption;
-		return `${caption.slice(0, maxLength).trim()}...`;
-	}
-
+	// ── Delete project ─────────────────────────────────────────────────
 	async function handleDeleteProject() {
 		isDeletingProject = true;
 		try {
@@ -180,34 +94,68 @@
 		}
 	}
 
-	async function handleDeletePost(postId: Id<"generated_posts">, event: Event) {
-		event.stopPropagation();
-		await client.mutation(api.generatedPosts.softDelete, { id: postId });
-	}
+	// ── Vanda Sugere — mock suggestions ────────────────────────────────
+	type Suggestion = {
+		icon: typeof Palette;
+		title: string;
+		description: string;
+		href?: string;
+		comingSoon?: boolean;
+	};
 
-	async function handleDeleteMedia(mediaId: Id<"media_items">, event: Event) {
-		event.stopPropagation();
-		await client.mutation(api.mediaItems.softDelete, { id: mediaId });
-	}
+	let suggestions = $derived<Suggestion[]>([
+		{
+			icon: Palette,
+			title: "Criar um logo",
+			description: "Gere um logotipo que reflete sua identidade visual.",
+			comingSoon: true,
+		},
+		{
+			icon: PenLine,
+			title: "Escrever primeiro post",
+			description: "Crie conteúdo com o tom de voz da sua marca.",
+			href: `/posts/create?projectId=${projectId}`,
+		},
+		{
+			icon: ImagePlus,
+			title: "Gerar imagem",
+			description: "Produza imagens alinhadas com seu estilo.",
+			href: `/images?projectId=${projectId}`,
+		},
+		{
+			icon: CalendarDays,
+			title: "Agendar conteúdo",
+			description: "Monte um calendário editorial semanal.",
+			comingSoon: true,
+		},
+		{
+			icon: TrendingUp,
+			title: "Analisar concorrentes",
+			description: "Descubra oportunidades no seu mercado.",
+			comingSoon: true,
+		},
+	]);
 </script>
 
 <svelte:head>
 	<title>{project?.name ?? "Projeto"} - Vanda Studio</title>
 </svelte:head>
 
-<div class="flex h-screen flex-col bg-background">
-	<Navbar />
-
+<div
+	class="brand-central min-h-screen"
+	style={brandGlowColor ? `--brand-glow: ${brandGlowColor}` : ""}
+	class:has-brand-glow={!!brandGlowColor}
+>
 	<SignedOut>
-		<div class="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-20">
+		<div class="flex min-h-screen flex-col items-center justify-center gap-6 px-6 py-20">
 			<div class="max-w-md text-center">
 				<h2 class="text-2xl font-semibold">Entre para ver este projeto</h2>
 				<p class="mt-2 text-sm text-muted-foreground">
-					Faça login para acessar imagens, posts e configuracoes do projeto.
+					Faça login para acessar seu painel de marca.
 				</p>
 			</div>
 			<SignInButton mode="modal">
-				<button class="h-10 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+				<button class="h-10 bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
 					Entrar
 				</button>
 			</SignInButton>
@@ -216,14 +164,11 @@
 
 	<SignedIn>
 		{#if isLoading}
-			<div class="flex flex-1 items-center justify-center">
-				<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-				</svg>
+			<div class="flex min-h-screen items-center justify-center">
+				<Sparkles class="h-8 w-8 animate-pulse text-primary" />
 			</div>
 		{:else if !project}
-			<div class="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+			<div class="flex min-h-screen flex-col items-center justify-center gap-4 px-6 py-20 text-center">
 				<h3 class="text-lg font-medium">Projeto não encontrado</h3>
 				<p class="max-w-md text-sm text-muted-foreground">
 					Este projeto pode ter sido removido ou você não tem permissão para acessá-lo.
@@ -231,229 +176,182 @@
 				<Button variant="outline" onclick={() => goto("/projects")}>Voltar para projetos</Button>
 			</div>
 		{:else}
-			<div class="border-b border-border bg-muted/20 px-6 py-5">
-				<div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-					<div class="flex items-start gap-4">
-						<Button variant="ghost" size="sm" onclick={() => goto("/projects")}>
-							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-							</svg>
-						</Button>
+			<!-- ── Minimal top bar ── -->
+			<header class="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
+				<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+					<button
+						type="button"
+						class="group flex items-center gap-2 text-muted-foreground/60 transition-colors hover:text-foreground"
+						onclick={() => goto("/projects")}
+					>
+						<ArrowLeft class="h-4 w-4" />
+						<span class="text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">Projetos</span>
+					</button>
 
-						<div class="h-16 w-16 overflow-hidden rounded-full border border-border bg-muted">
-							{#if getProfilePicture()}
+					<div class="flex items-center gap-3">
+						{#if getProfilePicture()}
+							<div class="h-7 w-7 overflow-hidden border border-border/50">
 								<img src={getProfilePicture()} alt={project.name} class="h-full w-full object-cover" />
+							</div>
+						{/if}
+						<h1
+							class="text-sm font-semibold tracking-tight"
+							style={brandKit.typographyPrimary ? `font-family: ${fontFamily(brandKit.typographyPrimary)}` : ""}
+						>
+							{project.name}
+						</h1>
+						{#if getHandle() && project.instagramUrl}
+							<a
+								href={project.instagramUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="text-xs text-muted-foreground/50 transition-colors hover:text-foreground"
+							>
+								@{getHandle()}
+							</a>
+						{/if}
+					</div>
+
+					<div class="flex items-center gap-1">
+						<button
+							type="button"
+							class="p-2 text-muted-foreground/50 transition-colors hover:text-foreground"
+							onclick={() => (showSettings = true)}
+							aria-label="Configurações"
+						>
+							<Settings class="h-4 w-4" />
+						</button>
+						<button
+							type="button"
+							class="p-2 text-muted-foreground/30 transition-colors hover:text-destructive"
+							onclick={() => (showDeleteConfirm = true)}
+							aria-label="Excluir projeto"
+						>
+							<Trash2 class="h-4 w-4" />
+						</button>
+					</div>
+				</div>
+			</header>
+
+			<!-- ── Main content ── -->
+			<main class="relative z-10 mx-auto max-w-6xl px-6 py-8">
+
+				<!-- Vanda Sugere -->
+				<section class="entrance-section" style="--entrance-delay: 0ms">
+					<div class="mb-6 flex items-center gap-3">
+						<Sparkles class="h-4 w-4 text-primary" />
+						<h2 class="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">
+							Vanda sugere
+						</h2>
+					</div>
+
+					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+						{#each suggestions as suggestion, i}
+							{@const Icon = suggestion.icon}
+							{#if suggestion.href && !suggestion.comingSoon}
+								<a
+									href={suggestion.href}
+									class="suggestion-card group relative flex flex-col gap-3 border border-border bg-card p-5 transition-all hover:border-foreground/20"
+									style="--card-delay: {i * 60}ms"
+								>
+									<div class="flex items-center justify-between">
+										<div class="flex h-8 w-8 items-center justify-center border border-border/50 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
+											<Icon class="h-4 w-4" />
+										</div>
+										<ArrowRight class="h-3 w-3 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
+									</div>
+									<div>
+										<h3 class="text-sm font-medium">{suggestion.title}</h3>
+										<p class="mt-1 text-xs leading-relaxed text-muted-foreground/70">{suggestion.description}</p>
+									</div>
+								</a>
 							{:else}
-								<div class="flex h-full w-full items-center justify-center text-xl font-semibold text-muted-foreground">
-									{project.name.charAt(0).toUpperCase()}
+								<div
+									class="suggestion-card group relative flex flex-col gap-3 border border-border/50 bg-card/50 p-5 opacity-60"
+									style="--card-delay: {i * 60}ms"
+								>
+									<div class="flex items-center justify-between">
+										<div class="flex h-8 w-8 items-center justify-center border border-border/30 text-muted-foreground/50">
+											<Icon class="h-4 w-4" />
+										</div>
+										<Badge class="text-[9px]">Em breve</Badge>
+									</div>
+									<div>
+										<h3 class="text-sm font-medium text-foreground/70">{suggestion.title}</h3>
+										<p class="mt-1 text-xs leading-relaxed text-muted-foreground/50">{suggestion.description}</p>
+									</div>
 								</div>
 							{/if}
-						</div>
-
-						<div class="space-y-2">
-							<div class="flex flex-wrap items-center gap-3">
-								<h1 class="text-2xl font-semibold">{project.name}</h1>
-								{#if getHandle() && project.instagramUrl}
-									<a
-										href={project.instagramUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										class="text-sm text-muted-foreground hover:text-foreground hover:underline"
-									>
-										@{getHandle()}
-									</a>
-								{:else}
-									<span class="text-sm text-muted-foreground">Instagram não conectado</span>
-								{/if}
-							</div>
-							<div class="flex flex-wrap items-center gap-2">
-								<Badge variant={activeTab === "images" ? "default" : "outline"}>
-									{mediaItems.length} imagem{mediaItems.length !== 1 ? "ns" : ""}
-								</Badge>
-								<Badge variant={activeTab === "posts" ? "default" : "outline"}>
-									{posts.length} post{posts.length !== 1 ? "s" : ""}
-								</Badge>
-							</div>
-						</div>
+						{/each}
 					</div>
+				</section>
 
-					<div class="flex flex-wrap items-center gap-2">
-						<Button variant="outline" onclick={() => goto(`/images?projectId=${projectId}`)}>
-							Nova imagem
-						</Button>
-						<Button onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
-							Novo post
-						</Button>
-						<Button variant="outline" onclick={() => setTab("settings")}>
-							Configuracoes
-						</Button>
-						<Button variant="outline" class="text-destructive hover:text-destructive" onclick={() => (showDeleteConfirm = true)}>
-							Excluir projeto
-						</Button>
-					</div>
+				<!-- Gradient divider -->
+				<div class="my-10 entrance-section" style="--entrance-delay: 200ms">
+					<div
+						class="h-px w-full"
+						style={brandGlowColor
+							? `background: linear-gradient(90deg, transparent, ${brandGlowColor}40, transparent)`
+							: "background: var(--border)"}
+					></div>
 				</div>
 
-				<div class="mt-6 flex flex-wrap items-center gap-2">
-					<Button variant={activeTab === "images" ? "secondary" : "ghost"} onclick={() => setTab("images")}>
-						Imagens
-					</Button>
-					<Button variant={activeTab === "posts" ? "secondary" : "ghost"} onclick={() => setTab("posts")}>
-						Posts
-					</Button>
-					<Button variant={activeTab === "settings" ? "secondary" : "ghost"} onclick={() => setTab("settings")}>
-						Settings
-					</Button>
-				</div>
-			</div>
-
-			<main class="flex-1 overflow-y-auto px-6 py-6">
-				{#if activeTab === "settings"}
-					<div class="mx-auto max-w-2xl">
-						<ProjectSettingsForm {projectId} {project} />
-					</div>
-				{:else if activeTab === "images"}
-					{#if mediaItems.length === 0}
-						<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-							<h3 class="text-lg font-medium">Nenhuma imagem ainda</h3>
-							<p class="mt-2 max-w-md text-sm text-muted-foreground">
-								Gere imagens novas ou envie assets para começar a biblioteca visual deste projeto.
-							</p>
-							<Button class="mt-4" onclick={() => goto(`/images?projectId=${projectId}`)}>
-								Abrir workspace de imagens
-							</Button>
-						</div>
-					{:else}
-						<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-							{#each mediaItems as item (item._id)}
-								<div
-									class="group cursor-pointer overflow-hidden border border-border bg-card"
-									role="button"
-									tabindex="0"
-									onclick={() => openMedia(item._id)}
-									onkeydown={(event) => event.key === "Enter" && openMedia(item._id)}
-								>
-									<div class="relative aspect-square overflow-hidden bg-muted">
-										{#if item.url}
-											<img
-												src={item.thumbnailUrl ?? item.url}
-												alt=""
-												loading="lazy"
-												decoding="async"
-												class="h-full w-full object-cover transition-transform group-hover:scale-105"
-											/>
-										{/if}
-										<div class="absolute left-3 top-3 flex items-center gap-2">
-											<Badge variant="secondary">{sourceLabels[item.sourceType] ?? item.sourceType}</Badge>
-										</div>
-										<button
-											type="button"
-											aria-label="Mover imagem para lixeira"
-											class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
-											onclick={(event) => handleDeleteMedia(item._id, event)}
-										>
-											<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-											</svg>
-										</button>
-									</div>
-									<div class="space-y-2 p-4">
-										<div class="flex items-center justify-between gap-2">
-											<span class="text-sm font-medium">
-												{item.model ? modelDisplayNames[item.model] ?? item.model.split("/").pop() : "Biblioteca"}
-											</span>
-											<span class="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
-										</div>
-										{#if item.prompt}
-											<p class="line-clamp-2 text-sm text-muted-foreground">{item.prompt}</p>
-										{/if}
-									</div>
-								</div>
-							{/each}
-						</div>
+				<!-- Brand Board -->
+				<section class="entrance-section" style="--entrance-delay: 300ms">
+					<BrandSummaryCard
+						{brandKit}
+						brandName={project.name}
+						logoUrl={getProfilePicture()}
+						onupdate={handleBrandKitUpdate}
+					/>
+					{#if isSavingKit}
+						<p class="mt-2 text-right text-[10px] uppercase tracking-wider text-muted-foreground/40 animate-pulse">
+							Salvando...
+						</p>
 					{/if}
-				{:else}
-					{#if posts.length === 0}
-						<div class="flex flex-col items-center justify-center border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-							<h3 class="text-lg font-medium">Nenhum post ainda</h3>
-							<p class="mt-2 max-w-md text-sm text-muted-foreground">
-								Monte um novo post com imagens da biblioteca ou abra um draft existente.
-							</p>
-							<Button class="mt-4" onclick={() => goto(`/posts/create?projectId=${projectId}`)}>
-								Criar post
-							</Button>
-						</div>
-					{:else}
-						<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-							{#each posts as post (post._id)}
-								<div
-									class="group cursor-pointer overflow-hidden border border-border bg-card"
-									role="button"
-									tabindex="0"
-									onclick={() => (post.isComposed ? goto(`/posts/create?postId=${post._id}`) : openLegacyPost(post._id))}
-									onkeydown={(event) => event.key === "Enter" && (post.isComposed ? goto(`/posts/create?postId=${post._id}`) : openLegacyPost(post._id))}
-								>
-									<div class="relative aspect-square overflow-hidden bg-muted">
-										{#if post.imageUrl}
-											<img src={post.imageUrl} alt="" class="h-full w-full object-cover transition-transform group-hover:scale-105" />
-										{/if}
-										<div class="absolute left-3 top-3 flex items-center gap-2">
-											<Badge>{post.isComposed ? "Composto" : "Gerado"}</Badge>
-											{#if post.imageModel}
-												<Badge variant="secondary">{modelDisplayNames[post.imageModel] ?? post.imageModel.split("/").pop()}</Badge>
-											{/if}
-										</div>
-										<button
-											type="button"
-											aria-label="Mover post para lixeira"
-											class="absolute right-3 top-3 flex h-9 w-9 items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
-											onclick={(event) => handleDeletePost(post._id, event)}
-										>
-											<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-											</svg>
-										</button>
-									</div>
-									<div class="space-y-2 p-4">
-										<p class="line-clamp-3 text-sm leading-relaxed">{truncateCaption(post.caption)}</p>
-										<div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-											<span>{formatDate(post.createdAt)}</span>
-											<span>{post.isComposed ? "Abrir editor" : "Abrir preview"}</span>
-										</div>
-									</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				{/if}
+				</section>
 			</main>
 		{/if}
 	</SignedIn>
 </div>
 
-{#if lightboxMediaId && mediaItems.length > 0}
-	<MediaLightbox
-		items={mediaItems}
-		currentMediaId={lightboxMediaId}
-		onclose={closeMedia}
-		onnavigate={navigateMedia}
-	/>
+<!-- ── Settings slide-over panel ── -->
+{#if showSettings && project}
+	<div class="fixed inset-0 z-50">
+		<!-- Backdrop -->
+		<div
+			class="absolute inset-0 bg-black/40 backdrop-blur-sm settings-backdrop"
+			onclick={() => (showSettings = false)}
+			onkeydown={(event) => event.key === "Escape" && (showSettings = false)}
+			role="button"
+			tabindex="0"
+		></div>
+
+		<!-- Panel -->
+		<div class="settings-panel absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto border-l border-border bg-background shadow-2xl">
+			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-6 py-4 backdrop-blur-sm">
+				<h2 class="text-sm font-semibold">Configurações</h2>
+				<button
+					type="button"
+					class="p-1 text-muted-foreground/50 transition-colors hover:text-foreground"
+					onclick={() => (showSettings = false)}
+				>
+					<X class="h-4 w-4" />
+				</button>
+			</div>
+			<div class="p-6">
+				<ProjectSettingsForm {projectId} {project} />
+			</div>
+		</div>
+	</div>
 {/if}
 
-{#if lightboxPostId && legacyPosts.length > 0}
-	<Lightbox
-		posts={legacyPosts}
-		currentPostId={lightboxPostId}
-		currentImageId={lightboxImageId}
-		onclose={closeLegacyPost}
-		onnavigate={openLegacyPost}
-	/>
-{/if}
-
+<!-- ── Delete confirmation dialog ── -->
 {#if showDeleteConfirm}
 	<div
 		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
 		onclick={() => (showDeleteConfirm = false)}
-		onkeydown={(event) => event.key === "Enter" && (showDeleteConfirm = false)}
+		onkeydown={(event) => event.key === "Escape" && (showDeleteConfirm = false)}
 		role="button"
 		tabindex="0"
 	></div>
@@ -473,3 +371,78 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.brand-central {
+		position: relative;
+		background: var(--background);
+	}
+
+	.brand-central.has-brand-glow::before {
+		content: "";
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
+		background:
+			radial-gradient(
+				ellipse 60% 40% at 50% 0%,
+				color-mix(in oklch, var(--brand-glow) 12%, transparent) 0%,
+				transparent 70%
+			),
+			radial-gradient(
+				ellipse 30% 50% at 95% 40%,
+				color-mix(in oklch, var(--brand-glow) 6%, transparent) 0%,
+				transparent 50%
+			);
+	}
+
+	.entrance-section {
+		animation: entranceReveal 0.6s ease both;
+		animation-delay: var(--entrance-delay, 0ms);
+	}
+
+	@keyframes entranceReveal {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.suggestion-card {
+		animation: cardEntrance 0.4s ease both;
+		animation-delay: calc(var(--entrance-delay, 300ms) + var(--card-delay, 0ms));
+	}
+
+	@keyframes cardEntrance {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	/* Settings panel slide-in */
+	.settings-panel {
+		animation: slideInRight 0.3s ease both;
+	}
+	.settings-backdrop {
+		animation: backdropFadeIn 0.2s ease both;
+	}
+
+	@keyframes slideInRight {
+		from { transform: translateX(100%); }
+		to { transform: translateX(0); }
+	}
+	@keyframes backdropFadeIn {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+</style>

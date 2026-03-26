@@ -1,6 +1,7 @@
 <script lang="ts">
     import { Button, Input, Label, Separator } from "$lib/components/ui";
     import { BrandKitEditor, ContextImageUploader, PlatformSelector } from "$lib/components/projects";
+    import { BrandSummaryCard } from "$lib/components/wizard";
     import {
         emptyBrandKit,
         mergeBrandSuggestion,
@@ -299,6 +300,10 @@
             <p class="text-muted-foreground">Marca, Instagram e contexto para a IA</p>
         </div>
     </div>
+
+    {#if brandKit.elevatorPitch || brandKit.primaryColors?.length || brandKit.toneAdjectives?.length}
+        <BrandSummaryCard {brandKit} compact={true} />
+    {/if}
 
     <section class="border border-border bg-card p-6">
         <h2 class="mb-4 text-lg font-semibold">Informações básicas</h2>

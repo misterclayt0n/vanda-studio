@@ -6,6 +6,8 @@ export const MODELS = {
     GEMINI_2_5_FLASH: "google/gemini-2.5-flash",
     /** Structured JSON / brand onboarding — newer flash on OpenRouter */
     GEMINI_3_FLASH_PREVIEW: "google/gemini-3-flash-preview",
+    /** Structured JSON / brand onboarding — strong instruction-following MoE */
+    KIMI_K2: "moonshotai/kimi-k2-0905",
     // Caption generation - high quality creative writing
     GPT_4_1: "openai/gpt-4.1",
     // Image generation (legacy - use IMAGE_MODELS instead)

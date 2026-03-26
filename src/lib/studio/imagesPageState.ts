@@ -21,9 +21,11 @@ export type ImagesPageState = {
 	filterSource: MediaSourceFilter;
 	sortOrder: MediaSortOrder;
 	viewMode: ImagesPageViewMode;
+	useProjectContext: boolean;
+	selectedPreset: string;
 };
 
-const STORAGE_KEY = "vanda:images-page-state:v2";
+const STORAGE_KEY = "vanda:images-page-state:v3";
 
 let memoryState: ImagesPageState | null = null;
 type SessionState = Partial<ImagesPageState>;
@@ -88,6 +90,8 @@ export function loadImagesPageState(): ImagesPageState | null {
 			filterSource,
 			sortOrder,
 			viewMode,
+			useProjectContext: parsed.useProjectContext ?? true,
+			selectedPreset: typeof parsed.selectedPreset === "string" ? parsed.selectedPreset : "photorealistic",
 		};
 	} catch (error) {
 		console.error("Failed to load /images page state:", error);
@@ -116,6 +120,8 @@ export function saveImagesPageState(state: ImagesPageState) {
 		filterSource: state.filterSource,
 		sortOrder: state.sortOrder,
 		viewMode: state.viewMode,
+		useProjectContext: state.useProjectContext,
+		selectedPreset: state.selectedPreset,
 	};
 
 	try {

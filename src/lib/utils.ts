@@ -6,6 +6,33 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // ============================================================================
+// Dynamic Google Fonts Loading
+// ============================================================================
+
+const loadedFonts = new Set<string>();
+
+/**
+ * Load a Google Font family dynamically by injecting a <link> into <head>.
+ * Idempotent — calling with the same family multiple times is a no-op.
+ */
+export function loadGoogleFont(family: string | undefined | null): void {
+	if (!family?.trim() || typeof document === "undefined") return;
+	const clean = family.trim();
+	if (loadedFonts.has(clean)) return;
+	loadedFonts.add(clean);
+	const link = document.createElement("link");
+	link.rel = "stylesheet";
+	link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(clean)}:wght@400;500;600;700&display=swap`;
+	document.head.appendChild(link);
+}
+
+/** Build a CSS font-family value with a safe fallback. */
+export function fontFamily(family: string | undefined | null): string {
+	if (!family?.trim()) return "inherit";
+	return `"${family.trim()}", sans-serif`;
+}
+
+// ============================================================================
 // ICS Calendar File Generation
 // ============================================================================
 

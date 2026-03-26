@@ -40,6 +40,7 @@ export const generate = action({
         referenceImageUrls: v.optional(v.array(v.string())),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
         projectContext: projectContextValidator,
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -113,10 +114,12 @@ export const generate = action({
                 userId: user._id,
                 ...(args.projectId && { projectId: args.projectId }),
                 message: augmentedMessage,
+                userPrompt: args.message,
                 imageModels,
                 aspectRatio,
                 resolution,
                 referenceImageUrls,
+                ...(args.stylePreset && { stylePreset: args.stylePreset }),
             });
         } catch (err) {
             const storedError = getStoredImageGenerationError(err);
@@ -143,10 +146,12 @@ export const processBatch = internalAction({
         userId: v.id("users"),
         projectId: v.optional(v.id("projects")),
         message: v.string(),
+        userPrompt: v.string(),
         imageModels: v.array(v.string()),
         aspectRatio: v.string(),
         resolution: v.string(),
         referenceImageUrls: v.array(v.string()),
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<void> => {
         const aspectRatio = args.aspectRatio as AspectRatio;
@@ -174,6 +179,7 @@ export const processBatch = internalAction({
                             ...(args.referenceImageUrls.length > 0
                                 ? { referenceImageUrls: args.referenceImageUrls }
                                 : {}),
+                            ...(args.stylePreset && { stylePreset: args.stylePreset }),
                         });
 
                         const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (char) =>
@@ -197,7 +203,7 @@ export const processBatch = internalAction({
                             sourceType: "generated",
                             model,
                             prompt: imageResult.prompt,
-                            userPrompt: args.message,
+                            userPrompt: args.userPrompt,
                             generationDurationMs: Date.now() - startedAt,
                             aspectRatio,
                             resolution,

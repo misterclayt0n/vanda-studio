@@ -1,130 +1,247 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
-    import Navbar from "$lib/components/Navbar.svelte";
-    import { BrandKitEditor } from "$lib/components/projects";
+    import { page } from "$app/stores";
+    import { untrack } from "svelte";
+    import { cn } from "$lib/utils";
     import { Button, Input, Label, Textarea } from "$lib/components/ui";
-    import { emptyBrandKit, mergeBrandSuggestion, type BrandKitState } from "$lib/types/brandKit";
+    import {
+        WizardShell,
+        ChipSelect,
+        VibeCard,
+        VandaSuggestButton,
+        BrandSummaryCard,
+    } from "$lib/components/wizard";
+    import {
+        emptyBrandKit,
+        mergeBrandSuggestion,
+        brandKitToDraftSummary,
+        type BrandKitState,
+    } from "$lib/types/brandKit";
+    import { BRAND_VIBES, getVibeByKey, type VibeKey } from "$lib/data/brandVibes";
+    import { AUDIENCE_OPTIONS, TONE_OPTIONS } from "$lib/data/wizardOptions";
     import { useConvexClient } from "convex-svelte";
     import { api } from "../../../convex/_generated/api.js";
     import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
+    import { Globe, Instagram, Sparkles, X, ArrowLeft } from "lucide-svelte";
 
     const client = useConvexClient();
 
-    type Step = 0 | 1 | 2 | 3;
+    // ── URL-bound step & path ──────────────────────────────────────────
     type Path = "existing" | "new" | null;
 
-    let step = $state<Step>(0);
-    let path = $state<Path>(null);
-    let projectName = $state("");
-    let websiteUrl = $state("");
-    let nicheHint = $state("");
-    let audienceHint = $state("");
-    let referenceBrands = $state("");
-    let userDescription = $state("");
-    let brandKit = $state<BrandKitState>(emptyBrandKit());
-    let instagramUrl = $state("");
-    let isIngesting = $state(false);
-    let isFullAi = $state(false);
-    let isCreating = $state(false);
-    let error = $state<string | null>(null);
-    let ingestWarnings = $state<string[]>([]);
+    let step = $derived(parseInt($page.url.searchParams.get("step") ?? "0", 10));
+    let path = $derived<Path>(($page.url.searchParams.get("path") as Path) ?? null);
 
-    let draftExtra = $derived.by(() => {
-        if (path === "existing") {
-            const parts = [`Caminho: marca existente`];
-            if (websiteUrl.trim()) parts.push(`Site: ${websiteUrl.trim()}`);
-            return parts.join("\n");
-        }
-        if (path === "new") {
-            const parts = [`Caminho: criar marca`];
-            if (nicheHint.trim()) parts.push(`Nicho: ${nicheHint.trim()}`);
-            if (audienceHint.trim()) parts.push(`Público: ${audienceHint.trim()}`);
-            if (referenceBrands.trim()) parts.push(`Referências: ${referenceBrands.trim()}`);
-            if (userDescription.trim()) parts.push(`Descrição:\n${userDescription.trim()}`);
-            return parts.join("\n");
-        }
-        return "";
-    });
+    let totalSteps = $derived(path === "existing" ? 3 : 6);
+    let isSummaryStep = $derived(step === totalSteps - 1 && path !== null);
 
-    function nextFromPath() {
-        error = null;
-        if (!path) {
-            error = "Escolha uma opção.";
-            return;
-        }
-        step = 1;
+    function wizardUrl(s: number, p: Path = path): string {
+        const params = new URLSearchParams();
+        if (p) params.set("path", p);
+        if (s > 0) params.set("step", String(s));
+        const qs = params.toString();
+        return `/projects/new${qs ? `?${qs}` : ""}`;
     }
 
-    function nextFromBasics() {
+    function pushStep(s: number, p?: Path) {
+        goto(wizardUrl(s, p ?? path), { keepFocus: true, noScroll: true });
+    }
+
+    function replaceStep(s: number, p?: Path) {
+        goto(wizardUrl(s, p ?? path), { keepFocus: true, noScroll: true, replaceState: true });
+    }
+
+    // ── Form state (persists in memory across URL navigation) ──────────
+    let projectName = $state("");
+    let pitchText = $state("");
+    let instagramUrl = $state("");
+    let websiteUrl = $state("");
+    let selectedAudience = $state<string[]>([]);
+    let customAudience = $state("");
+    let selectedVibe = $state<VibeKey | null>(null);
+    let selectedTone = $state<string[]>([]);
+    let customTones = $state<string[]>([]);
+    let brandKit = $state<BrandKitState>(emptyBrandKit());
+
+    // ── Loading states ─────────────────────────────────────────────────
+    let isIngesting = $state(false);
+    let isCreating = $state(false);
+    let isAutoFilling = $state(false);
+    let autoFillDone = $state(false);
+    let error = $state<string | null>(null);
+    let ingestWarnings = $state<string[]>([]);
+    let ingestStatus = $state("");
+
+    // ── Derived ────────────────────────────────────────────────────────
+    let audienceLabel = $derived.by(() => {
+        const labels = selectedAudience.map((id) => {
+            const opt = AUDIENCE_OPTIONS.find((o) => o.id === id);
+            return opt?.label ?? id;
+        });
+        if (customAudience.trim()) labels.push(customAudience.trim());
+        return labels.join(", ");
+    });
+
+    let vibeLabel = $derived(selectedVibe ? (getVibeByKey(selectedVibe)?.label ?? null) : null);
+
+    let draftSummary = $derived(brandKitToDraftSummary(projectName || "Projeto", brandKit));
+
+    let allToneLabels = $derived.by(() => {
+        const preset = selectedTone.map((id) => {
+            const opt = TONE_OPTIONS.find((o) => o.id === id);
+            return opt?.label ?? id;
+        });
+        return [...preset, ...customTones];
+    });
+
+    let brandGlowColor = $derived(brandKit.primaryColors?.[0] ?? null);
+
+    // ── Sync wizard inputs → brandKit (using untrack to avoid loops) ──
+    $effect(() => {
+        const audience = audienceLabel;
+        if (audience) {
+            brandKit = { ...untrack(() => brandKit), whoWeServe: audience };
+        }
+    });
+
+    $effect(() => {
+        const labels = allToneLabels;
+        if (labels.length > 0) {
+            brandKit = { ...untrack(() => brandKit), toneAdjectives: labels };
+        }
+    });
+
+    $effect(() => {
+        if (pitchText.trim()) {
+            brandKit = { ...untrack(() => brandKit), elevatorPitch: pitchText.trim() };
+        }
+    });
+
+    // ── Auto-fill on summary arrival ───────────────────────────────────
+    $effect(() => {
+        if (isSummaryStep && !autoFillDone && !isAutoFilling) {
+            runAutoFill();
+        }
+    });
+
+    // ── Navigation ─────────────────────────────────────────────────────
+    function next() {
         error = null;
-        if (!projectName.trim()) {
-            error = "Informe o nome do projeto.";
+        if (step === 0) {
+            if (!path) { error = "Escolha uma opção."; return; }
+            pushStep(1);
             return;
         }
-        step = 2;
+        if (path === "existing" && step === 1) {
+            if (!projectName.trim()) { error = "Dê um nome ao projeto."; return; }
+            if (!instagramUrl.trim() && !websiteUrl.trim()) {
+                error = "Informe ao menos um link (Instagram ou site).";
+                return;
+            }
+            handleExistingBrandIngest();
+            return;
+        }
+        if (path === "new" && step === 1) {
+            if (!projectName.trim()) { error = "Dê um nome ao projeto."; return; }
+        }
+        if (step < totalSteps - 1) {
+            pushStep(step + 1);
+        }
     }
 
     function back() {
         error = null;
-        if (step > 0) step = (step - 1) as Step;
+        if (step > 0) {
+            history.back();
+        }
     }
 
-    async function handleIngestWebsite() {
-        if (!websiteUrl.trim()) {
-            error = "Informe a URL do site.";
-            return;
-        }
+    function goToStep(s: number) {
+        error = null;
+        pushStep(s);
+    }
+
+    // ── Existing brand: scrape links ───────────────────────────────────
+    async function handleExistingBrandIngest() {
         error = null;
         ingestWarnings = [];
         isIngesting = true;
+
         try {
-            const res = await client.action(api.ai.brandOnboarding.ingestWebsiteForBrand, {
-                url: websiteUrl.trim(),
-            });
-            brandKit = mergeBrandSuggestion(brandKit, res.suggestion as Record<string, unknown>);
-            ingestWarnings = res.warnings ?? [];
+            if (instagramUrl.trim()) {
+                ingestStatus = "Analisando perfil do Instagram…";
+                const res = await client.action(api.ai.brandOnboarding.ingestInstagramForBrand, {
+                    instagramUrl: instagramUrl.trim(),
+                });
+                brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
+                ingestWarnings = [...ingestWarnings, ...res.warnings];
+            }
+
+            if (websiteUrl.trim()) {
+                ingestStatus = "Analisando site…";
+                const res = await client.action(api.ai.brandOnboarding.ingestWebsiteForBrand, {
+                    url: websiteUrl.trim(),
+                });
+                brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
+                ingestWarnings = [...ingestWarnings, ...res.warnings];
+            }
+
+            ingestStatus = "Montando identidade…";
+            await new Promise((r) => setTimeout(r, 400));
+
+            pushStep(totalSteps - 1);
         } catch (e) {
-            error = e instanceof Error ? e.message : "Falha ao analisar o site";
+            error = e instanceof Error ? e.message : "Falha ao analisar links";
         } finally {
             isIngesting = false;
+            ingestStatus = "";
         }
     }
 
-    async function handleFullBrandAi() {
-        const desc =
-            path === "new"
-                ? userDescription.trim()
-                : [brandKit.elevatorPitch, brandKit.whatWeSell, draftExtra].filter(Boolean).join("\n\n");
+    // ── Auto-fill remaining gaps on summary arrival ────────────────────
+    async function runAutoFill() {
+        const kit = untrack(() => brandKit);
+        const desc = kit.elevatorPitch || pitchText.trim();
         if (!desc) {
-            error = path === "new" ? "Escreva uma descrição da marca." : "Preencha algum contexto antes.";
+            autoFillDone = true;
             return;
         }
-        error = null;
-        isFullAi = true;
+
+        isAutoFilling = true;
         try {
+            let description = untrack(() => draftSummary);
+
+            const vibe = untrack(() => selectedVibe);
+            if (vibe) {
+                const vibeData = getVibeByKey(vibe);
+                if (vibeData) {
+                    description += `\nEstilo visual: ${vibeData.prompt}`;
+                }
+            }
+
             const aiArgs: {
                 description: string;
-                nicheHint?: string;
                 audienceHint?: string;
-                referenceBrands?: string;
-            } = { description: desc };
-            const nh = nicheHint.trim();
-            if (nh) aiArgs.nicheHint = nh;
-            const ah = audienceHint.trim();
-            if (ah) aiArgs.audienceHint = ah;
-            const rb = referenceBrands.trim();
-            if (rb) aiArgs.referenceBrands = rb;
-            const res = await client.action(api.ai.brandOnboarding.suggestBrandKitFromDescription, aiArgs);
-            brandKit = mergeBrandSuggestion(brandKit, res as Record<string, unknown>);
+            } = { description };
+            const al = untrack(() => audienceLabel);
+            if (al) aiArgs.audienceHint = al;
+
+            const res = await client.action(
+                api.ai.brandOnboarding.suggestBrandKitFromDescription,
+                aiArgs
+            );
+            brandKit = mergeBrandSuggestion(untrack(() => brandKit), res as Record<string, unknown>);
         } catch (e) {
-            error = e instanceof Error ? e.message : "Falha ao gerar sugestões";
+            console.error("Auto-fill failed:", e);
         } finally {
-            isFullAi = false;
+            isAutoFilling = false;
+            autoFillDone = true;
         }
     }
 
+    // ── Create project ─────────────────────────────────────────────────
     function cleanBrandKit(kit: BrandKitState): BrandKitState {
-        const e = Object.fromEntries(
+        return Object.fromEntries(
             Object.entries(kit).filter(([, v]) => {
                 if (v === undefined || v === null) return false;
                 if (typeof v === "string" && !v.trim()) return false;
@@ -132,21 +249,15 @@
                 return true;
             })
         ) as BrandKitState;
-        return e;
     }
 
     async function handleCreate() {
-        if (!projectName.trim()) {
-            error = "Nome do projeto é obrigatório.";
-            return;
-        }
+        if (!projectName.trim()) { error = "Nome do projeto é obrigatório."; return; }
         error = null;
         isCreating = true;
         try {
             const kit = cleanBrandKit(brandKit);
-            const legacyDesc =
-                kit.elevatorPitch?.trim() ||
-                (path === "new" ? userDescription.trim().slice(0, 2000) : undefined);
+            const legacyDesc = kit.elevatorPitch?.trim() || pitchText.trim().slice(0, 2000) || undefined;
             const legacyTraits = kit.toneAdjectives?.length ? kit.toneAdjectives : undefined;
             const legacyExtra = [kit.writingRules, kit.competitorsNotes, kit.imageryGuidelines]
                 .filter((x) => x && String(x).trim())
@@ -155,24 +266,25 @@
             const createArgs: {
                 name: string;
                 onboardingStatus: "complete";
-                instagramUrl?: string;
                 brandKit?: BrandKitState;
                 onboardingPath?: "existing" | "new";
                 accountDescription?: string;
                 brandTraits?: string[];
                 additionalContext?: string;
+                instagramUrl?: string;
             } = {
                 name: projectName.trim(),
                 onboardingStatus: "complete",
             };
-            const ig = instagramUrl.trim();
-            if (ig) createArgs.instagramUrl = ig;
             if (Object.keys(kit).length > 0) createArgs.brandKit = kit;
-            if (path) createArgs.onboardingPath = path;
+            createArgs.onboardingPath = path === "existing" ? "existing" : "new";
             if (legacyDesc) createArgs.accountDescription = legacyDesc;
             if (legacyTraits) createArgs.brandTraits = legacyTraits;
             const le = legacyExtra.trim();
             if (le) createArgs.additionalContext = le;
+            const ig = instagramUrl.trim();
+            if (ig) createArgs.instagramUrl = ig;
+
             const id = await client.mutation(api.projects.create, createArgs);
             goto(`/projects/${id}`);
         } catch (e) {
@@ -181,23 +293,91 @@
             isCreating = false;
         }
     }
+
+    // ── Inline brand kit update from summary card ──────────────────────
+    function handleBrandKitUpdate(updated: BrandKitState) {
+        brandKit = updated;
+    }
+
+    // ── Step metadata ──────────────────────────────────────────────────
+    function getStepTitle(): string {
+        if (step === 0) return "Como quer começar?";
+        if (isSummaryStep) return isAutoFilling ? "Montando sua marca…" : "Pronto. Sua marca.";
+        if (path === "existing") return "Conte sobre sua marca";
+        const newTitles = ["", "O que você faz?", "Para quem?", "Qual é a vibe?", "Como sua marca fala?"];
+        return newTitles[step] ?? "";
+    }
+
+    function getStepSubtitle(): string {
+        if (step === 0) return "Escolha o caminho que faz mais sentido para você.";
+        if (isSummaryStep) return isAutoFilling ? "A Vanda está criando sua identidade visual e estratégia de marca." : "Revise sua marca. Você pode editar tudo depois.";
+        if (path === "existing") return "Informe o nome e os links da sua marca. A Vanda faz o resto.";
+        const newSubs = [
+            "",
+            "Dê um nome e descreva sua marca em uma ou duas frases.",
+            "Quem é o público da sua marca? Selecione quantos fizerem sentido.",
+            "Escolha o estilo visual que mais combina com sua marca.",
+            "Selecione os traços que definem o tom de voz da sua marca.",
+        ];
+        return newSubs[step] ?? "";
+    }
+
+    function shouldShowNext(): boolean {
+        if (isSummaryStep) return false;
+        if (path === "existing" && step === 1 && isIngesting) return false;
+        return true;
+    }
+
+    function getNextLabel(): string {
+        if (path === "existing" && step === 1) return "Vanda analisa";
+        return "Continuar";
+    }
+
+    function isNextDisabled(): boolean {
+        if (step === 0 && !path) return true;
+        if (path === "existing" && step === 1 && !projectName.trim()) return true;
+        if (path === "new" && step === 1 && !projectName.trim()) return true;
+        return false;
+    }
 </script>
 
 <svelte:head>
     <title>Novo projeto - Vanda Studio</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col bg-background">
-    <Navbar />
+<!-- Immersive full-screen layout — no Navbar -->
+<div
+    class="wizard-stage flex min-h-screen flex-col"
+    style={brandGlowColor && isSummaryStep ? `--brand-glow: ${brandGlowColor}` : ""}
+    class:has-brand-glow={brandGlowColor && isSummaryStep && autoFillDone}
+>
+    <!-- Floating escape button -->
+    <div class="fixed left-5 top-5 z-50">
+        <button
+            type="button"
+            class="group flex items-center gap-2 text-muted-foreground/60 transition-colors hover:text-foreground"
+            onclick={() => goto("/projects")}
+        >
+            {#if step === 0}
+                <ArrowLeft class="h-4 w-4" />
+                <span class="text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">Projetos</span>
+            {:else}
+                <X class="h-4 w-4" />
+                <span class="text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">Sair</span>
+            {/if}
+        </button>
+    </div>
 
-    <main class="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+    <main class={cn(
+        "relative z-10 mx-auto w-full flex-1 px-6",
+        isSummaryStep ? "max-w-6xl py-6" : "max-w-2xl py-16",
+        "transition-all duration-500"
+    )}>
         <SignedOut>
             <div class="flex flex-col items-center gap-4 py-16 text-center">
                 <h1 class="text-xl font-semibold">Entre para criar um projeto</h1>
                 <SignInButton mode="modal">
-                    <button
-                        class="h-9 rounded-none bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                    >
+                    <button class="h-9 bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                         Entrar
                     </button>
                 </SignInButton>
@@ -205,181 +385,312 @@
         </SignedOut>
 
         <SignedIn>
-            <div class="mb-8 flex items-center justify-between gap-4">
-                <Button variant="ghost" size="sm" onclick={() => goto("/projects")}>
-                    ← Projetos
-                </Button>
-                <span class="text-xs text-muted-foreground">Passo {step + 1} de 4</span>
-            </div>
-
             {#if error}
                 <div class="mb-6 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                     {error}
                 </div>
             {/if}
 
-            {#if step === 0}
-                <h1 class="text-2xl font-semibold">Novo projeto</h1>
-                <p class="mt-2 text-sm text-muted-foreground">
-                    A Vanda usa o contexto da sua marca em todo o conteúdo. Por onde quer começar?
-                </p>
-                <div class="mt-8 grid gap-4 sm:grid-cols-2">
-                    <button
-                        type="button"
-                        class="border border-border bg-card p-6 text-left transition-colors hover:border-primary hover:bg-muted/30 {path ===
-                        'existing'
-                            ? 'border-primary ring-1 ring-primary'
-                            : ''}"
-                        onclick={() => (path = "existing")}
-                    >
-                        <h2 class="font-medium">Já tenho uma marca</h2>
-                        <p class="mt-2 text-sm text-muted-foreground">
-                            Site, cores, tom de voz — você preenche e a Vanda ajuda onde quiser.
-                        </p>
-                    </button>
-                    <button
-                        type="button"
-                        class="border border-border bg-card p-6 text-left transition-colors hover:border-primary hover:bg-muted/30 {path ===
-                        'new'
-                            ? 'border-primary ring-1 ring-primary'
-                            : ''}"
-                        onclick={() => (path = "new")}
-                    >
-                        <h2 class="font-medium">Quero criar uma marca</h2>
-                        <p class="mt-2 text-sm text-muted-foreground">
-                            Descreva a ideia e a Vanda sugere paleta, tipografia e voz.
-                        </p>
-                    </button>
-                </div>
-                <div class="mt-10 flex justify-end gap-3">
-                    <Button variant="outline" onclick={() => goto("/projects")}>Cancelar</Button>
-                    <Button onclick={nextFromPath}>Continuar</Button>
-                </div>
-            {:else if step === 1}
-                <h1 class="text-2xl font-semibold">Informações iniciais</h1>
-                <p class="mt-2 text-sm text-muted-foreground">
-                    {path === "existing"
-                        ? "Nome do projeto e, se quiser, o site para a Vanda analisar."
-                        : "Nome e uma visão geral do que você quer transmitir."}
-                </p>
-                <div class="mt-8 space-y-6 border border-border bg-card p-6">
-                    <div class="space-y-2">
-                        <Label for="pname">Nome do projeto</Label>
-                        <Input
-                            id="pname"
-                            class="bg-background"
-                            bind:value={projectName}
-                            placeholder="Ex: Studio Aurora"
+            {#if isSummaryStep}
+                <!-- ═══ Summary — breaks out of WizardShell for wide layout ═══ -->
+                <div class="summary-container" class:revealed={autoFillDone && !isAutoFilling}>
+                    <!-- Summary header -->
+                    <div class="mb-8 flex items-end justify-between gap-4 summary-header">
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/50 mb-2">
+                                {step + 1} / {totalSteps}
+                            </p>
+                            <h1 class="text-3xl font-semibold tracking-tight">
+                                {isAutoFilling ? "Montando sua marca…" : "Pronto. Sua marca."}
+                            </h1>
+                            <p class="mt-2 text-sm text-muted-foreground">
+                                {isAutoFilling
+                                    ? "A Vanda está criando sua identidade visual e estratégia de marca."
+                                    : "Clique no ícone de edição em qualquer seção para ajustar."}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Brand board -->
+                    <div class="brand-reveal" class:visible={true}>
+                        <BrandSummaryCard
+                            {brandKit}
+                            brandName={projectName}
+                            {audienceLabel}
+                            {vibeLabel}
+                            onupdate={handleBrandKitUpdate}
+                            loading={isAutoFilling}
                         />
                     </div>
 
-                    {#if path === "existing"}
-                        <div class="space-y-2">
-                            <Label for="web">Site da marca (opcional)</Label>
-                            <div class="flex flex-col gap-2 sm:flex-row">
-                                <Input
-                                    id="web"
-                                    class="flex-1 bg-background"
-                                    bind:value={websiteUrl}
-                                    placeholder="https://"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    disabled={isIngesting}
-                                    onclick={handleIngestWebsite}
-                                >
-                                    {isIngesting ? "Analisando…" : "Vanda analisa o site"}
+                    <!-- Actions -->
+                    {#if !isAutoFilling && autoFillDone}
+                        <div class="mt-8 flex items-center justify-between gap-3 reveal-actions">
+                            <VandaSuggestButton
+                                loading={isAutoFilling}
+                                onclick={async () => { autoFillDone = false; await runAutoFill(); }}
+                                label="Refinar com a Vanda"
+                            />
+                            <div class="flex gap-3">
+                                <Button variant="outline" onclick={back}>Voltar</Button>
+                                <Button onclick={handleCreate} disabled={isCreating}>
+                                    {isCreating ? "Criando…" : "Criar projeto"}
                                 </Button>
                             </div>
-                            {#if ingestWarnings.length > 0}
-                                <ul class="list-inside list-disc text-xs text-amber-700 dark:text-amber-400">
-                                    {#each ingestWarnings as w}
-                                        <li>{w}</li>
-                                    {/each}
-                                </ul>
-                            {/if}
-                        </div>
-                    {:else}
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <div class="space-y-2">
-                                <Label for="niche">Nicho (opcional)</Label>
-                                <Input id="niche" class="bg-background" bind:value={nicheHint} />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="aud">Público (opcional)</Label>
-                                <Input id="aud" class="bg-background" bind:value={audienceHint} />
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="ref">Marcas de referência (opcional)</Label>
-                            <Input id="ref" class="bg-background" bind:value={referenceBrands} />
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="desc">Descreva a marca que você imagina</Label>
-                            <Textarea
-                                id="desc"
-                                class="min-h-[140px] resize-none bg-background"
-                                bind:value={userDescription}
-                                placeholder="Produtos, valores, personalidade, o que não pode faltar..."
-                            />
                         </div>
                     {/if}
                 </div>
-                <div class="mt-10 flex justify-between gap-3">
-                    <Button variant="outline" onclick={back}>Voltar</Button>
-                    <Button onclick={nextFromBasics}>Continuar</Button>
-                </div>
-            {:else if step === 2}
-                <h1 class="text-2xl font-semibold">Kit de marca</h1>
-                <p class="mt-2 text-sm text-muted-foreground">
-                    Ajuste os campos manualmente ou use os botões “Vanda preenche” em cada bloco.
-                </p>
-                <div class="mt-6 flex flex-wrap gap-2">
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={isFullAi}
-                        onclick={handleFullBrandAi}
-                    >
-                        {isFullAi ? "Gerando…" : "Completar kit com a Vanda"}
-                    </Button>
-                </div>
-                <div class="mt-6">
-                    <BrandKitEditor
-                        bind:brandKit
-                        projectName={projectName.trim() || "Projeto"}
-                        draftExtra={draftExtra}
-                    />
-                </div>
-                <div class="mt-10 flex justify-between gap-3">
-                    <Button variant="outline" onclick={back}>Voltar</Button>
-                    <Button onclick={() => (step = 3)}>Continuar</Button>
-                </div>
             {:else}
-                <h1 class="text-2xl font-semibold">Instagram (opcional)</h1>
-                <p class="mt-2 text-sm text-muted-foreground">
-                    Você pode conectar depois em Configurações do projeto. Se já tiver o link, cole aqui.
-                </p>
-                <div class="mt-8 space-y-4 border border-border bg-card p-6">
-                    <div class="space-y-2">
-                        <Label for="ig">URL do Instagram</Label>
-                        <Input
-                            id="ig"
-                            class="bg-background"
-                            bind:value={instagramUrl}
-                            placeholder="https://instagram.com/seu_perfil"
-                        />
-                    </div>
-                </div>
-                <div class="mt-10 flex justify-between gap-3">
-                    <Button variant="outline" onclick={back}>Voltar</Button>
-                    <Button onclick={handleCreate} disabled={isCreating}>
-                        {isCreating ? "Criando…" : "Criar projeto"}
-                    </Button>
-                </div>
+                <!-- ═══ Wizard steps — centered, focused ═══ -->
+                <WizardShell
+                    {step}
+                    {totalSteps}
+                    title={getStepTitle()}
+                    subtitle={getStepSubtitle()}
+                    onback={step > 0 ? back : undefined}
+                    onnext={shouldShowNext() ? next : undefined}
+                    nextLabel={getNextLabel()}
+                    nextDisabled={isNextDisabled()}
+                    showBack={step > 0 && !isIngesting}
+                >
+                    {#snippet children()}
+
+                        <!-- ═══ Step 0: Fork ═══ -->
+                        {#if step === 0}
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    class="card-glow flex flex-col gap-3 border p-6 text-left transition-all {path === 'existing'
+                                        ? 'gradient-border border-transparent ring-1 ring-primary'
+                                        : 'border-border bg-card hover:border-muted-foreground/40'}"
+                                    onclick={() => replaceStep(0, "existing")}
+                                >
+                                    <div class="flex items-center gap-2 text-primary">
+                                        <Globe class="h-5 w-5" />
+                                        <Instagram class="h-5 w-5" />
+                                    </div>
+                                    <h3 class="text-base font-semibold">Já tenho uma marca</h3>
+                                    <p class="text-sm text-muted-foreground">
+                                        Cole o link do Instagram ou site e a Vanda extrai tudo automaticamente.
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="card-glow flex flex-col gap-3 border p-6 text-left transition-all {path === 'new'
+                                        ? 'gradient-border border-transparent ring-1 ring-primary'
+                                        : 'border-border bg-card hover:border-muted-foreground/40'}"
+                                    onclick={() => replaceStep(0, "new")}
+                                >
+                                    <div class="flex items-center gap-2 text-primary">
+                                        <Sparkles class="h-5 w-5" />
+                                    </div>
+                                    <h3 class="text-base font-semibold">Quero criar do zero</h3>
+                                    <p class="text-sm text-muted-foreground">
+                                        Responda algumas perguntas rápidas e a Vanda monta sua identidade.
+                                    </p>
+                                </button>
+                            </div>
+
+                        <!-- ═══ Existing path — Step 1: Links ═══ -->
+                        {:else if path === "existing" && step === 1}
+                            {#if isIngesting}
+                                <div class="flex flex-col items-center gap-6 py-12">
+                                    <div class="pulse-glow flex h-12 w-12 items-center justify-center text-primary">
+                                        <Sparkles class="h-8 w-8" />
+                                    </div>
+                                    <p class="text-sm text-muted-foreground animate-pulse">{ingestStatus || "Analisando…"}</p>
+                                    <div class="h-1 w-48 overflow-hidden bg-border">
+                                        <div class="h-full w-1/2 animate-[indeterminate_1.5s_ease-in-out_infinite] bg-primary"></div>
+                                    </div>
+                                    {#if ingestWarnings.length > 0}
+                                        <ul class="list-inside list-disc text-xs text-amber-700 dark:text-amber-400">
+                                            {#each ingestWarnings as w}
+                                                <li>{w}</li>
+                                            {/each}
+                                        </ul>
+                                    {/if}
+                                </div>
+                            {:else}
+                                <div class="space-y-6">
+                                    <div class="space-y-2">
+                                        <Label for="pname">Nome do projeto</Label>
+                                        <Input
+                                            id="pname"
+                                            class="bg-background"
+                                            bind:value={projectName}
+                                            placeholder="Ex: Studio Aurora"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="ig">Instagram (opcional)</Label>
+                                        <Input
+                                            id="ig"
+                                            class="bg-background"
+                                            bind:value={instagramUrl}
+                                            placeholder="https://instagram.com/seu_perfil ou @seu_perfil"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="web">Site (opcional)</Label>
+                                        <Input
+                                            id="web"
+                                            class="bg-background"
+                                            bind:value={websiteUrl}
+                                            placeholder="https://seusite.com"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
+
+                        <!-- ═══ New path — Step 1: Identity ═══ -->
+                        {:else if path === "new" && step === 1}
+                            <div class="space-y-6">
+                                <div class="space-y-2">
+                                    <Label for="pname">Nome do projeto</Label>
+                                    <Input
+                                        id="pname"
+                                        class="bg-background"
+                                        bind:value={projectName}
+                                        placeholder="Ex: Studio Aurora"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <Label for="pitch">Descreva sua marca em poucas palavras</Label>
+                                    <Textarea
+                                        id="pitch"
+                                        class="min-h-[100px] resize-none bg-background"
+                                        bind:value={pitchText}
+                                        placeholder="Ex: Vendemos cosméticos naturais para mulheres 25-40 que buscam beleza consciente"
+                                    />
+                                </div>
+                            </div>
+
+                        <!-- ═══ New path — Step 2: Audience ═══ -->
+                        {:else if path === "new" && step === 2}
+                            <div class="space-y-4">
+                                <ChipSelect
+                                    options={AUDIENCE_OPTIONS}
+                                    selected={selectedAudience}
+                                    multiple={true}
+                                    onchange={(s) => (selectedAudience = s)}
+                                />
+                                <div class="space-y-2">
+                                    <Label for="custom-aud">Outro público (opcional)</Label>
+                                    <Input
+                                        id="custom-aud"
+                                        class="bg-background"
+                                        bind:value={customAudience}
+                                        placeholder="Ex: Donas de pet shop"
+                                    />
+                                </div>
+                            </div>
+
+                        <!-- ═══ New path — Step 3: Vibe ═══ -->
+                        {:else if path === "new" && step === 3}
+                            <div class="space-y-3">
+                                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    {#each BRAND_VIBES as vibe (vibe.key)}
+                                        <VibeCard
+                                            label={vibe.label}
+                                            sublabel={vibe.sublabel}
+                                            swatchColors={vibe.swatchColors}
+                                            active={selectedVibe === vibe.key}
+                                            onclick={() => (selectedVibe = vibe.key)}
+                                        />
+                                    {/each}
+                                </div>
+                                <p class="text-xs text-muted-foreground">
+                                    As cores exibidas são exemplos. A Vanda vai gerar uma paleta personalizada para sua marca.
+                                </p>
+                            </div>
+
+                        <!-- ═══ New path — Step 4: Tone ═══ -->
+                        {:else if path === "new" && step === 4}
+                            <ChipSelect
+                                options={TONE_OPTIONS}
+                                selected={selectedTone}
+                                multiple={true}
+                                onchange={(s) => (selectedTone = s)}
+                                allowCustom={true}
+                                customValues={customTones}
+                                oncustomchange={(v) => (customTones = v)}
+                            />
+                        {/if}
+
+                    {/snippet}
+                </WizardShell>
             {/if}
         </SignedIn>
     </main>
 </div>
+
+<style>
+    @keyframes indeterminate {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+    }
+
+    .wizard-stage {
+        position: relative;
+        background: var(--background);
+    }
+
+    /* Brand-colored ambient glow on the summary step */
+    .wizard-stage.has-brand-glow::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0;
+        animation: glowFadeIn 1.5s ease 0.3s forwards;
+        background:
+            radial-gradient(
+                ellipse 70% 50% at 50% -10%,
+                color-mix(in oklch, var(--brand-glow) 18%, transparent) 0%,
+                transparent 70%
+            ),
+            radial-gradient(
+                ellipse 40% 60% at 90% 50%,
+                color-mix(in oklch, var(--brand-glow) 8%, transparent) 0%,
+                transparent 60%
+            ),
+            radial-gradient(
+                ellipse 40% 40% at 10% 80%,
+                color-mix(in oklch, var(--brand-glow) 6%, transparent) 0%,
+                transparent 50%
+            );
+    }
+
+    @keyframes glowFadeIn {
+        to { opacity: 1; }
+    }
+
+    .brand-reveal {
+        opacity: 0;
+        transform: translateY(12px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .brand-reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .summary-header {
+        animation: fadeDown 0.5s ease both;
+    }
+
+    .reveal-actions {
+        animation: fadeUp 0.4s ease 0.3s both;
+    }
+
+    @keyframes fadeDown {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>

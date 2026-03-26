@@ -44,6 +44,7 @@
 		saveImagesPageState,
 		type ImagesPageReference,
 	} from "$lib/studio/imagesPageState";
+	import { IMAGE_PRESETS, DEFAULT_PRESET, getPresetByKey, type ImagePresetKey } from "$lib/data/imagePresets";
 	import {
 		filterMediaItems,
 		getMediaModelDisplayName,
@@ -166,6 +167,8 @@
 	let resolution = $state<Resolution>("standard");
 	let selectedProjectId = $state<Id<"projects"> | null>(null);
 	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
+	let useProjectContext = $state(true);
+	let selectedPreset = $state<string>(DEFAULT_PRESET);
 	let isGenerating = $state(false);
 	let errorState = $state<ImageGenerationUiError | null>(null);
 	let creditEstimate = $derived(
@@ -216,6 +219,8 @@
 			if (!$page.url.searchParams.has("tab")) {
 				viewMode = savedState.viewMode;
 			}
+			useProjectContext = savedState.useProjectContext;
+			selectedPreset = savedState.selectedPreset;
 		}
 
 		persistedStateRestored = true;
@@ -377,6 +382,8 @@
 			filterSource,
 			sortOrder,
 			viewMode,
+			useProjectContext,
+			selectedPreset,
 		});
 	});
 
@@ -675,7 +682,7 @@
 			const contextImageUrls = contextImages
 				.map((image) => image.url)
 				.filter((url): url is string => !!url);
-			const projectContext = selectedProject && selectedProjectId ? {
+			const projectContext = selectedProject && selectedProjectId && useProjectContext ? {
 				...(selectedProject.brandContextMarkdown?.trim() && {
 					brandContextMarkdown: selectedProject.brandContextMarkdown.trim(),
 				}),
@@ -684,6 +691,9 @@
 				...(selectedProject.additionalContext && { additionalContext: selectedProject.additionalContext }),
 				...(contextImageUrls.length > 0 && { contextImageUrls }),
 			} : undefined;
+
+			const preset = getPresetByKey(selectedPreset);
+			const stylePresetPrompt = preset && preset.key !== "photorealistic" ? preset.prompt : undefined;
 
 			const result = await client.action(api.ai.generateImages.generate, {
 				...(selectedProjectId && { projectId: selectedProjectId }),
@@ -695,6 +705,7 @@
 				...(manualReferences.length > 0 && {
 					manualReferenceIds: manualReferences.map((r) => r.storageId),
 				}),
+				...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
 			});
 
 			activeBatchId = result.batchId;
@@ -810,6 +821,40 @@
 						label={null}
 						compact
 					/>
+					{#if selectedProjectId}
+						<button
+							type="button"
+							class="mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors {useProjectContext ? 'border-primary/30 bg-primary/8 text-primary' : 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground'}"
+							onclick={() => (useProjectContext = !useProjectContext)}
+						>
+							<span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border {useProjectContext ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}">
+								{#if useProjectContext}
+									<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+									</svg>
+								{/if}
+							</span>
+							<span class="flex-1 text-left font-medium">Usar contexto do projeto</span>
+							<Popover>
+								<PopoverTrigger>
+									<span
+										class="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground"
+										role="button"
+										tabindex="0"
+										onclick={(e) => e.stopPropagation()}
+										onkeydown={(e) => { if (e.key === "Enter") e.stopPropagation(); }}
+									>
+										<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+										</svg>
+									</span>
+								</PopoverTrigger>
+								<PopoverContent class="w-60 border border-border bg-card p-3 text-xs text-muted-foreground" align="start">
+									Injeta as informações da marca (tom, cores, público, etc.) no prompt enviado ao modelo de imagem.
+								</PopoverContent>
+							</Popover>
+						</button>
+					{/if}
 				</div>
 
 				<div class="space-y-2">
@@ -832,6 +877,26 @@
 					/>
 				</div>
 
+				<div class="space-y-2">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+						</svg>
+						Estilo
+					</p>
+					<div class="grid grid-cols-2 gap-1.5">
+						{#each IMAGE_PRESETS as preset}
+							<button
+								type="button"
+								class="rounded-lg border px-2.5 py-2 text-left transition-colors {selectedPreset === preset.key ? 'border-primary/40 bg-primary/8 text-foreground' : 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground'}"
+								onclick={() => (selectedPreset = preset.key)}
+							>
+								<span class="block text-xs font-medium">{preset.label}</span>
+								<span class="block text-[10px] leading-tight text-muted-foreground/70">{preset.sublabel}</span>
+							</button>
+						{/each}
+					</div>
+				</div>
 
 				<ReferenceImagePicker
 					references={manualReferences}
