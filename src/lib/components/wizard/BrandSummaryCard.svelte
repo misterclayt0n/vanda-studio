@@ -17,6 +17,8 @@
         onedit?: (section: "pitch" | "audience" | "vibe" | "tone" | "refs") => void;
         compact?: boolean;
         loading?: boolean;
+        /** When true, loading text reflects analysis of an existing brand rather than creation. */
+        existingBrand?: boolean;
         class?: string;
     }
 
@@ -30,6 +32,7 @@
         onedit,
         compact = false,
         loading = false,
+        existingBrand = false,
         class: className,
     }: Props = $props();
 
@@ -179,8 +182,12 @@
                 </div>
             </div>
             <div class="text-center space-y-1.5">
-                <p class="text-sm font-medium text-foreground">A Vanda está montando sua identidade</p>
-                <p class="text-xs text-muted-foreground">Cores, tipografia, tom de voz, estratégia...</p>
+                <p class="text-sm font-medium text-foreground">
+                    {existingBrand ? "A Vanda está analisando sua marca" : "A Vanda está montando sua identidade"}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                    {existingBrand ? "Extraindo cores, tipografia, tom de voz e mais…" : "Cores, tipografia, tom de voz, estratégia..."}
+                </p>
             </div>
             <div class="w-full max-w-md space-y-3 mt-4">
                 <div class="flex gap-1.5">

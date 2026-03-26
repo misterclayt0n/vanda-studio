@@ -62,6 +62,8 @@
     let selectedTone = $state<string[]>([]);
     let customTones = $state<string[]>([]);
     let brandKit = $state<BrandKitState>(emptyBrandKit());
+    let ingestedLogoUrl = $state<string | null>(null);
+    let ingestedLogoStorageId = $state<string | null>(null);
 
     // ── Loading states ─────────────────────────────────────────────────
     let isIngesting = $state(false);
@@ -184,6 +186,8 @@
                 });
                 brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
                 ingestWarnings = [...ingestWarnings, ...res.warnings];
+                if (res.logoUrl) ingestedLogoUrl = res.logoUrl;
+                if (res.logoStorageId) ingestedLogoStorageId = res.logoStorageId;
             }
 
             ingestStatus = "Montando identidade…";
@@ -276,6 +280,9 @@
                 name: projectName.trim(),
                 onboardingStatus: "complete",
             };
+            if (ingestedLogoStorageId) {
+                (kit as Record<string, unknown>).logoStorageId = ingestedLogoStorageId;
+            }
             if (Object.keys(kit).length > 0) createArgs.brandKit = kit;
             createArgs.onboardingPath = path === "existing" ? "existing" : "new";
             if (legacyDesc) createArgs.accountDescription = legacyDesc;
@@ -302,7 +309,10 @@
     // ── Step metadata ──────────────────────────────────────────────────
     function getStepTitle(): string {
         if (step === 0) return "Como quer começar?";
-        if (isSummaryStep) return isAutoFilling ? "Montando sua marca…" : "Pronto. Sua marca.";
+        if (isSummaryStep) {
+            if (!isAutoFilling) return "Pronto. Sua marca.";
+            return path === "existing" ? "Analisando sua marca…" : "Montando sua marca…";
+        }
         if (path === "existing") return "Conte sobre sua marca";
         const newTitles = ["", "O que você faz?", "Para quem?", "Qual é a vibe?", "Como sua marca fala?"];
         return newTitles[step] ?? "";
@@ -310,7 +320,12 @@
 
     function getStepSubtitle(): string {
         if (step === 0) return "Escolha o caminho que faz mais sentido para você.";
-        if (isSummaryStep) return isAutoFilling ? "A Vanda está criando sua identidade visual e estratégia de marca." : "Revise sua marca. Você pode editar tudo depois.";
+        if (isSummaryStep) {
+            if (!isAutoFilling) return "Revise sua marca. Você pode editar tudo depois.";
+            return path === "existing"
+                ? "A Vanda está analisando sua presença digital e organizando o perfil da marca."
+                : "A Vanda está criando sua identidade visual e estratégia de marca.";
+        }
         if (path === "existing") return "Informe o nome e os links da sua marca. A Vanda faz o resto.";
         const newSubs = [
             "",
@@ -401,11 +416,15 @@
                                 {step + 1} / {totalSteps}
                             </p>
                             <h1 class="text-3xl font-semibold tracking-tight">
-                                {isAutoFilling ? "Montando sua marca…" : "Pronto. Sua marca."}
+                                {isAutoFilling
+                                    ? (path === "existing" ? "Analisando sua marca…" : "Montando sua marca…")
+                                    : "Pronto. Sua marca."}
                             </h1>
                             <p class="mt-2 text-sm text-muted-foreground">
                                 {isAutoFilling
-                                    ? "A Vanda está criando sua identidade visual e estratégia de marca."
+                                    ? (path === "existing"
+                                        ? "A Vanda está analisando sua presença digital e organizando o perfil da marca."
+                                        : "A Vanda está criando sua identidade visual e estratégia de marca.")
                                     : "Clique no ícone de edição em qualquer seção para ajustar."}
                             </p>
                         </div>
@@ -416,10 +435,12 @@
                         <BrandSummaryCard
                             {brandKit}
                             brandName={projectName}
+                            logoUrl={ingestedLogoUrl}
                             {audienceLabel}
                             {vibeLabel}
                             onupdate={handleBrandKitUpdate}
                             loading={isAutoFilling}
+                            existingBrand={path === "existing"}
                         />
                     </div>
 
