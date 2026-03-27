@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import {
     compileBrandContextMarkdown,
@@ -11,6 +11,7 @@ import {
     onboardingPathValidator,
     onboardingStatusValidator,
 } from "./brandKitShape";
+import { instagramContentDigestValidator } from "./instagramDigestShape";
 
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
@@ -235,6 +236,7 @@ export const updateProfileData = mutation({
         postsCount: v.optional(v.number()),
         website: v.optional(v.string()),
         isFetching: v.optional(v.boolean()),
+        lastInstagramSyncAt: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -265,6 +267,7 @@ export const updateProfileData = mutation({
         if (args.postsCount !== undefined) patch.postsCount = args.postsCount;
         if (args.website !== undefined) patch.website = args.website;
         if (args.isFetching !== undefined) patch.isFetching = args.isFetching;
+        if (args.lastInstagramSyncAt !== undefined) patch.lastInstagramSyncAt = args.lastInstagramSyncAt;
 
         if (Object.keys(patch).length === 0) {
             return project;
@@ -272,6 +275,20 @@ export const updateProfileData = mutation({
 
         await ctx.db.patch(args.projectId, patch);
         return await ctx.db.get(args.projectId);
+    },
+});
+
+export const setInstagramContentDigestInternal = internalMutation({
+    args: {
+        projectId: v.id("projects"),
+        digest: v.union(v.null(), instagramContentDigestValidator),
+    },
+    handler: async (ctx, args) => {
+        if (args.digest === null) {
+            await ctx.db.patch(args.projectId, { instagramContentDigest: undefined });
+        } else {
+            await ctx.db.patch(args.projectId, { instagramContentDigest: args.digest });
+        }
     },
 });
 

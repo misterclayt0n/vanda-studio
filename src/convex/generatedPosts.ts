@@ -337,6 +337,8 @@ export const countByProject = query({
 export const create = mutation({
     args: {
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
+        platform: v.optional(v.string()),
+        title: v.optional(v.string()),
         caption: v.string(),
         sourcePostIds: v.optional(v.array(v.id("instagram_posts"))),
         reasoning: v.optional(v.string()),
@@ -389,6 +391,8 @@ export const create = mutation({
         return await ctx.db.insert("generated_posts", {
             ...(args.projectId && { projectId: args.projectId }),
             ...(user && { userId: user._id }), // Always save userId for tracking
+            ...(args.platform && { platform: args.platform }),
+            ...(args.title && { title: args.title }),
             caption: args.caption,
             sourcePostIds: args.sourcePostIds ?? [],
             ...(args.reasoning && { reasoning: args.reasoning }),

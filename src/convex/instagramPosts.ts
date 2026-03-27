@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 // Type for post with storage URLs
@@ -14,6 +14,34 @@ type PostWithStorageUrls = Doc<"instagram_posts"> & {
     thumbnailStorageUrl: string | null;
     carouselImagesWithUrls?: CarouselImageWithUrl[];
 };
+
+/** For instagram digest pipeline — internal only, no auth (caller must be trusted). */
+export const listCaptionSnippetsForDigestInternal = internalQuery({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const cap = Math.min(50, Math.max(1, args.limit));
+        const posts = await ctx.db
+            .query("instagram_posts")
+            .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))
+            .collect();
+
+        posts.sort((a, b) => {
+            const ta = Date.parse(a.timestamp) || 0;
+            const tb = Date.parse(b.timestamp) || 0;
+            return tb - ta;
+        });
+
+        return posts.slice(0, cap).map((p) => ({
+            _id: p._id,
+            caption: (p.caption ?? "").trim(),
+            timestamp: p.timestamp,
+            permalink: p.permalink,
+        }));
+    },
+});
 
 export const replaceForProject = mutation({
     args: {

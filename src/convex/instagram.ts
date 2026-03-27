@@ -3,7 +3,7 @@
 import { ApifyClient } from "apify-client";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const DEFAULT_ACTOR_ID = "shu8hvrXbJbY3Eb9W";
@@ -28,6 +28,8 @@ export const fetchProfile = action({
     args: {
         projectId: v.id("projects"),
         instagramUrl: v.string(),
+        /** Cap Apify posts fetched (default 200). Use a lower value for lighter refreshes (e.g. 48). */
+        resultsLimit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -43,6 +45,7 @@ export const fetchProfile = action({
         const client = new ApifyClient({ token });
         const normalizedUrl = normalizeInstagramUrl(args.instagramUrl);
         const actorId = process.env.APIFY_INSTAGRAM_ACTOR_ID ?? DEFAULT_ACTOR_ID;
+        const resultsLimit = Math.min(200, Math.max(1, args.resultsLimit ?? 200));
 
         await ctx.runMutation(api.projects.updateProfileData, {
             projectId: args.projectId,
@@ -53,7 +56,7 @@ export const fetchProfile = action({
             const run = await client.actor(actorId).call({
                 directUrls: [normalizedUrl],
                 resultsType: "posts",
-                resultsLimit: 200,
+                resultsLimit,
                 addParentData: true,
                 searchType: "user",
             });
@@ -82,6 +85,7 @@ export const fetchProfile = action({
                 postsCount: profile.postsCount,
                 ...(profile.website && { website: profile.website }),
                 isFetching: false,
+                lastInstagramSyncAt: Date.now(),
             });
 
             if (posts.length > 0) {
@@ -191,6 +195,10 @@ export const fetchProfile = action({
                     });
                 }
             }
+
+            await ctx.scheduler.runAfter(0, internal.ai.instagramDigest.rebuildDigestInternal, {
+                projectId: args.projectId,
+            });
 
             return {
                 profile,

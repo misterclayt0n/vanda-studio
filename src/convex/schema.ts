@@ -5,6 +5,7 @@ import {
     onboardingPathValidator,
     onboardingStatusValidator,
 } from "./brandKitShape";
+import { instagramContentDigestValidator } from "./instagramDigestShape";
 
 export default defineSchema({
     users: defineTable({
@@ -38,6 +39,9 @@ export default defineSchema({
         brandContextMarkdown: v.optional(v.string()),
         onboardingStatus: v.optional(onboardingStatusValidator),
         onboardingPath: v.optional(onboardingPathValidator),
+        /** LLM summary of recent synced IG captions — avoids repeating recent themes in AI posts */
+        instagramContentDigest: v.optional(instagramContentDigestValidator),
+        lastInstagramSyncAt: v.optional(v.number()),
     }).index("by_user_id", ["userId"]),
 
     // Context images for brand context
