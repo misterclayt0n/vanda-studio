@@ -39,9 +39,9 @@
 
     const modeLabel = $derived(
         lastInstagramSyncMode === "full"
-            ? "Sincronização completa (mídias na Vanda)"
-            : lastInstagramSyncMode === "intel_only"
-              ? "Captura leve (legendas)"
+            ? "Sincronização antiga (mídias na Vanda)"
+            : lastInstagramSyncAt
+              ? "Captura leve (até 30 posts)"
               : null
     );
 </script>

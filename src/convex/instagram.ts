@@ -4,7 +4,6 @@ import { ApifyClient } from "apify-client";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 
 const DEFAULT_ACTOR_ID = "shu8hvrXbJbY3Eb9W";
 
@@ -24,19 +23,13 @@ type InstagramPostRecord = {
     carouselImages?: { url: string }[];
 };
 
+const MAX_POSTS_LIGHT = 30;
+
 export const fetchProfile = action({
     args: {
         projectId: v.id("projects"),
         instagramUrl: v.string(),
-        /**
-         * `intel_only`: captions + URLs only; skips mirroring post media to Convex (cheaper storage; digest + ideas).
-         * `full`: mirror thumbnails/media into storage for gallery/composer (default when omitted — backward compatible).
-         */
-        syncMode: v.optional(v.union(v.literal("intel_only"), v.literal("full"))),
-        /**
-         * Cap Apify posts fetched.
-         * Default: 30 when syncMode is intel_only, 200 when full.
-         */
+        /** Capped at 30; ignored if higher (product is light-read only). */
         resultsLimit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
@@ -53,9 +46,10 @@ export const fetchProfile = action({
         const client = new ApifyClient({ token });
         const normalizedUrl = normalizeInstagramUrl(args.instagramUrl);
         const actorId = process.env.APIFY_INSTAGRAM_ACTOR_ID ?? DEFAULT_ACTOR_ID;
-        const syncMode = args.syncMode ?? "full";
-        const defaultLimit = syncMode === "intel_only" ? 30 : 200;
-        const resultsLimit = Math.min(200, Math.max(1, args.resultsLimit ?? defaultLimit));
+        const resultsLimit = Math.min(
+            MAX_POSTS_LIGHT,
+            Math.max(1, args.resultsLimit ?? MAX_POSTS_LIGHT)
+        );
 
         await ctx.runMutation(api.projects.updateProfileData, {
             projectId: args.projectId,
@@ -97,94 +91,14 @@ export const fetchProfile = action({
                 ...(profile.website && { website: profile.website }),
                 isFetching: false,
                 lastInstagramSyncAt: now,
-                lastInstagramSyncMode: syncMode,
+                lastInstagramSyncMode: "intel_only",
             });
 
             if (posts.length > 0) {
-                const insertedPostIds = await ctx.runMutation(api.instagramPosts.replaceForProject, {
+                await ctx.runMutation(api.instagramPosts.replaceForProject, {
                     projectId: args.projectId,
                     posts,
                 });
-
-                if (syncMode === "full") {
-                    // Download and store media files to Convex storage for reliability
-                    const BATCH_SIZE = 5;
-                    for (let i = 0; i < posts.length; i += BATCH_SIZE) {
-                        const batch = posts.slice(i, i + BATCH_SIZE);
-                        const batchIds = insertedPostIds.slice(i, i + BATCH_SIZE);
-
-                        await Promise.all(
-                            batch.map(async (post, batchIndex) => {
-                                const postId = batchIds[batchIndex];
-                                if (!postId) return;
-
-                                try {
-                                    const mediaType = post.mediaType.toUpperCase();
-                                    const isVideo = mediaType === "VIDEO" || mediaType.includes("VIDEO");
-                                    const isCarousel = mediaType === "CAROUSEL_ALBUM";
-
-                                    if (isVideo) {
-                                        if (post.thumbnailUrl) {
-                                            const thumbnailStorageId = await ctx.runAction(
-                                                api.files.downloadAndStoreFile,
-                                                { url: post.thumbnailUrl }
-                                            );
-                                            if (thumbnailStorageId) {
-                                                await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
-                                                    postId,
-                                                    thumbnailStorageId,
-                                                });
-                                            }
-                                        }
-                                    } else if (isCarousel && post.carouselImages && post.carouselImages.length > 0) {
-                                        const mediaStorageId = await ctx.runAction(
-                                            api.files.downloadAndStoreFile,
-                                            { url: post.mediaUrl }
-                                        );
-
-                                        const carouselImagesToProcess = post.carouselImages.slice(0, 10);
-                                        const carouselImagesWithStorage: { url: string; storageId?: Id<"_storage"> }[] = [];
-
-                                        for (const img of carouselImagesToProcess) {
-                                            try {
-                                                const storageId = await ctx.runAction(
-                                                    api.files.downloadAndStoreFile,
-                                                    { url: img.url }
-                                                );
-                                                carouselImagesWithStorage.push(
-                                                    storageId
-                                                        ? { url: img.url, storageId }
-                                                        : { url: img.url }
-                                                );
-                                            } catch {
-                                                carouselImagesWithStorage.push({ url: img.url });
-                                            }
-                                        }
-
-                                        await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
-                                            postId,
-                                            ...(mediaStorageId ? { mediaStorageId } : {}),
-                                            ...(carouselImagesWithStorage.length > 0 ? { carouselImages: carouselImagesWithStorage } : {}),
-                                        });
-                                    } else {
-                                        const mediaStorageId = await ctx.runAction(
-                                            api.files.downloadAndStoreFile,
-                                            { url: post.mediaUrl }
-                                        );
-                                        if (mediaStorageId) {
-                                            await ctx.runMutation(api.instagramPosts.updateMediaStorage, {
-                                                postId,
-                                                mediaStorageId,
-                                            });
-                                        }
-                                    }
-                                } catch (error) {
-                                    console.error(`Failed to store media for post ${post.instagramId}:`, error);
-                                }
-                            })
-                        );
-                    }
-                }
             }
 
             // Download profile picture to Convex storage for reliability

@@ -10,6 +10,7 @@
     import { useConvexClient } from "convex-svelte";
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
+    import { formatHandleForInput, normalizeInstagramInput } from "$lib/utils/instagram";
 
     interface Project {
         _id: Id<"projects">;
@@ -48,7 +49,8 @@
     const client = useConvexClient();
 
     let name = $state("");
-    let instagramUrl = $state("");
+    /** @handle or full URL in the field; persisted as canonical instagramUrl on save */
+    let instagramHandleInput = $state("");
     let platform = $state("instagram");
     let brandKit = $state<BrandKitState>(emptyBrandKit());
 
@@ -64,12 +66,7 @@
     let isAnalyzing = $state(false);
     let analyzeError = $state<string | null>(null);
 
-    let websiteIngestUrl = $state("");
-    let isIngestingSite = $state(false);
-    let ingestSiteError = $state<string | null>(null);
-
-    /** null | which sync is in flight */
-    let igSyncBusy = $state<null | "intel_only" | "full">(null);
+    let igSyncBusy = $state(false);
     let syncIgError = $state<string | null>(null);
     let syncIgSuccess = $state<string | null>(null);
 
@@ -92,7 +89,7 @@
     $effect(() => {
         if (project && !formInitialized) {
             name = project.name ?? "";
-            instagramUrl = project.instagramUrl ?? "";
+            instagramHandleInput = formatHandleForInput(project.instagramUrl);
             platform = project.platform ?? "instagram";
             brandKit = seedBrandKitFromProject(project);
             formInitialized = true;
@@ -150,10 +147,13 @@
         ) as BrandKitState;
     }
 
+    const igCanonicalStored = $derived((project?.instagramUrl ?? "").trim());
+    const igCanonicalInput = $derived(normalizeInstagramInput(instagramHandleInput));
+
     let hasChanges = $derived(
         project &&
             (name !== project.name ||
-                instagramUrl !== (project.instagramUrl ?? "") ||
+                igCanonicalInput !== igCanonicalStored ||
                 platform !== (project.platform ?? "instagram") ||
                 JSON.stringify(brandKit) !== JSON.stringify(seedBrandKitFromProject(project)))
     );
@@ -177,7 +177,7 @@
             await client.mutation(api.projects.update, {
                 projectId,
                 name: name.trim(),
-                instagramUrl: instagramUrl.trim(),
+                instagramUrl: igCanonicalInput,
                 platform,
                 accountDescription: legacyDesc,
                 brandTraits: legacyTraits,
@@ -223,26 +223,6 @@
         }
     }
 
-    async function handleWebsiteIngest() {
-        if (!websiteIngestUrl.trim()) {
-            ingestSiteError = "Cole a URL do site.";
-            return;
-        }
-        ingestSiteError = null;
-        isIngestingSite = true;
-        try {
-            const res = await client.action(api.ai.brandOnboarding.ingestWebsiteForBrand, {
-                projectId,
-                url: websiteIngestUrl.trim(),
-            });
-            brandKit = mergeBrandSuggestion(brandKit, res.suggestion as Record<string, unknown>);
-        } catch (e) {
-            ingestSiteError = e instanceof Error ? e.message : "Falha ao analisar o site";
-        } finally {
-            isIngestingSite = false;
-        }
-    }
-
     function formatIgCapture(ts: number): string {
         return new Date(ts).toLocaleString("pt-BR", {
             day: "2-digit",
@@ -253,53 +233,26 @@
         });
     }
 
-    async function handleInstagramIntelCapture() {
-        const url = instagramUrl.trim();
+    async function handleInstagramCapture() {
+        const url = normalizeInstagramInput(instagramHandleInput);
         if (!url) {
-            syncIgError = "Informe a URL do Instagram acima.";
+            syncIgError = "Informe o @ do Instagram acima.";
             return;
         }
         syncIgError = null;
         syncIgSuccess = null;
-        igSyncBusy = "intel_only";
+        igSyncBusy = true;
         try {
             await client.action(api.instagram.fetchProfile, {
                 projectId,
                 instagramUrl: url,
-                syncMode: "intel_only",
-                resultsLimit: 30,
             });
             syncIgSuccess =
-                "Captura leve concluída. A memória do feed aparece na página do projeto; a Vanda usa isso nas ideias de posts.";
+                "Captura concluída (até 30 posts, sem baixar mídias dos posts). A memória do feed aparece na página do projeto.";
         } catch (e) {
             syncIgError = e instanceof Error ? e.message : "Falha ao capturar o Instagram";
         } finally {
-            igSyncBusy = null;
-        }
-    }
-
-    async function handleInstagramFullSync() {
-        const url = instagramUrl.trim();
-        if (!url) {
-            syncIgError = "Informe a URL do Instagram acima.";
-            return;
-        }
-        syncIgError = null;
-        syncIgSuccess = null;
-        igSyncBusy = "full";
-        try {
-            await client.action(api.instagram.fetchProfile, {
-                projectId,
-                instagramUrl: url,
-                syncMode: "full",
-                resultsLimit: 200,
-            });
-            syncIgSuccess =
-                "Sincronização completa: mídias salvas na Vanda para galeria e compositor. Memória do feed também foi atualizada.";
-        } catch (e) {
-            syncIgError = e instanceof Error ? e.message : "Falha ao sincronizar Instagram";
-        } finally {
-            igSyncBusy = null;
+            igSyncBusy = false;
         }
     }
 </script>
@@ -377,29 +330,27 @@
 
             <div class="space-y-3 rounded-none border border-border/80 bg-muted/10 p-4">
                 <div class="space-y-2">
-                    <Label for="instagram-url" class="text-sm font-medium">URL do Instagram (opcional)</Label>
+                    <Label for="instagram-handle" class="text-sm font-medium">Instagram (opcional)</Label>
                     <Input
-                        id="instagram-url"
-                        bind:value={instagramUrl}
-                        placeholder="https://instagram.com/seu_perfil"
+                        id="instagram-handle"
+                        bind:value={instagramHandleInput}
+                        placeholder="@sua_conta"
                         class="bg-background"
+                        autocomplete="off"
                     />
+                    <p class="text-[11px] text-muted-foreground">Só o @ — não precisa colar o link completo.</p>
                 </div>
 
                 <p class="text-xs leading-relaxed text-muted-foreground">
-                    Cada captura usa o Apify (custo por execução, frequentemente na faixa de <span class="text-foreground/80">~US$0,50</span> conforme seu plano). Por enquanto só é possível
-                    <strong class="font-medium text-foreground/90">uma captura por projeto</strong> — nova atualização do feed entra em uma versão futura.
+                    Cada captura usa o Apify (custo por execução, frequentemente na faixa de <span class="text-foreground/80">~US$0,50</span> conforme seu plano). Lemos no máximo
+                    <strong class="font-medium text-foreground/90">30 posts</strong> (legendas e links; sem baixar mídia dos posts no armazenamento da Vanda). Por enquanto só é possível
+                    <strong class="font-medium text-foreground/90">uma captura por projeto</strong>.
                 </p>
 
                 {#if igCaptureDone && project?.lastInstagramSyncAt}
                     <div class="border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
                         <span class="font-medium text-foreground/85">Captura já realizada</span>
                         em {formatIgCapture(project.lastInstagramSyncAt)}
-                        {#if project.lastInstagramSyncMode === "intel_only"}
-                            <span class="text-muted-foreground"> · modo leve</span>
-                        {:else if project.lastInstagramSyncMode === "full"}
-                            <span class="text-muted-foreground"> · modo completo</span>
-                        {/if}
                     </div>
                 {/if}
 
@@ -410,69 +361,21 @@
                     <p class="text-xs text-green-700 dark:text-green-400">{syncIgSuccess}</p>
                 {/if}
 
-                <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        disabled={igCaptureDone || igSyncBusy !== null || !instagramUrl.trim() || project?.isFetching}
-                        onclick={handleInstagramIntelCapture}
-                    >
-                        {#if igSyncBusy === "intel_only"}
-                            Capturando contexto…
-                        {:else}
-                            Capturar contexto do feed (recomendado)
-                        {/if}
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={igCaptureDone || igSyncBusy !== null || !instagramUrl.trim() || project?.isFetching}
-                        onclick={handleInstagramFullSync}
-                    >
-                        {#if igSyncBusy === "full"}
-                            Sincronizando mídias…
-                        {:else}
-                            Sincronização completa (galeria)
-                        {/if}
-                    </Button>
-                </div>
-                <p class="text-[11px] leading-relaxed text-muted-foreground/85">
-                    <strong class="text-foreground/80">Leve:</strong> últimas 30 postagens, só legendas e links — sem baixar imagens na Vanda. Ideal para memória do feed e ideias com a IA.
-                    <span class="mt-1 block">
-                        <strong class="text-foreground/80">Completa:</strong> até 200 posts com mídias na Vanda para galeria e compositor (mais tempo e armazenamento).
-                    </span>
-                </p>
+                <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    disabled={igCaptureDone || igSyncBusy || !normalizeInstagramInput(instagramHandleInput) || project?.isFetching}
+                    onclick={handleInstagramCapture}
+                >
+                    {#if igSyncBusy}
+                        Capturando contexto…
+                    {:else}
+                        Capturar contexto do feed
+                    {/if}
+                </Button>
             </div>
         </div>
-    </section>
-
-    <section class="border border-border bg-card p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold">Site da marca</h2>
-        </div>
-        <p class="mb-4 text-sm text-muted-foreground">
-            A Vanda lê a página (texto e meta) e sugere cores, tom e posicionamento. Revise antes de salvar.
-        </p>
-        <div class="flex flex-col gap-2 sm:flex-row">
-            <Input
-                class="flex-1 bg-background"
-                bind:value={websiteIngestUrl}
-                placeholder="https://seusite.com"
-            />
-            <Button
-                type="button"
-                variant="outline"
-                disabled={isIngestingSite}
-                onclick={handleWebsiteIngest}
-            >
-                {isIngestingSite ? "Analisando…" : "Analisar site"}
-            </Button>
-        </div>
-        {#if ingestSiteError}
-            <p class="mt-2 text-sm text-destructive">{ingestSiteError}</p>
-        {/if}
     </section>
 
     <section class="border border-border bg-card p-6">

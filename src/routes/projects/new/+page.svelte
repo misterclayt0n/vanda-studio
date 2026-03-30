@@ -22,7 +22,8 @@
     import { useConvexClient } from "convex-svelte";
     import { api } from "../../../convex/_generated/api.js";
     import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
-    import { Globe, Instagram, Sparkles, X, ArrowLeft } from "lucide-svelte";
+    import { normalizeInstagramInput } from "$lib/utils/instagram";
+    import { Instagram, Sparkles, X, ArrowLeft } from "lucide-svelte";
 
     const client = useConvexClient();
 
@@ -54,8 +55,7 @@
     // ── Form state (persists in memory across URL navigation) ──────────
     let projectName = $state("");
     let pitchText = $state("");
-    let instagramUrl = $state("");
-    let websiteUrl = $state("");
+    let instagramHandleInput = $state("");
     let selectedAudience = $state<string[]>([]);
     let customAudience = $state("");
     let selectedVibe = $state<VibeKey | null>(null);
@@ -136,8 +136,8 @@
         }
         if (path === "existing" && step === 1) {
             if (!projectName.trim()) { error = "Dê um nome ao projeto."; return; }
-            if (!instagramUrl.trim() && !websiteUrl.trim()) {
-                error = "Informe ao menos um link (Instagram ou site).";
+            if (!normalizeInstagramInput(instagramHandleInput)) {
+                error = "Informe o @ do Instagram da marca.";
                 return;
             }
             handleExistingBrandIngest();
@@ -170,25 +170,13 @@
         isIngesting = true;
 
         try {
-            if (instagramUrl.trim()) {
-                ingestStatus = "Analisando perfil do Instagram…";
-                const res = await client.action(api.ai.brandOnboarding.ingestInstagramForBrand, {
-                    instagramUrl: instagramUrl.trim(),
-                });
-                brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
-                ingestWarnings = [...ingestWarnings, ...res.warnings];
-            }
-
-            if (websiteUrl.trim()) {
-                ingestStatus = "Analisando site…";
-                const res = await client.action(api.ai.brandOnboarding.ingestWebsiteForBrand, {
-                    url: websiteUrl.trim(),
-                });
-                brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
-                ingestWarnings = [...ingestWarnings, ...res.warnings];
-                if (res.logoUrl) ingestedLogoUrl = res.logoUrl;
-                if (res.logoStorageId) ingestedLogoStorageId = res.logoStorageId;
-            }
+            const igUrl = normalizeInstagramInput(instagramHandleInput);
+            ingestStatus = "Analisando perfil do Instagram…";
+            const res = await client.action(api.ai.brandOnboarding.ingestInstagramForBrand, {
+                instagramUrl: igUrl,
+            });
+            brandKit = mergeBrandSuggestion(untrack(() => brandKit), res.suggestion as Record<string, unknown>);
+            ingestWarnings = [...ingestWarnings, ...res.warnings];
 
             ingestStatus = "Montando identidade…";
             await new Promise((r) => setTimeout(r, 400));
@@ -289,7 +277,7 @@
             if (legacyTraits) createArgs.brandTraits = legacyTraits;
             const le = legacyExtra.trim();
             if (le) createArgs.additionalContext = le;
-            const ig = instagramUrl.trim();
+            const ig = normalizeInstagramInput(instagramHandleInput);
             if (ig) createArgs.instagramUrl = ig;
 
             const id = await client.mutation(api.projects.create, createArgs);
@@ -313,7 +301,7 @@
             if (!isAutoFilling) return "Pronto. Sua marca.";
             return path === "existing" ? "Analisando sua marca…" : "Montando sua marca…";
         }
-        if (path === "existing") return "Conte sobre sua marca";
+        if (path === "existing") return "Instagram da marca";
         const newTitles = ["", "O que você faz?", "Para quem?", "Qual é a vibe?", "Como sua marca fala?"];
         return newTitles[step] ?? "";
     }
@@ -326,7 +314,7 @@
                 ? "A Vanda está analisando sua presença digital e organizando o perfil da marca."
                 : "A Vanda está criando sua identidade visual e estratégia de marca.";
         }
-        if (path === "existing") return "Informe o nome e os links da sua marca. A Vanda faz o resto.";
+        if (path === "existing") return "Informe o nome e o @ do Instagram. A Vanda analisa até 30 posts e monta o kit.";
         const newSubs = [
             "",
             "Dê um nome e descreva sua marca em uma ou duas frases.",
@@ -350,7 +338,8 @@
 
     function isNextDisabled(): boolean {
         if (step === 0 && !path) return true;
-        if (path === "existing" && step === 1 && !projectName.trim()) return true;
+        if (path === "existing" && step === 1 && (!projectName.trim() || !normalizeInstagramInput(instagramHandleInput)))
+            return true;
         if (path === "new" && step === 1 && !projectName.trim()) return true;
         return false;
     }
@@ -487,12 +476,11 @@
                                     onclick={() => replaceStep(0, "existing")}
                                 >
                                     <div class="flex items-center gap-2 text-primary">
-                                        <Globe class="h-5 w-5" />
                                         <Instagram class="h-5 w-5" />
                                     </div>
                                     <h3 class="text-base font-semibold">Já tenho uma marca</h3>
                                     <p class="text-sm text-muted-foreground">
-                                        Cole o link do Instagram ou site e a Vanda extrai tudo automaticamente.
+                                        Informe o @ do Instagram e a Vanda analisa o perfil e as últimas postagens.
                                     </p>
                                 </button>
 
@@ -544,22 +532,15 @@
                                         />
                                     </div>
                                     <div class="space-y-2">
-                                        <Label for="ig">Instagram (opcional)</Label>
+                                        <Label for="ig">Instagram</Label>
                                         <Input
                                             id="ig"
                                             class="bg-background"
-                                            bind:value={instagramUrl}
-                                            placeholder="https://instagram.com/seu_perfil ou @seu_perfil"
+                                            bind:value={instagramHandleInput}
+                                            placeholder="@sua_conta"
+                                            autocomplete="off"
                                         />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <Label for="web">Site (opcional)</Label>
-                                        <Input
-                                            id="web"
-                                            class="bg-background"
-                                            bind:value={websiteUrl}
-                                            placeholder="https://seusite.com"
-                                        />
+                                        <p class="text-xs text-muted-foreground">Só o @ — até 30 posts são usados na análise.</p>
                                     </div>
                                 </div>
                             {/if}
