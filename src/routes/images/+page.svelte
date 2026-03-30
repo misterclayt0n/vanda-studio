@@ -16,6 +16,7 @@
 		ReferenceImagePicker,
 		ImageGenerationErrorModal,
 		MediaBrowserFilterBar,
+		ImageTemplateSection,
 	} from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
@@ -44,7 +45,7 @@
 		saveImagesPageState,
 		type ImagesPageReference,
 	} from "$lib/studio/imagesPageState";
-	import { IMAGE_PRESETS, DEFAULT_PRESET, getPresetByKey, type ImagePresetKey } from "$lib/data/imagePresets";
+	import { DEFAULT_PRESET, getPresetByKey } from "$lib/data/imagePresets";
 	import {
 		filterMediaItems,
 		getMediaModelDisplayName,
@@ -169,10 +170,16 @@
 	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
 	let useProjectContext = $state(true);
 	let selectedPreset = $state<string>(DEFAULT_PRESET);
+	let selectedTemplateId = $state<string | null>(null);
 	let isGenerating = $state(false);
 	let errorState = $state<ImageGenerationUiError | null>(null);
 	let creditEstimate = $derived(
 		sumUsageLineItemCredits(estimateImageBatchUsage(selectedModels))
+	);
+	let promptPlaceholder = $derived(
+		selectedTemplateId
+			? "Título, parágrafos, destaque em negrito, ideia da foto, @ da marca, cores… (o layout vem da moldura)"
+			: "Descreva a imagem que deseja gerar…"
 	);
 	let billingOverview = $state<BillingOverview | null>(null);
 	let billingOverviewLoaded = $state(false);
@@ -221,6 +228,7 @@
 			}
 			useProjectContext = savedState.useProjectContext;
 			selectedPreset = savedState.selectedPreset;
+			selectedTemplateId = savedState.selectedTemplateId ?? null;
 		}
 
 		persistedStateRestored = true;
@@ -384,6 +392,7 @@
 			viewMode,
 			useProjectContext,
 			selectedPreset,
+			selectedTemplateId,
 		});
 	});
 
@@ -693,7 +702,11 @@
 			} : undefined;
 
 			const preset = getPresetByKey(selectedPreset);
-			const stylePresetPrompt = preset && preset.key !== "photorealistic" ? preset.prompt : undefined;
+			// Moldura is a full style: do not mix preset prompt with template references
+			const stylePresetPrompt =
+				!selectedTemplateId && preset && preset.key !== "photorealistic"
+					? preset.prompt
+					: undefined;
 
 			const result = await client.action(api.ai.generateImages.generate, {
 				...(selectedProjectId && { projectId: selectedProjectId }),
@@ -706,6 +719,7 @@
 					manualReferenceIds: manualReferences.map((r) => r.storageId),
 				}),
 				...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
+				...(selectedTemplateId && { templateId: selectedTemplateId }),
 			});
 
 			activeBatchId = result.batchId;
@@ -865,7 +879,7 @@
 						Prompt
 					</p>
 					<Textarea
-						placeholder="Descreva a imagem que deseja gerar..."
+						placeholder={promptPlaceholder}
 						bind:value={prompt}
 						class="min-h-[72px] resize-none text-sm"
 						onkeydown={(event) => {
@@ -877,26 +891,7 @@
 					/>
 				</div>
 
-				<div class="space-y-2">
-					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
-						</svg>
-						Estilo
-					</p>
-					<div class="grid grid-cols-2 gap-1.5">
-						{#each IMAGE_PRESETS as preset}
-							<button
-								type="button"
-								class="rounded-lg border px-2.5 py-2 text-left transition-colors {selectedPreset === preset.key ? 'border-primary/40 bg-primary/8 text-foreground' : 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground'}"
-								onclick={() => (selectedPreset = preset.key)}
-							>
-								<span class="block text-xs font-medium">{preset.label}</span>
-								<span class="block text-[10px] leading-tight text-muted-foreground/70">{preset.sublabel}</span>
-							</button>
-						{/each}
-					</div>
-				</div>
+				<ImageTemplateSection bind:selectedPreset bind:selectedTemplateId />
 
 				<ReferenceImagePicker
 					references={manualReferences}

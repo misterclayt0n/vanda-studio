@@ -362,6 +362,12 @@ export const ImageGenerationLive = Layer.effect(
 
                             let successCount = 0;
                             for (const img of params.referenceImages) {
+                                if (img.description?.trim()) {
+                                    contentParts.push({
+                                        type: "text",
+                                        text: img.description.trim(),
+                                    });
+                                }
                                 const base64Data = await fetchImageAsBase64(img.url);
                                 if (base64Data) {
                                     contentParts.push({

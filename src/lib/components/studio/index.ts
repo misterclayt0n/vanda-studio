@@ -9,3 +9,4 @@ export { default as EditableCaption } from "./EditableCaption.svelte";
 export { default as ProjectSelector } from "./ProjectSelector.svelte";
 export { default as ReferenceImagePicker } from "./ReferenceImagePicker.svelte";
 export { default as MediaBrowserFilterBar } from "./MediaBrowserFilterBar.svelte";
+export { default as ImageTemplateSection } from "./ImageTemplateSection.svelte";

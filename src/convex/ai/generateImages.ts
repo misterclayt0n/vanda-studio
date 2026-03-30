@@ -12,6 +12,14 @@ import {
     getStoredImageGenerationError,
     throwImageGenerationError,
 } from "../imageGenerationErrors";
+
+function publicAppOriginForTemplates(): string {
+    const raw =
+        process.env.PUBLIC_APP_URL?.trim() ||
+        process.env.SITE_URL?.trim() ||
+        "https://vanda.studio";
+    return raw.replace(/\/$/, "");
+}
 import {
     DEFAULT_IMAGE_MODEL,
     type AspectRatio,
@@ -23,6 +31,10 @@ import {
     estimateImageLineItem,
 } from "../../lib/billing/aiCredits";
 import { projectContextValidator } from "./projectContextValidator";
+import {
+    getPostTemplateById,
+    getTemplateReferencePublicUrl,
+} from "../../lib/data/postTemplates";
 
 /**
  * Standalone image generation action.
@@ -41,6 +53,7 @@ export const generate = action({
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
         projectContext: projectContextValidator,
         stylePreset: v.optional(v.string()),
+        templateId: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -87,20 +100,37 @@ export const generate = action({
             resolution,
         });
 
-        const referenceImageUrls: string[] = [];
+        const productReferenceUrls: string[] = [];
         if (args.referenceImageUrls) {
-            referenceImageUrls.push(...args.referenceImageUrls);
+            productReferenceUrls.push(...args.referenceImageUrls);
         }
         if (args.manualReferenceIds && args.manualReferenceIds.length > 0) {
             for (const storageId of args.manualReferenceIds) {
                 const url = await ctx.storage.getUrl(storageId);
                 if (url) {
-                    referenceImageUrls.push(url);
+                    productReferenceUrls.push(url);
                 }
             }
         }
         if (args.projectContext?.contextImageUrls) {
-            referenceImageUrls.push(...args.projectContext.contextImageUrls);
+            productReferenceUrls.push(...args.projectContext.contextImageUrls);
+        }
+
+        const layoutReferenceUrls: string[] = [];
+        let layoutVisionPrompt: string | undefined;
+        if (args.templateId?.trim()) {
+            const template = getPostTemplateById(args.templateId.trim());
+            if (!template) {
+                throwImageGenerationError("UNSUPPORTED_SETTINGS", {
+                    title: "Template inválido",
+                    message: "O modelo de post selecionado não existe. Escolha outro template.",
+                });
+            }
+            const origin = publicAppOriginForTemplates();
+            layoutReferenceUrls.push(
+                getTemplateReferencePublicUrl(origin, template.referenceFile)
+            );
+            layoutVisionPrompt = template.visionPrompt;
         }
 
         const brandMd = args.projectContext?.brandContextMarkdown?.trim();
@@ -118,7 +148,9 @@ export const generate = action({
                 imageModels,
                 aspectRatio,
                 resolution,
-                referenceImageUrls,
+                layoutReferenceUrls,
+                productReferenceUrls,
+                ...(layoutVisionPrompt && { layoutVisionPrompt }),
                 ...(args.stylePreset && { stylePreset: args.stylePreset }),
             });
         } catch (err) {
@@ -150,7 +182,9 @@ export const processBatch = internalAction({
         imageModels: v.array(v.string()),
         aspectRatio: v.string(),
         resolution: v.string(),
-        referenceImageUrls: v.array(v.string()),
+        layoutReferenceUrls: v.array(v.string()),
+        productReferenceUrls: v.array(v.string()),
+        layoutVisionPrompt: v.optional(v.string()),
         stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<void> => {
@@ -176,9 +210,15 @@ export const processBatch = internalAction({
                             model,
                             aspectRatio,
                             resolution,
-                            ...(args.referenceImageUrls.length > 0
-                                ? { referenceImageUrls: args.referenceImageUrls }
-                                : {}),
+                            ...(args.layoutReferenceUrls.length > 0 && {
+                                layoutReferenceUrls: args.layoutReferenceUrls,
+                            }),
+                            ...(args.productReferenceUrls.length > 0 && {
+                                productReferenceUrls: args.productReferenceUrls,
+                            }),
+                            ...(args.layoutVisionPrompt && {
+                                layoutVisionPrompt: args.layoutVisionPrompt,
+                            }),
                             ...(args.stylePreset && { stylePreset: args.stylePreset }),
                         });
 
