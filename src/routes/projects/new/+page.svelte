@@ -68,6 +68,7 @@
     // ── Loading states ─────────────────────────────────────────────────
     let isIngesting = $state(false);
     let isCreating = $state(false);
+    let createStatus = $state("");
     let isAutoFilling = $state(false);
     let autoFillDone = $state(false);
     let error = $state<string | null>(null);
@@ -247,6 +248,7 @@
         if (!projectName.trim()) { error = "Nome do projeto é obrigatório."; return; }
         error = null;
         isCreating = true;
+        createStatus = "Criando projeto…";
         try {
             const kit = cleanBrandKit(brandKit);
             const legacyDesc = kit.elevatorPitch?.trim() || pitchText.trim().slice(0, 2000) || undefined;
@@ -283,6 +285,7 @@
             const id = await client.mutation(api.projects.create, createArgs);
 
             if (path === "existing" && ig) {
+                createStatus = "Sincronizando Instagram e montando memória…";
                 await client.action(api.instagram.fetchProfile, {
                     projectId: id,
                     instagramUrl: ig,
@@ -297,6 +300,7 @@
                     : "Não foi possível criar o projeto ou sincronizar o Instagram";
         } finally {
             isCreating = false;
+            createStatus = "";
         }
     }
 
@@ -407,6 +411,20 @@
             {/if}
 
             {#if isSummaryStep}
+                {#if isCreating}
+                    <!-- Same pattern as first Apify pass (step 1 existing path) -->
+                    <div class="flex flex-col items-center gap-6 py-16">
+                        <div class="pulse-glow flex h-12 w-12 items-center justify-center text-primary">
+                            <Sparkles class="h-8 w-8" />
+                        </div>
+                        <p class="max-w-md text-center text-sm text-muted-foreground animate-pulse">
+                            {createStatus || "Criando…"}
+                        </p>
+                        <div class="h-1 w-48 overflow-hidden bg-border">
+                            <div class="h-full w-1/2 animate-[indeterminate_1.5s_ease-in-out_infinite] bg-primary"></div>
+                        </div>
+                    </div>
+                {:else}
                 <!-- ═══ Summary — breaks out of WizardShell for wide layout ═══ -->
                 <div class="summary-container" class:revealed={autoFillDone && !isAutoFilling}>
                     <!-- Summary header -->
@@ -465,6 +483,7 @@
                         </div>
                     {/if}
                 </div>
+                {/if}
             {:else}
                 <!-- ═══ Wizard steps — centered, focused ═══ -->
                 <WizardShell

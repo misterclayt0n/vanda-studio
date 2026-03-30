@@ -34,12 +34,20 @@ function buildCaptionBlock(
 }
 
 async function runDigestLlm(captionBlock: string) {
-    const system = `You are a social media analyst. Read Instagram post captions and output structured JSON only.
-Language: all human-readable strings in Brazilian Portuguese (pt-BR).
-Infer themes, recurring hooks/formats, and angles the account should NOT repeat immediately (e.g. same holiday or campaign just posted).
-Only infer from the captions provided — do not invent posts.`;
+    const system = `You are a social media analyst. Read Instagram post captions and output a single JSON object.
 
-    const user = `## Legendas (mais recentes primeiro; índice 0 = mais novo)\n${captionBlock}\n\nResponda só com JSON válido para o schema.`;
+CRITICAL — property names MUST be exactly these four English keys (never translate keys to Portuguese):
+- "recentThemes": array of short strings
+- "recentHooks": array of short strings (recurring hooks/formats; flatten ideas into separate strings)
+- "avoidNext": array of short strings (campaigns/holidays/angles to not repeat immediately)
+- "summaryForModel": one string, 2-4 sentences
+
+All string VALUES must be Brazilian Portuguese (pt-BR). Keys stay English as above.
+Each of recentThemes, recentHooks, avoidNext MUST be a JSON array of strings, not objects.
+
+Infer only from the captions; do not invent posts.`;
+
+    const user = `## Legendas (mais recentes primeiro; índice 0 = mais novo)\n${captionBlock}\n\nResponda só com JSON. Chaves obrigatórias em inglês: recentThemes, recentHooks, avoidNext, summaryForModel.`;
 
     return await runAiEffectOrThrow(
         Effect.gen(function* () {
@@ -66,7 +74,7 @@ export const rebuildDigestInternal = internalAction({
             limit: 30,
         });
 
-        const withText = snippets.filter((s) => s.caption.length > 0);
+        const withText = snippets.filter((s: { caption: string }) => s.caption.length > 0);
         if (withText.length === 0) {
             await ctx.runMutation(internal.projects.setInstagramContentDigestInternal, {
                 projectId: args.projectId,
