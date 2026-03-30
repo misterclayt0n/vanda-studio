@@ -281,9 +281,20 @@
             if (ig) createArgs.instagramUrl = ig;
 
             const id = await client.mutation(api.projects.create, createArgs);
+
+            if (path === "existing" && ig) {
+                await client.action(api.instagram.fetchProfile, {
+                    projectId: id,
+                    instagramUrl: ig,
+                });
+            }
+
             goto(`/projects/${id}`);
         } catch (e) {
-            error = e instanceof Error ? e.message : "Não foi possível criar o projeto";
+            error =
+                e instanceof Error
+                    ? e.message
+                    : "Não foi possível criar o projeto ou sincronizar o Instagram";
         } finally {
             isCreating = false;
         }
@@ -444,7 +455,11 @@
                             <div class="flex gap-3">
                                 <Button variant="outline" onclick={back}>Voltar</Button>
                                 <Button onclick={handleCreate} disabled={isCreating}>
-                                    {isCreating ? "Criando…" : "Criar projeto"}
+                                    {isCreating
+                                        ? path === "existing"
+                                            ? "Criando projeto e sincronizando Instagram…"
+                                            : "Criando…"
+                                        : "Criar projeto"}
                                 </Button>
                             </div>
                         </div>

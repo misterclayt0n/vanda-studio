@@ -115,7 +115,7 @@ export const fetchProfile = action({
                 }
             }
 
-            await ctx.scheduler.runAfter(0, internal.ai.instagramDigest.rebuildDigestInternal, {
+            await ctx.runAction(internal.ai.instagramDigest.rebuildDigestInternal, {
                 projectId: args.projectId,
             });
 
