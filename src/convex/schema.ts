@@ -372,6 +372,8 @@ export default defineSchema({
         // Per-turn generation settings
         aspectRatio: v.optional(v.string()), // "1:1", "16:9", etc.
         resolution: v.optional(v.string()), // "standard", "high", "ultra"
+        /** OpenRouter / image agent style preset prompt (omit for default photorealistic) */
+        stylePreset: v.optional(v.string()),
 
         // Generation state (for progressive loading)
         status: v.string(), // "pending" | "generating" | "completed" | "error"

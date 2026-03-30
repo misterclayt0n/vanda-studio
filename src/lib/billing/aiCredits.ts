@@ -71,6 +71,12 @@ export const IMAGE_MODEL_CREDIT_INFO: Record<string, ModelCreditInfo> = {
 };
 
 export const CAPTION_MODEL_CREDIT_INFO: Record<string, ModelCreditInfo> = {
+    "moonshotai/kimi-k2-0905": {
+        featureId: "caption_premium",
+        credits: AI_CREDIT_FEATURE_COSTS.caption_premium,
+        label: "0,25 credito",
+        shortLabel: "0,25c",
+    },
     "openai/gpt-4.1": {
         featureId: "caption_premium",
         credits: AI_CREDIT_FEATURE_COSTS.caption_premium,
@@ -86,7 +92,7 @@ export const CAPTION_MODEL_CREDIT_INFO: Record<string, ModelCreditInfo> = {
 };
 
 const FALLBACK_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
-const FALLBACK_CAPTION_MODEL = "openai/gpt-4.1";
+const FALLBACK_CAPTION_MODEL = "moonshotai/kimi-k2-0905";
 
 function roundCredits(value: number): number {
     return Math.round(value * 100) / 100;

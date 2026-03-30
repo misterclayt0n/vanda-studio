@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { generateCaption } from "./agents/index";
-import { MODELS } from "./llm/index";
+import { DEFAULT_CAPTION_MODEL } from "./llm/index";
 import {
     estimateCaptionUsage,
     sumUsageLineItemCredits,
@@ -33,7 +33,7 @@ export const generate = action({
             throw new Error("Você precisa estar autenticado");
         }
 
-        const captionModel = args.captionModel ?? MODELS.GPT_4_1;
+        const captionModel = args.captionModel ?? DEFAULT_CAPTION_MODEL;
         const usageItems = estimateCaptionUsage(captionModel);
         const reservation = await reserveAiUsage(ctx, usageItems);
 
@@ -41,8 +41,8 @@ export const generate = action({
             const result = await generateCaption({
                 conversationHistory: [],
                 userMessage: args.message,
+                model: captionModel,
                 ...(args.referenceText && { referenceText: args.referenceText }),
-                ...(args.captionModel && { model: args.captionModel }),
                 ...(args.projectContext && { projectContext: args.projectContext }),
             });
 

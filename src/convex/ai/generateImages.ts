@@ -4,9 +4,8 @@ import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { generateImage } from "./agents/index";
 import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
-import { createThumbnailBlob } from "../mediaProcessing";
+import { persistSingleGeneratedImage } from "./imageGenerationPersist";
 import { coerceImageGenerationSettings } from "../../lib/studio/imageGenerationCapabilities";
 import {
     getStoredImageGenerationError,
@@ -24,7 +23,6 @@ import {
     DEFAULT_IMAGE_MODEL,
     type AspectRatio,
     type Resolution,
-    calculateDimensions,
 } from "./llm/index";
 import {
     estimateImageBatchUsage,
@@ -33,6 +31,7 @@ import {
 import { projectContextValidator } from "./projectContextValidator";
 import {
     getPostTemplateById,
+    getPostTemplateReferenceFiles,
     getTemplateReferencePublicUrl,
 } from "../../lib/data/postTemplates";
 
@@ -112,8 +111,10 @@ export const generate = action({
                 }
             }
         }
+
+        const styleReferenceUrls: string[] = [];
         if (args.projectContext?.contextImageUrls) {
-            productReferenceUrls.push(...args.projectContext.contextImageUrls);
+            styleReferenceUrls.push(...args.projectContext.contextImageUrls);
         }
 
         const layoutReferenceUrls: string[] = [];
@@ -127,15 +128,16 @@ export const generate = action({
                 });
             }
             const origin = publicAppOriginForTemplates();
+            const refFiles = getPostTemplateReferenceFiles(template);
             layoutReferenceUrls.push(
-                getTemplateReferencePublicUrl(origin, template.referenceFile)
+                getTemplateReferencePublicUrl(origin, refFiles[0]!)
             );
             layoutVisionPrompt = template.visionPrompt;
         }
 
         const brandMd = args.projectContext?.brandContextMarkdown?.trim();
         const augmentedMessage = brandMd
-            ? `## Brief da marca\n${brandMd}\n\n## Pedido de imagem\n${args.message}`
+            ? `${brandMd}\n\n## Pedido de imagem\n${args.message}`
             : args.message;
 
         try {
@@ -150,6 +152,7 @@ export const generate = action({
                 resolution,
                 layoutReferenceUrls,
                 productReferenceUrls,
+                styleReferenceUrls,
                 ...(layoutVisionPrompt && { layoutVisionPrompt }),
                 ...(args.stylePreset && { stylePreset: args.stylePreset }),
             });
@@ -184,13 +187,13 @@ export const processBatch = internalAction({
         resolution: v.string(),
         layoutReferenceUrls: v.array(v.string()),
         productReferenceUrls: v.array(v.string()),
+        styleReferenceUrls: v.array(v.string()),
         layoutVisionPrompt: v.optional(v.string()),
         stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<void> => {
         const aspectRatio = args.aspectRatio as AspectRatio;
         const resolution = args.resolution as Resolution;
-        const dimensions = calculateDimensions(aspectRatio, resolution);
 
         let results:
             | Array<
@@ -202,73 +205,30 @@ export const processBatch = internalAction({
         try {
             results = await Promise.all(
                 args.imageModels.map(async (model) => {
-                    const startedAt = Date.now();
-                    try {
-                        const imageResult = await generateImage({
-                            caption: "",
-                            instructions: args.message,
-                            model,
-                            aspectRatio,
-                            resolution,
-                            ...(args.layoutReferenceUrls.length > 0 && {
-                                layoutReferenceUrls: args.layoutReferenceUrls,
-                            }),
-                            ...(args.productReferenceUrls.length > 0 && {
-                                productReferenceUrls: args.productReferenceUrls,
-                            }),
-                            ...(args.layoutVisionPrompt && {
-                                layoutVisionPrompt: args.layoutVisionPrompt,
-                            }),
-                            ...(args.stylePreset && { stylePreset: args.stylePreset }),
-                        });
-
-                        const binaryData = Uint8Array.from(atob(imageResult.imageBase64), (char) =>
-                            char.charCodeAt(0)
-                        );
-                        const blob = new Blob([binaryData], { type: imageResult.mimeType });
-                        const thumbnailBlob = await createThumbnailBlob(blob);
-                        const storageId = await ctx.storage.store(blob);
-                        const thumbnailStorageId = thumbnailBlob
-                            ? await ctx.storage.store(thumbnailBlob)
-                            : undefined;
-
-                        await ctx.runMutation(internal.mediaItems.create, {
-                            userId: args.userId,
-                            ...(args.projectId && { projectId: args.projectId }),
-                            storageId,
-                            ...(thumbnailStorageId && { thumbnailStorageId }),
-                            mimeType: imageResult.mimeType,
-                            width: imageResult.dimensions?.width ?? dimensions.width,
-                            height: imageResult.dimensions?.height ?? dimensions.height,
-                            sourceType: "generated",
-                            model,
-                            prompt: imageResult.prompt,
-                            userPrompt: args.userPrompt,
-                            generationDurationMs: Date.now() - startedAt,
-                            aspectRatio,
-                            resolution,
-                            batchId: args.batchId,
-                        });
-
-                        await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
-                            id: args.batchId,
-                            model,
-                        });
-
+                    const out = await persistSingleGeneratedImage({
+                        ctx,
+                        userId: args.userId,
+                        ...(args.projectId && { projectId: args.projectId }),
+                        batchId: args.batchId,
+                        message: args.message,
+                        userPrompt: args.userPrompt,
+                        model,
+                        aspectRatio,
+                        resolution,
+                        layoutReferenceUrls: args.layoutReferenceUrls,
+                        productReferenceUrls: args.productReferenceUrls,
+                        styleReferenceUrls: args.styleReferenceUrls,
+                        ...(args.layoutVisionPrompt && { layoutVisionPrompt: args.layoutVisionPrompt }),
+                        ...(args.stylePreset && { stylePreset: args.stylePreset }),
+                    });
+                    if (out.success) {
                         return { success: true as const, model };
-                    } catch (err) {
-                        console.error(`[GENERATE_IMAGES] Generation failed for ${model}:`, err);
-                        await ctx.runMutation(internal.mediaGenerationBatches.removeFromPending, {
-                            id: args.batchId,
-                            model,
-                        });
-                        return {
-                            success: false as const,
-                            model,
-                            errorMessage:
-                                err instanceof Error ? err.message : "Erro ao gerar imagem",
-                        };
                     }
+                    return {
+                        success: false as const,
+                        model,
+                        errorMessage: out.errorMessage,
+                    };
                 })
             );
         } catch (err) {

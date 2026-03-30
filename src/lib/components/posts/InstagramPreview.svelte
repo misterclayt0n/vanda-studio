@@ -214,9 +214,9 @@
 				</svg>
 			</div>
 
-			<!-- Caption area -->
+			<!-- Caption: scroll inside phone so outer page scroll stays predictable -->
 			{#if caption}
-				<div class="bg-black px-3 pb-4">
+				<div class="max-h-[min(320px,50vh)] overflow-y-auto overflow-x-hidden bg-black px-3 pb-3 [scrollbar-gutter:stable]">
 					<p class="text-xs leading-relaxed text-white">
 						<span class="mr-1 font-semibold">{accountName}</span><!-- eslint-disable-next-line svelte/no-at-html-tags -->{@html renderCaption(caption)}
 					</p>

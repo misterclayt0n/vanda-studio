@@ -10,17 +10,80 @@ export type PostComposerState = {
 	platform: string;
 	includeProjectContext: boolean;
 	previewIndex: number;
+	/** AI compose in flight (survives navigation when persisted) */
+	aiComposePending?: boolean;
+	aiComposeStartedAt?: number;
+	aiTemplateId?: string | null;
+	aiImageModel?: string;
+	aiResolution?: string;
 };
 
 const STORAGE_KEY = "vanda:post-composer-state:v2";
 
+const STALE_COMPOSE_MS = 15 * 60 * 1000;
+
 let memoryState: Record<string, PostComposerState> | null = null;
 
+/** Clone and drop optional keys whose value is undefined (exactOptionalPropertyTypes). */
 function cloneState(state: PostComposerState): PostComposerState {
-	return {
-		...state,
-		selectedMediaIds: [...state.selectedMediaIds],
+	const { selectedMediaIds, ...rest } = state;
+	const record: Record<string, unknown> = { ...rest, selectedMediaIds: [...selectedMediaIds] };
+	for (const key of Object.keys(record)) {
+		if (record[key] === undefined) {
+			delete record[key];
+		}
+	}
+	return record as PostComposerState;
+}
+
+function normalizeLoadedState(raw: PostComposerState): PostComposerState {
+	const out: PostComposerState = {
+		selectedProjectId: raw.selectedProjectId,
+		selectedMediaIds: [...raw.selectedMediaIds],
+		captionBrief: raw.captionBrief,
+		caption: raw.caption,
+		title: raw.title,
+		captionModel: raw.captionModel,
+		platform: raw.platform,
+		includeProjectContext: raw.includeProjectContext,
+		previewIndex: raw.previewIndex,
 	};
+	if (raw.aiComposePending === true) {
+		out.aiComposePending = true;
+	}
+	if (typeof raw.aiComposeStartedAt === "number") {
+		out.aiComposeStartedAt = raw.aiComposeStartedAt;
+	}
+	if (typeof raw.aiTemplateId === "string" || raw.aiTemplateId === null) {
+		out.aiTemplateId = raw.aiTemplateId;
+	}
+	if (typeof raw.aiImageModel === "string") {
+		out.aiImageModel = raw.aiImageModel;
+	}
+	if (typeof raw.aiResolution === "string") {
+		out.aiResolution = raw.aiResolution;
+	}
+	return out;
+}
+
+type ComposerPatch = Partial<Record<keyof PostComposerState, PostComposerState[keyof PostComposerState] | undefined>>;
+
+/** `undefined` in patch removes that optional key from the merged result. */
+function mergeComposerPartial(base: PostComposerState, patch: ComposerPatch): PostComposerState {
+	const next = cloneState(base);
+	const record = next as Record<string, unknown>;
+	for (const [key, val] of Object.entries(patch) as [string, unknown][]) {
+		if (val === undefined) {
+			delete record[key];
+			continue;
+		}
+		if (key === "selectedMediaIds" && Array.isArray(val)) {
+			next.selectedMediaIds = [...val];
+		} else {
+			record[key] = val;
+		}
+	}
+	return next;
 }
 
 function loadStateMap(): Record<string, PostComposerState> {
@@ -38,23 +101,25 @@ function loadStateMap(): Record<string, PostComposerState> {
 
 		const parsed = JSON.parse(raw) as Record<string, PostComposerState>;
 		const nextState = Object.fromEntries(
-			Object.entries(parsed).filter(([, state]) => {
-				return (
-					typeof state === "object" &&
-					state !== null &&
-					(state.selectedProjectId === null ||
-						state.selectedProjectId === undefined ||
-						typeof state.selectedProjectId === "string") &&
-					Array.isArray(state.selectedMediaIds) &&
-					typeof state.captionBrief === "string" &&
-					typeof state.caption === "string" &&
-					typeof state.title === "string" &&
-					typeof state.captionModel === "string" &&
-					typeof state.platform === "string" &&
-					typeof state.includeProjectContext === "boolean" &&
-					typeof state.previewIndex === "number"
-				);
-			})
+			Object.entries(parsed)
+				.filter(([, state]) => {
+					return (
+						typeof state === "object" &&
+						state !== null &&
+						(state.selectedProjectId === null ||
+							state.selectedProjectId === undefined ||
+							typeof state.selectedProjectId === "string") &&
+						Array.isArray(state.selectedMediaIds) &&
+						typeof state.captionBrief === "string" &&
+						typeof state.caption === "string" &&
+						typeof state.title === "string" &&
+						typeof state.captionModel === "string" &&
+						typeof state.platform === "string" &&
+						typeof state.includeProjectContext === "boolean" &&
+						typeof state.previewIndex === "number"
+					);
+				})
+				.map(([key, state]) => [key, normalizeLoadedState(state)])
 		);
 
 		memoryState = Object.fromEntries(
@@ -101,3 +166,36 @@ export function clearPostComposerState(key: string) {
 	delete stateMap[key];
 	saveStateMap(stateMap);
 }
+
+/**
+ * Merge partial into storage using the current in-memory snapshot as base (compose start, etc.).
+ */
+export function mergePostComposerStateFromLive(
+	key: string,
+	patch: ComposerPatch,
+	live: PostComposerState
+) {
+	if (!browser) return;
+	savePostComposerState(key, mergeComposerPartial(live, patch));
+}
+
+/**
+ * Merge partial into whatever is already in sessionStorage (success after navigation away).
+ * Returns false if there is no stored row for this key.
+ */
+export function mergePostComposerStateFromStorage(key: string, patch: ComposerPatch): boolean {
+	if (!browser) return false;
+	const base = loadPostComposerState(key);
+	if (!base) return false;
+	savePostComposerState(key, mergeComposerPartial(base, patch));
+	return true;
+}
+
+export function isAiComposeStale(state: PostComposerState): boolean {
+	if (!state.aiComposePending || typeof state.aiComposeStartedAt !== "number") {
+		return false;
+	}
+	return Date.now() - state.aiComposeStartedAt > STALE_COMPOSE_MS;
+}
+
+export { STALE_COMPOSE_MS };

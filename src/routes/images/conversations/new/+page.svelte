@@ -4,7 +4,9 @@
 		ImageModelSelector,
 		AspectRatioSelector,
 		ResolutionSelector,
+		ImageTemplateSection,
 	} from "$lib/components/studio";
+	import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../../../convex/_generated/api.js";
@@ -45,6 +47,7 @@
 	let sourceMedia = $derived(sourceMediaQuery.data);
 
 	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
+	let selectedPreset = $state<string>(DEFAULT_PRESET);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let editPrompt = $state("");
@@ -89,6 +92,14 @@
 		return `${width} / ${height}`;
 	}
 
+	function getAspectRatioValue(aspectRatio?: string, width?: number, height?: number): string {
+		if (width && height) return `${width} / ${height}`;
+		if (!aspectRatio) return "1 / 1";
+		const [aspectWidth, aspectHeight] = aspectRatio.split(":");
+		if (!aspectWidth || !aspectHeight) return "1 / 1";
+		return `${aspectWidth} / ${aspectHeight}`;
+	}
+
 	async function handleStartConversation() {
 		if (!sourceMediaId || !editPrompt.trim() || selectedModels.length === 0 || isStarting) return;
 		isStarting = true;
@@ -97,12 +108,14 @@
 			aspectRatio = normalized.aspectRatio;
 			resolution = normalized.resolution;
 
+			const stylePreset = getStylePresetPromptForApi(selectedPreset);
 			const result = await client.action(api.ai.imageEdit.startConversation, {
 				sourceMediaId,
 				userMessage: editPrompt.trim(),
 				selectedModels,
 				aspectRatio: normalized.aspectRatio,
 				resolution: normalized.resolution,
+				...(stylePreset && { stylePreset }),
 			});
 
 			goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
@@ -172,6 +185,31 @@
 					<h2 class="text-sm font-semibold text-foreground">Configurações</h2>
 					<Badge variant="secondary">{selectedModels.length} ativo{selectedModels.length > 1 ? "s" : ""}</Badge>
 				</div>
+
+				{#if sourceMedia?.url}
+					<div class="space-y-3">
+						<div class="overflow-hidden rounded-xl border border-border bg-card">
+							<div
+								class="overflow-hidden bg-muted"
+								style={`aspect-ratio: ${getAspectRatioValue(sourceMedia.aspectRatio, sourceMedia.width, sourceMedia.height)};`}
+							>
+								<img
+									src={sourceMedia.thumbnailUrl ?? sourceMedia.url}
+									alt="Imagem de origem"
+									class="h-full w-full object-cover"
+								/>
+							</div>
+							<div class="px-3 py-3">
+								<p class="text-sm font-medium text-foreground">Imagem de origem</p>
+								<p class="mt-1 text-xs text-muted-foreground">
+									{sourceMedia.width ?? 0} × {sourceMedia.height ?? 0}
+								</p>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<ImageTemplateSection bind:selectedPreset />
 
 				<div class="space-y-2">
 					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Modelos</p>

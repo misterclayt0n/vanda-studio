@@ -528,6 +528,7 @@ export const startWithTurn = mutation({
         aspectRatio: v.optional(v.string()),
         resolution: v.optional(v.string()),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -610,6 +611,7 @@ export const startWithTurn = mutation({
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
             aspectRatio,
             resolution,
+            ...(args.stylePreset && { stylePreset: args.stylePreset }),
             status: "generating",
             pendingModels: args.selectedModels,
             lastProgressAt: now,

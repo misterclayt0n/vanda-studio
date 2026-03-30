@@ -67,6 +67,8 @@
 		onchange: (models: string[]) => void;
 		class?: string;
 		compact?: boolean;
+		/** When set, caps how many models can be selected; `1` = single-select. */
+		maxModels?: number;
 		monthlyIncludedCredits?: number | null;
 		usageIndicatorMode?: "credits" | "percent";
 	}
@@ -76,17 +78,23 @@
 		onchange,
 		class: className,
 		compact = false,
+		maxModels,
 		monthlyIncludedCredits = null,
 		usageIndicatorMode = "credits",
 	}: Props = $props();
 
+	const selectionCap = $derived(maxModels ?? Number.POSITIVE_INFINITY);
+
 	function toggleModel(modelId: string) {
+		if (maxModels === 1) {
+			onchange([modelId]);
+			return;
+		}
 		if (selected.includes(modelId)) {
-			// Don't allow deselecting if it's the last one
 			if (selected.length > 1) {
 				onchange(selected.filter((m) => m !== modelId));
 			}
-		} else {
+		} else if (selected.length < selectionCap) {
 			onchange([...selected, modelId]);
 		}
 	}

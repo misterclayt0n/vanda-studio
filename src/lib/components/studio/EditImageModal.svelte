@@ -1,6 +1,7 @@
 <script lang="ts">
     import { Button, Textarea, Label, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "$lib/components/ui";
-    import { ImageModelSelector } from "$lib/components/studio";
+    import { ImageModelSelector, ImageTemplateSection } from "$lib/components/studio";
+    import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
     import { useConvexClient } from "convex-svelte";
     import { api } from "../../../convex/_generated/api.js";
     import type { Id } from "../../../convex/_generated/dataModel.js";
@@ -69,6 +70,7 @@
 
     // Form state
     let selectedModels = $state<string[]>([]);
+    let selectedPreset = $state<string>(DEFAULT_PRESET);
     let editPrompt = $state("");
     let referenceImages = $state<Array<{ id: string; url: string; name: string; file: File }>>([]);
     let isStarting = $state(false);
@@ -198,10 +200,12 @@
             }
 
             // Create conversation and first turn synchronously (fast mutation)
+            const stylePreset = getStylePresetPromptForApi(selectedPreset);
             const startArgs: Record<string, unknown> = {
                 userMessage: editPrompt,
                 selectedModels,
                 ...(manualReferenceIds.length > 0 && { manualReferenceIds }),
+                ...(stylePreset && { stylePreset }),
             };
 
             if (source.isMediaItem) {
@@ -419,6 +423,10 @@
                         selected={selectedModels}
                         onchange={(models) => selectedModels = models}
                     />
+                </div>
+
+                <div class="mt-6">
+                    <ImageTemplateSection bind:selectedPreset />
                 </div>
             </div>
         </div>

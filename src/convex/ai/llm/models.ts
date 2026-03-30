@@ -127,18 +127,24 @@ export const IMAGE_MODEL_INFO: Record<
 // ============================================================================
 
 export const CAPTION_MODELS = {
+    KIMI_K2: MODELS.KIMI_K2,
     GEMINI_2_5_FLASH: "google/gemini-2.5-flash",
     GPT_4_1: "openai/gpt-4.1",
 } as const;
 
 export type CaptionModelName = (typeof CAPTION_MODELS)[keyof typeof CAPTION_MODELS];
 
-export const DEFAULT_CAPTION_MODEL = CAPTION_MODELS.GPT_4_1;
+export const DEFAULT_CAPTION_MODEL = CAPTION_MODELS.KIMI_K2;
 
 export const CAPTION_MODEL_INFO: Record<
     CaptionModelName,
     { name: string; provider: string; color: string }
 > = {
+    [CAPTION_MODELS.KIMI_K2]: {
+        name: "Kimi K2",
+        provider: "Moonshot",
+        color: "#6366F1", // indigo
+    },
     [CAPTION_MODELS.GPT_4_1]: {
         name: "GPT 4.1",
         provider: "OpenAI",

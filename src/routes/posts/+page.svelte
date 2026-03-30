@@ -12,6 +12,7 @@
 		type PostsPageFilterStatus,
 		type PostsPagePlatform,
 	} from "$lib/studio/postsPageState";
+	import { clearPostComposerState } from "$lib/studio/postComposerState";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel.js";
@@ -79,12 +80,11 @@
 	const selectedPostId = $derived(
 		$page.url.searchParams.get("postId") as Id<"generated_posts"> | null
 	);
-	const composerInstanceKey = $derived(
-		[
-			selectedPostId ?? "new",
-			$page.url.searchParams.get("projectId") ?? "",
-			$page.url.searchParams.get("mediaIds") ?? "",
-		].join(":")
+	/** Bumps on "Novo" so the workspace remounts and does not reuse in-memory state from the previous new-post session. */
+	let newPostSession = $state(0);
+
+	const composerWorkspaceKey = $derived(
+		selectedPostId ?? `new-${newPostSession}`
 	);
 	const postsSearchQuery = useQuery(
 		api.generatedPosts.searchCards,
@@ -224,6 +224,8 @@
 	}
 
 	function startNewPost() {
+		clearPostComposerState("new");
+		newPostSession += 1;
 		updateUrl((url) => {
 			url.searchParams.delete("postId");
 			url.searchParams.delete("projectId");
@@ -749,7 +751,7 @@
 
 					<!-- Workspace -->
 					<div class="min-h-0 flex-1 flex flex-col overflow-hidden">
-						{#key composerInstanceKey}
+						{#key composerWorkspaceKey}
 							<PostComposerWorkspace
 								postId={selectedPostId}
 								showToolbar={false}

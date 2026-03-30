@@ -73,6 +73,7 @@ export const startConversation = action({
         aspectRatio: v.optional(v.string()),
         resolution: v.optional(v.string()),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -94,6 +95,7 @@ export const startConversation = action({
             ...(args.aspectRatio && { aspectRatio: args.aspectRatio }),
             ...(args.resolution && { resolution: args.resolution }),
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
+            ...(args.stylePreset && { stylePreset: args.stylePreset }),
         });
 
         await scheduleTurnGeneration(ctx, {
@@ -120,6 +122,7 @@ export const sendEdit = action({
         aspectRatio: v.string(),
         resolution: v.string(),
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<{
         success: boolean;
@@ -159,6 +162,7 @@ export const sendEdit = action({
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
             aspectRatio: normalizedSettings.aspectRatio,
             resolution: normalizedSettings.resolution,
+            ...(args.stylePreset && { stylePreset: args.stylePreset }),
         });
 
         await scheduleTurnGeneration(ctx, {
@@ -303,6 +307,7 @@ export const processTurn = internalAction({
                             ...(referenceUrls.length > 0
                                 ? { referenceImageUrls: referenceUrls }
                                 : {}),
+                            ...(turn.stylePreset && { stylePreset: turn.stylePreset }),
                         });
 
                         const binaryData = Uint8Array.from(atob(result.imageBase64), (char) =>

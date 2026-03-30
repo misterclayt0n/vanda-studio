@@ -23,10 +23,9 @@ export type ImagesPageState = {
 	viewMode: ImagesPageViewMode;
 	useProjectContext: boolean;
 	selectedPreset: string;
-	/** Optional post layout template; composable with selectedPreset */
-	selectedTemplateId: string | null;
 };
 
+const STORAGE_KEY_V6 = "vanda:images-page-state:v6";
 const STORAGE_KEY_V5 = "vanda:images-page-state:v5";
 const STORAGE_KEY_V4 = "vanda:images-page-state:v4";
 const STORAGE_KEY_V3 = "vanda:images-page-state:v3";
@@ -59,11 +58,6 @@ function parseAndValidate(parsed: SessionState): ImagesPageState | null {
 		return null;
 	}
 
-	const selectedTemplateId =
-		typeof parsed.selectedTemplateId === "string" && parsed.selectedTemplateId.trim() !== ""
-			? parsed.selectedTemplateId.trim()
-			: null;
-
 	return {
 		prompt: parsed.prompt,
 		selectedModels: parsed.selectedModels.filter((model): model is string => typeof model === "string"),
@@ -86,7 +80,6 @@ function parseAndValidate(parsed: SessionState): ImagesPageState | null {
 		viewMode,
 		useProjectContext: parsed.useProjectContext ?? true,
 		selectedPreset: typeof parsed.selectedPreset === "string" ? parsed.selectedPreset : "photorealistic",
-		selectedTemplateId,
 	};
 }
 
@@ -95,7 +88,7 @@ function migrateFromV4(parsed: SessionState): ImagesPageState | null {
 	const base = parseAndValidate(parsed);
 	if (!base) return null;
 	if (parsed.generationMode === "free") {
-		return { ...base, selectedTemplateId: null };
+		return base;
 	}
 	return base;
 }
@@ -112,6 +105,13 @@ export function loadImagesPageState(): ImagesPageState | null {
 	}
 
 	try {
+		const rawV6 = sessionStorage.getItem(STORAGE_KEY_V6);
+		if (rawV6) {
+			const parsed = JSON.parse(rawV6) as SessionState;
+			const state = parseAndValidate(parsed);
+			if (state) return state;
+		}
+
 		const rawV5 = sessionStorage.getItem(STORAGE_KEY_V5);
 		if (rawV5) {
 			const parsed = JSON.parse(rawV5) as SessionState;
@@ -131,10 +131,7 @@ export function loadImagesPageState(): ImagesPageState | null {
 			const parsed = JSON.parse(rawV3) as SessionState;
 			const base = parseAndValidate(parsed);
 			if (base) {
-				return {
-					...base,
-					selectedTemplateId: null,
-				};
+				return base;
 			}
 		}
 	} catch (error) {
@@ -168,11 +165,11 @@ export function saveImagesPageState(state: ImagesPageState) {
 		viewMode: state.viewMode,
 		useProjectContext: state.useProjectContext,
 		selectedPreset: state.selectedPreset,
-		selectedTemplateId: state.selectedTemplateId,
 	};
 
 	try {
-		sessionStorage.setItem(STORAGE_KEY_V5, JSON.stringify(sessionState));
+		sessionStorage.setItem(STORAGE_KEY_V6, JSON.stringify(sessionState));
+		sessionStorage.removeItem(STORAGE_KEY_V5);
 		sessionStorage.removeItem(STORAGE_KEY_V4);
 		sessionStorage.removeItem(STORAGE_KEY_V3);
 	} catch (error) {

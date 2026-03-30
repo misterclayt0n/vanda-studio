@@ -41,8 +41,11 @@ export {
     DEFAULT_IMAGE_MODEL,
     IMAGE_MODEL_INFO,
     IMAGE_MODEL_CAPABILITIES,
+    CAPTION_MODELS,
+    DEFAULT_CAPTION_MODEL,
+    CAPTION_MODEL_INFO,
 } from "./models";
-export type { ModelName, ImageModelName } from "./models";
+export type { ModelName, ImageModelName, CaptionModelName } from "./models";
 
 // Types (aspect ratio, resolution, dimensions)
 export {

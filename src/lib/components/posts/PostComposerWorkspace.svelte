@@ -4,12 +4,22 @@
 	import { onMount } from "svelte";
 	import { ScheduleModal } from "$lib/components/calendar";
 	import { CarouselStrip, InstagramPreview } from "$lib/components/posts";
-	import { CaptionModelSelector, ProjectSelector } from "$lib/components/studio";
+	import PostAiComposeSection from "./PostAiComposeSection.svelte";
+	import {
+		CaptionModelSelector,
+		ProjectSelector,
+		ImageGenerationPulseLoader,
+	} from "$lib/components/studio";
 	import {
 		clearPostComposerState,
+		isAiComposeStale,
 		loadPostComposerState,
+		mergePostComposerStateFromLive,
+		mergePostComposerStateFromStorage,
 		savePostComposerState,
+		type PostComposerState,
 	} from "$lib/studio/postComposerState";
+	import type { Resolution } from "$lib/studio/imageGenerationCapabilities";
 	import {
 		estimateCaptionUsage,
 		sumUsageLineItemCredits,
@@ -21,6 +31,7 @@
 	import MediaLibrarySheet from "./MediaLibrarySheet.svelte";
 
 	const MAX_CAROUSEL = 10;
+	const DEFAULT_AI_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -111,7 +122,7 @@
 		captionBrief = "";
 		caption = "";
 		title = "";
-		captionModel = "openai/gpt-4.1";
+		captionModel = "moonshotai/kimi-k2-0905";
 		platform = "instagram";
 		includeProjectContext = true;
 		error = null;
@@ -119,12 +130,17 @@
 		hydratedPostId = null;
 		hydratedPostMediaId = null;
 		consumedMediaIdsSignature = "";
+		aiComposePending = false;
+		aiComposeStartedAt = undefined;
+		aiTemplateId = null;
+		aiImageModel = DEFAULT_AI_IMAGE_MODEL;
+		aiResolution = "standard";
 	}
 
-	function buildPersistedComposerState() {
+	function buildPersistedComposerState(): PostComposerState {
 		return {
 			selectedProjectId,
-			selectedMediaIds,
+			selectedMediaIds: selectedMediaIds.map(String),
 			captionBrief,
 			caption,
 			title,
@@ -132,7 +148,12 @@
 			platform,
 			includeProjectContext,
 			previewIndex,
-		};
+			aiComposePending,
+			aiTemplateId,
+			aiImageModel,
+			aiResolution,
+			...(typeof aiComposeStartedAt === "number" ? { aiComposeStartedAt } : {}),
+		} as PostComposerState;
 	}
 
 	function markComposerPersistenceReady() {
@@ -164,7 +185,7 @@
 	let captionBrief = $state("");
 	let caption = $state("");
 	let title = $state("");
-	let captionModel = $state("openai/gpt-4.1");
+	let captionModel = $state("moonshotai/kimi-k2-0905");
 	let platform = $state("instagram");
 	let includeProjectContext = $state(true);
 	let isGeneratingCaption = $state(false);
@@ -181,6 +202,11 @@
 	let composerPersistenceReadyKey = $state<string | null>(null);
 	let billingOverview = $state<BillingOverview | null>(null);
 	let billingOverviewLoaded = $state(false);
+	let aiComposePending = $state(false);
+	let aiComposeStartedAt = $state<number | undefined>(undefined);
+	let aiTemplateId = $state<string | null>(null);
+	let aiImageModel = $state(DEFAULT_AI_IMAGE_MODEL);
+	let aiResolution = $state<Resolution>("standard");
 	let captionCreditEstimate = $derived(
 		sumUsageLineItemCredits(estimateCaptionUsage(captionModel))
 	);
@@ -266,6 +292,23 @@
 			platform = savedState.platform;
 			includeProjectContext = savedState.includeProjectContext;
 			previewIndex = savedState.previewIndex;
+			aiTemplateId =
+				savedState.aiTemplateId === undefined ? null : savedState.aiTemplateId;
+			aiImageModel = savedState.aiImageModel ?? DEFAULT_AI_IMAGE_MODEL;
+			aiResolution = (savedState.aiResolution as Resolution) ?? "standard";
+			aiComposePending = savedState.aiComposePending === true;
+			aiComposeStartedAt = savedState.aiComposeStartedAt;
+			if (aiComposePending && isAiComposeStale(savedState)) {
+				aiComposePending = false;
+				aiComposeStartedAt = undefined;
+				queueMicrotask(() => {
+					mergePostComposerStateFromLive(
+						composerStateKey,
+						{ aiComposePending: false, aiComposeStartedAt: undefined },
+						buildPersistedComposerState()
+					);
+				});
+			}
 			error = null;
 			activePostId = composerPostId;
 			hydratedPostId = composerPostId;
@@ -500,6 +543,66 @@
 		selectedMediaIds = arr;
 		markComposerPersistenceReady();
 	}
+
+	function handleAiComposePersistStart() {
+		const live = buildPersistedComposerState();
+		mergePostComposerStateFromLive(
+			composerStateKey,
+			{
+				aiComposePending: true,
+				aiComposeStartedAt: Date.now(),
+				aiTemplateId,
+				aiImageModel,
+				aiResolution,
+			},
+			live
+		);
+		aiComposePending = true;
+		aiComposeStartedAt = Date.now();
+	}
+
+	function handleAiComposePersistSuccess(
+		mediaItemIds: Id<"media_items">[],
+		generatedCaption: string
+	) {
+		const ids = mediaItemIds.slice(0, MAX_CAROUSEL).map(String);
+		const patch = {
+			aiComposePending: false,
+			aiComposeStartedAt: undefined,
+			selectedMediaIds: ids,
+			caption: generatedCaption,
+		};
+		if (!mergePostComposerStateFromStorage(composerStateKey, patch)) {
+			mergePostComposerStateFromLive(composerStateKey, patch, buildPersistedComposerState());
+		}
+		selectedMediaIds = mediaItemIds.slice(0, MAX_CAROUSEL);
+		caption = generatedCaption;
+		aiComposePending = false;
+		aiComposeStartedAt = undefined;
+		markComposerPersistenceReady();
+	}
+
+	function handleAiComposePersistError() {
+		mergePostComposerStateFromStorage(composerStateKey, {
+			aiComposePending: false,
+			aiComposeStartedAt: undefined,
+		});
+		aiComposePending = false;
+		aiComposeStartedAt = undefined;
+		markComposerPersistenceReady();
+	}
+
+	function handleAiComposeStaleClear() {
+		mergePostComposerStateFromLive(
+			composerStateKey,
+			{ aiComposePending: false, aiComposeStartedAt: undefined },
+			buildPersistedComposerState()
+		);
+		aiComposePending = false;
+		aiComposeStartedAt = undefined;
+		markComposerPersistenceReady();
+	}
+
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -526,9 +629,11 @@
 	{/if}
 
 	<div class="flex min-h-0 flex-1 overflow-hidden">
-		<!-- Preview area (center) -->
-		<div class="flex flex-1 overflow-y-auto">
-			<div class="mx-auto flex min-h-full w-full items-center justify-center px-6 py-8">
+		<!-- Preview: scroll from top; avoid items-center + min-h-full (clips top, breaks scroll) -->
+		<div
+			class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+		>
+			<div class="mx-auto flex w-full max-w-full justify-center px-4 pb-10 pt-4 sm:px-6 sm:pb-12 sm:pt-6">
 				<InstagramPreview
 					mediaItems={selectedMedia}
 					{caption}
@@ -540,9 +645,22 @@
 		</div>
 
 		<!-- Controls sidebar (right) -->
-		<aside class="flex w-[360px] shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10">
-			<div class="min-h-0 flex-1 overflow-y-auto">
-				<div class="space-y-5 px-5 py-5">
+		<aside class="relative flex w-[360px] shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10">
+			{#if aiComposePending}
+				<div
+					class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/90 px-5 backdrop-blur-md"
+					aria-busy="true"
+					aria-live="polite"
+				>
+					<ImageGenerationPulseLoader
+						message="Gerando mídia e legenda…"
+						density="comfortable"
+					/>
+				</div>
+			{/if}
+			<div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+				<div class="min-h-0 flex-1 overflow-y-auto">
+					<div class="space-y-5 px-5 py-5">
 					<!-- Post title -->
 					<div class="space-y-2">
 						<p class={sectionLabelClass}>
@@ -660,6 +778,25 @@
 							</button>
 						</div>
 					</div>
+
+					<PostAiComposeSection
+						bind:captionBrief
+						bind:aiTemplateId
+						bind:aiImageModel
+						bind:aiResolution
+						{captionModel}
+						{selectedProjectId}
+						{includeProjectContext}
+						{aiComposePending}
+						aiComposeStartedAt={aiComposeStartedAt ?? null}
+						getProjectContext={buildProjectContext}
+						billingMonthlyIncluded={billingOverview?.usage?.monthlyIncluded ?? null}
+						onComposePersistStart={handleAiComposePersistStart}
+						onComposePersistSuccess={handleAiComposePersistSuccess}
+						onComposePersistError={handleAiComposePersistError}
+						onComposeStaleClear={handleAiComposeStaleClear}
+						onPersistenceMark={markComposerPersistenceReady}
+					/>
 
 					<!-- Caption briefing -->
 					<div class="space-y-2">
@@ -780,13 +917,13 @@
 							{error}
 						</div>
 					{/if}
+					</div>
 				</div>
-			</div>
 
-			<!-- Sticky save / schedule footer -->
-			<div
-				class="shrink-0 space-y-2 border-t border-border bg-background/80 px-5 py-4 backdrop-blur-sm"
-			>
+				<!-- Sticky save / schedule footer -->
+				<div
+					class="shrink-0 space-y-2 border-t border-border bg-background/80 px-5 py-4 backdrop-blur-sm"
+				>
 				<Button
 					class="w-full"
 					onclick={saveDraft}
@@ -816,6 +953,7 @@
 						{isDeletingPost ? "Excluindo..." : "Excluir post"}
 					</Button>
 				{/if}
+				</div>
 			</div>
 		</aside>
 	</div>

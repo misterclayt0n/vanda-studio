@@ -1,4 +1,9 @@
-export type ImagePresetKey = "photorealistic" | "illustrative" | "minimalist" | "artistic";
+export type ImagePresetKey =
+	| "none"
+	| "photorealistic"
+	| "illustrative"
+	| "minimalist"
+	| "artistic";
 
 export interface ImagePreset {
     key: ImagePresetKey;
@@ -32,10 +37,23 @@ export const IMAGE_PRESETS: ImagePreset[] = [
         sublabel: "Criativo, expressivo, ousado",
         prompt: "Artistic and expressive style. Bold colors, creative composition, dramatic lighting or abstract elements. Can blend photography with graphic design elements. Visually striking and memorable.",
     },
+    {
+        key: "none",
+        label: "Sem estilo",
+        sublabel: "Só o que você descrever",
+        prompt: "No global aesthetic preset. Follow the user's message as the main creative direction. Do not bias toward photorealism, illustration, minimalism, or bold art unless they ask. Keep output clear and professional.",
+    },
 ];
 
 export const DEFAULT_PRESET: ImagePresetKey = "photorealistic";
 
 export function getPresetByKey(key: string): ImagePreset | undefined {
     return IMAGE_PRESETS.find((p) => p.key === key);
+}
+
+/** Prompt sent to the image API; omit for default photorealistic pipeline (no ## Image Style block). */
+export function getStylePresetPromptForApi(selectedPresetKey: string): string | undefined {
+    const preset = getPresetByKey(selectedPresetKey);
+    if (!preset || preset.key === "photorealistic") return undefined;
+    return preset.prompt;
 }

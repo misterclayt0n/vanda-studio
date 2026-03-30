@@ -328,6 +328,7 @@ export const create = internalMutation({
         manualReferenceIds: v.optional(v.array(v.id("_storage"))),
         aspectRatio: v.string(),
         resolution: v.string(),
+        stylePreset: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const now = Date.now();
@@ -340,6 +341,7 @@ export const create = internalMutation({
             ...(args.manualReferenceIds && { manualReferenceIds: args.manualReferenceIds }),
             aspectRatio: args.aspectRatio,
             resolution: args.resolution,
+            ...(args.stylePreset && { stylePreset: args.stylePreset }),
             status: "generating",
             pendingModels: args.selectedModels,
             lastProgressAt: now,

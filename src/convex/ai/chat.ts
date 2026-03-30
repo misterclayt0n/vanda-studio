@@ -9,6 +9,7 @@ import { refundAiUsage, reserveAiUsage } from "../billing/autumnUsage";
 import {
     MODELS,
     DEFAULT_IMAGE_MODEL,
+    DEFAULT_CAPTION_MODEL,
     type AspectRatio,
     type Resolution,
     calculateDimensions,
@@ -57,37 +58,38 @@ function dbMessagesToChat(messages: Doc<"chat_messages">[]): ChatMessage[] {
     }));
 }
 
+type SplitReferenceUrls = {
+    productReferenceUrls: string[];
+    styleReferenceUrls: string[];
+};
+
 /**
- * Collect all reference image URLs from attachments and brand context
+ * Product refs: user attachments (exact fidelity). Style refs: project feed/moodboard context.
  */
-async function collectReferenceImageUrls(
+async function collectSplitReferenceImageUrls(
     ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
     attachments?: Attachments,
     contextImageUrls?: string[]
-): Promise<string[]> {
-    const urls: string[] = [];
+): Promise<SplitReferenceUrls> {
+    const productReferenceUrls: string[] = [];
 
-    // External URLs from attachments
     if (attachments?.imageUrls) {
-        urls.push(...attachments.imageUrls);
+        productReferenceUrls.push(...attachments.imageUrls);
     }
 
-    // Storage IDs from attachments -> URLs
     if (attachments?.imageStorageIds) {
         for (const storageId of attachments.imageStorageIds) {
             const url = await ctx.storage.getUrl(storageId);
             if (url) {
-                urls.push(url);
+                productReferenceUrls.push(url);
             }
         }
     }
 
-    // Brand context images from project settings
-    if (contextImageUrls && contextImageUrls.length > 0) {
-        urls.push(...contextImageUrls);
-    }
+    const styleReferenceUrls =
+        contextImageUrls && contextImageUrls.length > 0 ? [...contextImageUrls] : [];
 
-    return urls;
+    return { productReferenceUrls, styleReferenceUrls };
 }
 
 /**
@@ -167,7 +169,7 @@ export const generate = action({
         const aspectRatio = (args.aspectRatio ?? "1:1") as AspectRatio;
         const resolution = (args.resolution ?? "standard") as Resolution;
         const dimensions = calculateDimensions(aspectRatio, resolution);
-        const captionModel = args.captionModel ?? MODELS.GPT_4_1;
+        const captionModel = args.captionModel ?? DEFAULT_CAPTION_MODEL;
         const captionUsageItems = estimateCaptionUsage(captionModel);
         const imageUsageItems = estimateImageBatchUsage(imageModels);
         const reservation = await reserveAiUsage(ctx, [
@@ -229,7 +231,7 @@ export const generate = action({
         }
 
         // 9. Collect reference images (from attachments + brand context)
-        const referenceImageUrls = await collectReferenceImageUrls(
+        const { productReferenceUrls, styleReferenceUrls } = await collectSplitReferenceImageUrls(
             ctx,
             args.attachments,
             args.projectContext?.contextImageUrls
@@ -250,7 +252,8 @@ export const generate = action({
                         model,
                         aspectRatio,
                         resolution,
-                        ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
+                        ...(productReferenceUrls.length > 0 && { productReferenceUrls }),
+                        ...(styleReferenceUrls.length > 0 && { styleReferenceUrls }),
                     });
 
                     // Store the image
@@ -396,7 +399,7 @@ export const regenerateCaption = action({
         const referenceText = buildReferenceText(args.attachments);
 
         // 7. Generate new caption with full context
-        const captionModel = args.captionModel ?? MODELS.GPT_4_1;
+        const captionModel = args.captionModel ?? DEFAULT_CAPTION_MODEL;
         const usageItems = estimateCaptionUsage(captionModel);
         const reservation = await reserveAiUsage(ctx, usageItems);
         let captionResult: { caption: string; explanation: string };
@@ -487,7 +490,7 @@ export const regenerateImage = action({
 
         try {
             // 5. Collect reference images (from attachments + brand context)
-            const referenceImageUrls = await collectReferenceImageUrls(
+            const { productReferenceUrls, styleReferenceUrls } = await collectSplitReferenceImageUrls(
                 ctx,
                 args.attachments,
                 args.projectContext?.contextImageUrls
@@ -498,7 +501,8 @@ export const regenerateImage = action({
                 caption: post.caption,
                 instructions: args.message,
                 model: imageModel,
-                ...(referenceImageUrls.length > 0 && { referenceImageUrls }),
+                ...(productReferenceUrls.length > 0 && { productReferenceUrls }),
+                ...(styleReferenceUrls.length > 0 && { styleReferenceUrls }),
             });
 
             imagePrompt = imageResult.prompt;

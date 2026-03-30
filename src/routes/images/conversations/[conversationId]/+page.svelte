@@ -4,7 +4,10 @@
 		ImageModelSelector,
 		AspectRatioSelector,
 		ResolutionSelector,
+		ImageTemplateSection,
+		ImageGenerationPulseLoader,
 	} from "$lib/components/studio";
+	import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
 	import { MediaLightbox } from "$lib/components/lightbox";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
@@ -145,6 +148,7 @@
 	);
 
 	let selectedModels = $state<string[]>(["bytedance-seed/seedream-4.5"]);
+	let selectedPreset = $state<string>(DEFAULT_PRESET);
 	let aspectRatio = $state<AspectRatio>("1:1");
 	let resolution = $state<Resolution>("standard");
 	let supportedAspectRatios = $derived(getSupportedAspectRatios(selectedModels));
@@ -297,6 +301,7 @@
 			aspectRatio = normalized.aspectRatio;
 			resolution = normalized.resolution;
 
+			const stylePreset = getStylePresetPromptForApi(selectedPreset);
 			await client.action(api.ai.imageEdit.sendEdit, {
 				conversationId,
 				userMessage: editPrompt.trim(),
@@ -304,6 +309,7 @@
 				aspectRatio: normalized.aspectRatio,
 				resolution: normalized.resolution,
 				...(selectedSeedOutputIds.length > 0 ? { selectedOutputIds: selectedSeedOutputIds } : {}),
+				...(stylePreset && { stylePreset }),
 			});
 			editPrompt = "";
 		} catch (err) {
@@ -424,6 +430,8 @@
 					{/if}
 				</div>
 
+				<ImageTemplateSection bind:selectedPreset />
+
 				<div class="space-y-2">
 					<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Modelos</p>
 					<ImageModelSelector selected={selectedModels} onchange={(models) => (selectedModels = models)} compact />
@@ -540,12 +548,11 @@
 													<div class="w-[200px] overflow-hidden rounded-2xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
 														<div class="relative bg-muted/30" style={`aspect-ratio: ${getAspectRatioValue(turn.aspectRatio)};`}>
 															<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
-															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
-																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-																</svg>
-																<span class="text-xs text-muted-foreground">Gerando...</span>
+															<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
+																<ImageGenerationPulseLoader
+																	message="Gerando…"
+																	density="compact"
+																/>
 															</div>
 														</div>
 														<div class="px-3 py-3">
@@ -630,12 +637,11 @@
 													<div class="overflow-hidden rounded-2xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
 														<div class="relative bg-muted/30" style={`aspect-ratio: ${getAspectRatioValue(turn.aspectRatio)};`}>
 															<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
-															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
-																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-																</svg>
-																<span class="text-xs text-muted-foreground">Gerando...</span>
+															<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
+																<ImageGenerationPulseLoader
+																	message="Gerando…"
+																	density="compact"
+																/>
 															</div>
 														</div>
 														<div class="px-4 py-3">

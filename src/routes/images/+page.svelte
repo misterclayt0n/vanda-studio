@@ -13,6 +13,7 @@
 		ResolutionSelector,
 		ProjectSelector,
 		ImageSkeleton,
+		ImageGenerationPulseLoader,
 		ReferenceImagePicker,
 		ImageGenerationErrorModal,
 		MediaBrowserFilterBar,
@@ -22,7 +23,7 @@
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel.js";
-	import { goto } from "$app/navigation";
+	import { afterNavigate, goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import Navbar from "$lib/components/Navbar.svelte";
@@ -45,7 +46,7 @@
 		saveImagesPageState,
 		type ImagesPageReference,
 	} from "$lib/studio/imagesPageState";
-	import { DEFAULT_PRESET, getPresetByKey } from "$lib/data/imagePresets";
+	import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
 	import {
 		filterMediaItems,
 		getMediaModelDisplayName,
@@ -170,17 +171,12 @@
 	let manualReferences = $state<{ storageId: Id<"_storage">; previewUrl: string }[]>([]);
 	let useProjectContext = $state(true);
 	let selectedPreset = $state<string>(DEFAULT_PRESET);
-	let selectedTemplateId = $state<string | null>(null);
 	let isGenerating = $state(false);
 	let errorState = $state<ImageGenerationUiError | null>(null);
 	let creditEstimate = $derived(
 		sumUsageLineItemCredits(estimateImageBatchUsage(selectedModels))
 	);
-	let promptPlaceholder = $derived(
-		selectedTemplateId
-			? "Título, parágrafos, destaque em negrito, ideia da foto, @ da marca, cores… (o layout vem da moldura)"
-			: "Descreva a imagem que deseja gerar…"
-	);
+	let promptPlaceholder = $derived("Descreva a imagem que deseja gerar…");
 	let billingOverview = $state<BillingOverview | null>(null);
 	let billingOverviewLoaded = $state(false);
 
@@ -228,7 +224,6 @@
 			}
 			useProjectContext = savedState.useProjectContext;
 			selectedPreset = savedState.selectedPreset;
-			selectedTemplateId = savedState.selectedTemplateId ?? null;
 		}
 
 		persistedStateRestored = true;
@@ -372,6 +367,20 @@
 		}
 	});
 
+	// Navbar / logo link to `/images` drops `?tab=conversations` but the effect above only
+	// runs when `tab` is present, so `viewMode` would stay on "conversations" until a second interaction.
+	afterNavigate(({ from, to }) => {
+		if (to.url.pathname !== "/images") return;
+		if (to.url.searchParams.get("tab") === "conversations") return;
+		const leftConversationsTab =
+			from != null &&
+			from.url.pathname === "/images" &&
+			from.url.searchParams.get("tab") === "conversations";
+		if (leftConversationsTab) {
+			viewMode = "images";
+		}
+	});
+
 	$effect(() => {
 		if (!persistedStateRestored) return;
 
@@ -392,7 +401,6 @@
 			viewMode,
 			useProjectContext,
 			selectedPreset,
-			selectedTemplateId,
 		});
 	});
 
@@ -701,12 +709,7 @@
 				...(contextImageUrls.length > 0 && { contextImageUrls }),
 			} : undefined;
 
-			const preset = getPresetByKey(selectedPreset);
-			// Moldura is a full style: do not mix preset prompt with template references
-			const stylePresetPrompt =
-				!selectedTemplateId && preset && preset.key !== "photorealistic"
-					? preset.prompt
-					: undefined;
+			const stylePresetPrompt = getStylePresetPromptForApi(selectedPreset);
 
 			const result = await client.action(api.ai.generateImages.generate, {
 				...(selectedProjectId && { projectId: selectedProjectId }),
@@ -719,7 +722,6 @@
 					manualReferenceIds: manualReferences.map((r) => r.storageId),
 				}),
 				...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
-				...(selectedTemplateId && { templateId: selectedTemplateId }),
 			});
 
 			activeBatchId = result.batchId;
@@ -891,12 +893,13 @@
 					/>
 				</div>
 
-				<ImageTemplateSection bind:selectedPreset bind:selectedTemplateId />
-
 				<ReferenceImagePicker
 					references={manualReferences}
 					onchange={(refs) => (manualReferences = refs)}
 				/>
+
+				<ImageTemplateSection bind:selectedPreset />
+
 				<div class="space-y-2">
 					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -1282,12 +1285,11 @@
 																	Conversa
 																</Badge>
 															</div>
-															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
-																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-																</svg>
-																<span class="text-xs text-muted-foreground">Gerando...</span>
+															<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
+																<ImageGenerationPulseLoader
+																	message="Gerando…"
+																	density="compact"
+																/>
 															</div>
 														</div>
 														<div class="px-3 py-3">
@@ -1303,12 +1305,11 @@
 													<div class="overflow-hidden rounded-xl border border-dashed border-primary/30 bg-card/60 shadow-sm">
 														<div class="relative bg-muted/30" style={`aspect-ratio: ${toAspectRatioValue(card.aspectRatio)};`}>
 															<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
-															<div class="relative flex h-full w-full flex-col items-center justify-center gap-3">
-																<svg class="h-8 w-8 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-																</svg>
-																<span class="text-xs text-muted-foreground">Gerando...</span>
+															<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
+																<ImageGenerationPulseLoader
+																	message="Gerando…"
+																	density="compact"
+																/>
 															</div>
 														</div>
 														<div class="px-3 py-3">

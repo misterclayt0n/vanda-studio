@@ -9,7 +9,7 @@ import {
     type LanguageModel,
 } from "ai";
 import { z } from "zod";
-import { MODELS, type ModelName } from "../models";
+import { MODELS, DEFAULT_CAPTION_MODEL, type ModelName } from "../models";
 import { OpenRouterApiKey, SiteUrl } from "../config";
 import {
     type AiError,
@@ -206,7 +206,7 @@ export const TextGenerationLive = Layer.effect(
             generateCaption: (params) =>
                 Effect.tryPromise({
                     try: async () => {
-                        const model = params.model ?? MODELS.GPT_4_1;
+                        const model = params.model ?? DEFAULT_CAPTION_MODEL;
 
                         // Build messages for AI SDK
                         const systemMessage = params.messages.find(
