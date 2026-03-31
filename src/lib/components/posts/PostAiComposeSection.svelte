@@ -5,6 +5,7 @@
 	import {
 		POST_TEMPLATES_FOR_COMPOSER,
 		getPostTemplateReferenceFiles,
+		getTemplateSlidePreviewUrls,
 	} from "$lib/data/postTemplates";
 	import { Layers, ChevronRight, Sparkles, X } from "lucide-svelte";
 	import { useConvexClient } from "convex-svelte";
@@ -199,20 +200,16 @@
 		>
 			{#if activeTemplate}
 				<div
-					class="flex h-12 shrink-0 gap-px overflow-hidden rounded-md bg-muted {activeTemplateSlideCount > 1
-						? 'w-[3.25rem]'
+					class="flex h-12 shrink-0 gap-0.5 overflow-hidden rounded-md bg-muted {activeTemplateSlideCount > 1
+						? 'w-[4.5rem]'
 						: 'w-10'}"
 				>
 					{#if activeTemplateSlideCount > 1}
-						{#each Array.from({ length: activeTemplateSlideCount }, (_, i) => i) as slideIdx (slideIdx)}
+						{#each getTemplateSlidePreviewUrls(activeTemplate) as url, slideIdx (slideIdx)}
 							<div class="relative min-w-0 flex-1 overflow-hidden">
-								<img
-									src={activeTemplate.previewPath}
-									alt=""
-									class="h-full w-full object-cover"
-								/>
+								<img src={url} alt="" class="h-full w-full object-cover object-top" />
 								<span
-									class="pointer-events-none absolute bottom-0 left-0 right-0 bg-black/55 py-px text-center text-[7px] font-medium leading-none text-white"
+									class="pointer-events-none absolute bottom-0 left-0 right-0 bg-black/60 py-px text-center text-[8px] font-semibold leading-none text-white"
 								>
 									{slideIdx + 1}
 								</span>
@@ -290,7 +287,7 @@
 {#if pickerOpen}
 	<div
 		use:portal
-		class="fixed inset-0 z-[160] flex items-end justify-center sm:items-center sm:p-4"
+		class="fixed inset-0 z-[160] flex items-end justify-center sm:items-center sm:p-5 md:p-8"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="post-molduras-title"
@@ -302,10 +299,12 @@
 			onclick={closePicker}
 		></button>
 		<div
-			class="relative z-[1] flex max-h-[min(88vh,640px)] w-full max-w-lg flex-col rounded-t-2xl border border-border bg-background shadow-2xl sm:rounded-2xl"
+			class="relative z-[1] flex max-h-[min(92vh,900px)] w-full max-w-[min(96vw,72rem)] flex-col rounded-t-2xl border border-border bg-background shadow-2xl sm:rounded-2xl"
 		>
-			<div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-				<h2 id="post-molduras-title" class="text-sm font-semibold tracking-tight">Molduras (post)</h2>
+			<div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-5">
+				<h2 id="post-molduras-title" class="text-base font-semibold tracking-tight sm:text-lg">
+					Molduras (post)
+				</h2>
 				<button
 					type="button"
 					class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -315,8 +314,10 @@
 					<X class="h-4 w-4" stroke-width={2} />
 				</button>
 			</div>
-			<div class="min-h-0 flex-1 overflow-y-auto p-4">
-				<div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+			<div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+				<div
+					class="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-3"
+				>
 					<button
 						type="button"
 						class={cn(
@@ -334,6 +335,8 @@
 
 					{#each POST_TEMPLATES_FOR_COMPOSER as template (template.id)}
 						{@const slideCount = getPostTemplateReferenceFiles(template).length}
+						{@const slideUrls = getTemplateSlidePreviewUrls(template)}
+						{@const distinctPreviews = [...new Set(slideUrls)].length}
 						<button
 							type="button"
 							class={cn(
@@ -344,43 +347,77 @@
 							)}
 							onclick={() => chooseTemplate(template.id)}
 						>
-							<div class="relative aspect-[4/5] w-full shrink-0 bg-muted">
-								<img
-									src={template.previewPath}
-									alt=""
-									class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-									loading="lazy"
-								/>
-								<div
-									class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-transparent to-transparent"
-								></div>
-								<div class="absolute inset-x-0 bottom-0 p-2.5">
-									<span class="block text-sm font-semibold leading-tight">{template.title}</span>
-								</div>
-							</div>
 							{#if slideCount > 1}
-								<div class="border-t border-border bg-muted/30 px-2 py-2">
-									<p class="mb-1.5 text-[10px] leading-tight text-muted-foreground">
-										{slideCount} slides · mesmo layout em cada um
+								<div
+									class="relative h-40 w-full shrink-0 bg-muted sm:h-48"
+								>
+									<img
+										src={slideUrls[0] ?? template.previewPath}
+										alt=""
+										class="h-full w-full object-cover object-top transition duration-300 group-hover:scale-[1.02]"
+										loading="lazy"
+									/>
+									<div
+										class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background from-25% via-transparent to-transparent"
+									></div>
+									<div class="absolute inset-x-0 bottom-0 p-2.5 sm:p-3">
+										<span class="block text-sm font-semibold leading-tight sm:text-base"
+											>{template.title}</span
+										>
+										<span
+											class="mt-0.5 block text-[11px] font-medium text-muted-foreground sm:text-xs"
+										>
+											Carrossel · {slideCount} páginas
+										</span>
+									</div>
+								</div>
+								<div class="border-t border-border bg-muted/25 px-2 py-3 sm:px-3">
+									<p class="mb-2 text-xs leading-snug text-foreground sm:text-sm">
+										Deslize para ver cada slide
+										{#if distinctPreviews === 1}
+											<span class="mt-1 block text-[11px] font-normal text-muted-foreground">
+												O mesmo layout se repete; no post, cada página ganha texto diferente pelo
+												brief.
+											</span>
+										{/if}
 									</p>
-									<div class="flex gap-1 overflow-x-auto pb-0.5">
-										{#each Array.from({ length: slideCount }, (_, i) => i) as slideIdx (slideIdx)}
-											<div
-												class="relative h-11 w-8 shrink-0 overflow-hidden rounded border border-border/80 bg-background shadow-sm"
-											>
-												<img
-													src={template.previewPath}
-													alt=""
-													class="h-full w-full object-cover"
-													loading="lazy"
-												/>
-												<span
-													class="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] font-semibold text-white"
+									<div
+										class="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-1 pt-0.5 [scrollbar-width:thin]"
+									>
+										{#each slideUrls as url, slideIdx (slideIdx)}
+											<div class="w-[42%] max-w-[9.5rem] shrink-0 snap-start sm:w-[38%] sm:max-w-[10.5rem]">
+												<div
+													class="relative aspect-[4/5] overflow-hidden rounded-lg border-2 border-border/90 bg-background shadow-md"
 												>
-													{slideIdx + 1}
-												</span>
+													<img
+														src={url}
+														alt="Slide {slideIdx + 1} de {slideCount}"
+														class="h-full w-full object-cover object-top"
+														loading="lazy"
+													/>
+													<span
+														class="absolute left-2 top-2 rounded-md bg-black/75 px-2 py-1 text-[11px] font-bold tabular-nums text-white sm:text-xs"
+													>
+														{slideIdx + 1} / {slideCount}
+													</span>
+												</div>
 											</div>
 										{/each}
+									</div>
+								</div>
+							{:else}
+								<div class="relative aspect-[4/5] w-full shrink-0 bg-muted">
+									<img
+										src={template.previewPath}
+										alt=""
+										class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+										loading="lazy"
+									/>
+									<div
+										class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-transparent to-transparent"
+									></div>
+									<div class="absolute inset-x-0 bottom-0 p-2.5">
+										<span class="block text-sm font-semibold leading-tight">{template.title}</span>
 									</div>
 								</div>
 							{/if}

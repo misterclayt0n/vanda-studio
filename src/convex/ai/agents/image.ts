@@ -16,21 +16,15 @@ const BASE_RULES_PRODUCT = `## Important Rules
 - For PRODUCT / BRAND reference images: preserve the EXACT appearance of products/packaging
 - Do not invent or change brand names, logos, or label text from those references`;
 
-const BASE_RULES_LAYOUT = `## Important Rules (layout-driven post)
-- Include on-image typography when the user instructions provide headlines, body copy, handles, or labels — render in Brazilian Portuguese as given
-- The attached TEMPLATE reference is the primary authority for visual design: palette family, type pairing (serif vs sans roles), shapes, borders, patterns, illustration vs photograph, and overall graphic language. Match its hierarchy, alignment, and placement closely; do not copy literal wording from the template image
-- User / brand brief supplies text content, factual claims, handles, and (via Diretrizes de imagem) subject matter for photographic regions — not a competing art direction. If the brief lists hex colors or font names, treat them as brand identity for copy and subtle accents unless the user explicitly asks to ignore the template; default is to follow the template's look
-- For PRODUCT / BRAND asset reference images (if any): preserve exact product appearance; do not distort packaging or logos
-- For FEED / STYLE context images (if any): lowest priority — subtle mood only; they must NOT override the template's layout or dominant palette`;
+/** Short PACE-style brief (pt-BR). Kept compact so the attached template image stays the main signal. */
+const TEMPLATE_PACEFF_PT = `**P · Papel:** Designer de social media para Instagram: peça legível, harmonia visual e adequada ao feed.
+**A · Ação:** Use o anexo como guia de **layout** (estrutura, blocos, hierarquia, alinhamentos, proporções). Ajuste **cores, fontes e identidade** ao que o usuário pedir nas instruções. **Não** copie textos, slogans, CTAs nem rótulos literais do template — só o que vier do brief, em **português**, revisado.
+**C · Contexto:** Mesma “engenharia” de layout, estética pode variar conforme o brief; corrija ortografia e concordância.
+**E · Exemplo (papéis):** Onde o template tem topo, centro, imagem, rodapé ou logo, mantenha **os mesmos papéis visuais**, não o conteúdo congelado da arte de referência.`;
 
-const TEMPLATE_MODE_OPENER = `Create an Instagram post image that closely matches the attached TEMPLATE reference in composition, color system, typography style, and graphic language (flat, mixed, or photorealistic — follow the template, not a generic default).
+const TEMPLATE_SHORT_OPENER_PT = `Tarefa: gerar uma imagem de post para Instagram.\n`;
 
-`;
-
-const TEMPLATE_MODE_TAIL = `## Output medium
-Match the template reference's realism level: if it is a flat graphic / carousel slide design, keep that style; if it is a lifestyle photograph with overlays, keep that. Do not force a DSLR photograph look when the template is clearly graphic design.
-
-`;
+const TEMPLATE_SHORT_TAIL_PT = `Meio: siga o mesmo tipo de peça da referência (layout gráfico / ilustração / foto com texto). Não imponha “foto de câmera” se o template for design plano.\n`;
 
 const PHOTOREALISTIC_PROMPT = `Generate a photorealistic Instagram image.
 
@@ -126,19 +120,14 @@ function buildReferenceInstructions(
     const parts: string[] = [];
 
     if (layoutCount > 0) {
-        parts.push(`## Template reference (primary visual source)
-The first ${layoutCount} attached image(s) are the TEMPLATE to follow.
+        const visionLine = vision?.trim()
+            ? `\n**Nota do pacote:** ${vision.trim()}\n`
+            : "";
+        parts.push(`## Template (referência principal)
+As primeiras ${layoutCount} imagem(ns) anexada(s) definem **layout e look dominante**. Tipografia on-image só quando o usuário fornecer textos — em **português (pt-BR)** como nas instruções.
 
-Reproduce closely:
-- Overall layout, regions, and hierarchy (panels, bands, photo vs text zones, centered vs aligned stacks)
-- Palette family, contrast, and decorative treatment (borders, patterns, icons, line work)
-- Typography roles and attitude (serif vs sans pairing, weight, casing, scale steps) as shown
-- Illustration vs photography vs mixed — match the template's medium
-
-Brand brief color lists and font names are secondary: use them for wording context and small accents unless the user explicitly asks to depart from the template. Default = template wins visually.
-
-Do NOT copy literal text, headlines, slogans, or button labels from the template image — all on-image copy must come from User Instructions (pt-BR) as specified below.
-${vision ? `\n### Template vision\n${vision}\n` : ""}`);
+${TEMPLATE_PACEFF_PT}
+${visionLine}`);
     }
 
     if (productCount > 0) {
@@ -146,28 +135,17 @@ ${vision ? `\n### Template vision\n${vision}\n` : ""}`);
         const endIndex = layoutCount + productCount;
         const range =
             layoutCount > 0
-                ? `image(s) #${startIndex} through #${endIndex}`
-                : `attached ${productCount} image(s)`;
-        parts.push(`## Product and brand references
-The ${range} show actual products or brand assets. You MUST:
-- PRESERVE the EXACT appearance (packaging, labels, colors, textures)
-- DO NOT invent or modify brand names, logos, or text on products
-- Reproduce products IDENTICALLY as shown`);
+                ? `#${startIndex}–#${endIndex}`
+                : `as ${productCount} imagem(ns) anexa(s)`;
+        parts.push(`## Produto / marca (${range})
+Preserve aparência exata (embalagem, rótulos, cores). Não invente nem altere nomes de marca ou logotipos.`);
     }
 
     if (styleCount > 0) {
         const startIndex = layoutCount + productCount + 1;
         const endIndex = layoutCount + productCount + styleCount;
-        parts.push(`## Feed and style context references (lowest priority)
-Attached image(s) #${startIndex} through #${endIndex} are optional brand feed or moodboard hints.
-
-They are SUBORDINATE to the template reference above: do NOT replace the template's layout, palette, or dominant graphic language with a feed screenshot look.
-
-You may take only subtle cues (e.g. energy, category) if they do not conflict with the template.
-
-Rules:
-- Do NOT copy any single post, layout block, or headline literally from these images
-- Do NOT reproduce Instagram profile chrome, grids, or app UI as the output`);
+        parts.push(`## Feed / estilo (opcional, baixa prioridade)
+Imagens #${startIndex}–#${endIndex}: só pistas leves de clima. **Não** substituam o template nem a paleta dele. Não copie posts nem UI do Instagram.`);
     }
 
     return parts.join("\n\n");
@@ -178,21 +156,20 @@ function buildBaseRulesSuffix(
     productCount: number,
     styleCount: number
 ): string {
-    const layoutNote =
-        productCount > 0
-            ? "\n\n(Also apply product fidelity rules above for product reference images.)"
-            : "";
-    const styleNote =
-        styleCount > 0
-            ? "\n\n(Feed/style context: lowest priority vs template — never override template layout or palette.)"
-            : "";
-
     if (layoutCount > 0) {
-        return `${BASE_RULES_LAYOUT}${layoutNote}${styleNote}`;
+        let s = "";
+        if (productCount > 0) {
+            s += "\n\n**Reforço:** nas imagens de produto, fidelidade exata importa mais que “reinterpretação”.";
+        }
+        if (styleCount > 0) {
+            s += "\n\n**Reforço:** referências de feed ficam atrás do template.";
+        }
+        return s ? `${s}\n` : "";
     }
     let suffix = BASE_RULES_PRODUCT;
     if (styleCount > 0) {
-        suffix += styleNote;
+        suffix +=
+            "\n\nFeed/estilo: só pistas leves; não copie layouts literais de posts de referência.";
     }
     return suffix;
 }
@@ -211,7 +188,7 @@ function buildImagePrompt(input: ImageInput): string {
     if (input.stylePreset) {
         parts.push(`## Image Style\n${input.stylePreset}\n`);
     } else if (layoutCount > 0) {
-        parts.push(TEMPLATE_MODE_OPENER);
+        parts.push(TEMPLATE_SHORT_OPENER_PT);
     } else {
         parts.push("Create a photorealistic Instagram image.\n");
     }
@@ -239,7 +216,7 @@ function buildImagePrompt(input: ImageInput): string {
     const styleTail = input.stylePreset
         ? GENERIC_BASE_PROMPT
         : layoutCount > 0
-          ? TEMPLATE_MODE_TAIL
+          ? TEMPLATE_SHORT_TAIL_PT
           : PHOTOREALISTIC_PROMPT;
     parts.push(styleTail);
 
@@ -253,20 +230,19 @@ function buildReferenceImagesForModel(input: ImageInput): ReferenceImage[] {
         refs.push({
             url,
             description:
-                "Template reference — match this image's layout, palette, typography style, and graphic design closely. On-image words come from the text prompt, not from copying this image.",
+                "Template de layout para Instagram — copiar estrutura; cores, fontes e textos vêm do brief.",
         });
     }
     for (const url of productUrls) {
         refs.push({
             url,
-            description: "Product or brand asset — preserve exact appearance.",
+            description: "Produto ou marca — manter aparência exata.",
         });
     }
     for (const url of styleUrls) {
         refs.push({
             url,
-            description:
-                "Optional brand feed context — lowest priority vs the template reference; do not copy posts literally.",
+            description: "Contexto de feed — referência leve de estilo, sem copiar o post.",
         });
     }
     return refs;

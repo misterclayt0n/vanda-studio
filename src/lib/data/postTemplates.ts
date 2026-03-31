@@ -27,25 +27,22 @@ export interface PostTemplate {
     surfaces?: TemplateSurface[];
     /** Instructions for the image model — aligns with template PNG (template-first) */
     visionPrompt: string;
+    /**
+     * Optional per-slide preview URLs (same length as `referenceFiles` when set).
+     * Use when each carousel slide has its own PNG under `/templates/…`.
+     */
+    previewSlidePaths?: string[];
 }
 
-/** Shared instructions for Canva-style carousel slide references. */
-export const CAROUSEL_SLIDE_VISION_BASE = `Instagram carousel marketing slide (portrait ~4:5). The attached image is THE template slide to match.
-
-Reproduce the same visual language as the reference:
-- Color blocks, background fills, accent colors, and contrast
-- Shapes, lines, icons, dividers, corners, and decorative elements
-- Typography hierarchy, weights, casing, and approximate scale (headline vs subhead vs body vs CTA vs bullets)
-- Spacing, alignment, and padding rhythm
-
-The brand brief may describe subject matter or tone for the *content*, but the LOOK of the slide should follow this reference closely.
-
-All on-image text must be Brazilian Portuguese from the user instructions only — never copy headlines, slogans, bullets, or button labels from the reference image.
-Polished professional social feed design matching the pack.`;
+/**
+ * Carrossel: uma frase curta — o PNG já carrega layout, cores e hierarquia.
+ * O bloco PACEFF em `image.ts` cobre o resto.
+ */
+export const CAROUSEL_SLIDE_VISION_BASE = `Slide de carrossel Instagram (~4:5). A imagem anexa é o modelo de layout e estilo; replique a estrutura. Textos em pt-BR só a partir do prompt do usuário — não copie palavras do PNG.`;
 
 /** Appended per slide for automation so the model knows carousel position and narrative role. */
 export function carouselSlideVisionSuffix(slideIndex: number, totalSlides: number): string {
-    return `\n\nEste é o slide ${slideIndex + 1} de ${totalSlides} em um carrossel; o conteúdo visual e textual deve avançar a narrativa conforme o prompt deste slide do usuário.`;
+    return `\n\nSlide ${slideIndex + 1} de ${totalSlides}: use o prompt deste slide para o conteúdo.`;
 }
 
 /** Full vision string for one carousel slide (automation or single-gen with first ref only). */
@@ -70,11 +67,7 @@ export const POST_TEMPLATES: PostTemplate[] = [
         shortDescription: "Fundo neutro, tipografia forte, muito espaço em branco.",
         previewPath: "/templates/editorial-minimal.png",
         referenceFile: "editorial-minimal.png",
-        visionPrompt: `Minimalist editorial Instagram post (portrait ~4:5). Match the reference: solid light greige / warm neutral background filling the frame. Strict LEFT alignment for all text blocks with generous negative space on the right and top/bottom.
-Typography hierarchy as in the template: one large elegant high-contrast SERIF headline (magazine/editorial feel). Below it, body in clean modern SANS-SERIF, ALL CAPS, medium weight. Optional second paragraph in the same sans, BOLD ITALIC all-caps for emphasis.
-Color: deep chocolate / earthy brown for all type and small UI accents — monochromatic with the background, as shown.
-Optional small circular control at bottom corner: solid dark brown circle with tiny white chevron — only if it fits; omit if cluttered.
-Do NOT reproduce any words from the reference image. Use ONLY text supplied in user instructions (pt-BR). Match roles: headline vs body vs emphasis.`,
+        visionPrompt: "",
     },
     {
         id: "lifestyle-photo-overlay",
@@ -82,17 +75,7 @@ Do NOT reproduce any words from the reference image. Use ONLY text supplied in u
         shortDescription: "Foto full-bleed com faixa superior e stack tipográfico central.",
         previewPath: "/templates/lifestyle-photo-overlay.png",
         referenceFile: "lifestyle-photo-overlay.png",
-        visionPrompt: `Lifestyle photograph as full-bleed background (soft focus, warm neutrals — cream, beige, brown) with CENTERED typographic stack — match the reference mood and color grade.
-
-Top: compact horizontal BANNER — dark brown rectangle with subtle decorative border (e.g. dashed/stitched look). Inside: short hook in bold white ALL-CAPS sans-serif.
-
-Below the banner: large main headline in elegant white SERIF, italic, subtle drop shadow for readability on photo. Under that, smaller subline in the same white serif italic.
-
-Bottom center: small handle / brand line in clean white sans (from user instructions only).
-
-Place text over the calmest area of the image so faces or products stay readable. Photo subject and setting may reflect Diretrizes de imagem (e.g. SST professionals, workspace) while keeping this template's warm overlay aesthetic.
-
-Do NOT copy literal text from the reference. All copy from user instructions (pt-BR).`,
+        visionPrompt: "",
     },
     {
         id: "split-text-left",
@@ -100,15 +83,7 @@ Do NOT copy literal text from the reference. All copy from user instructions (pt
         shortDescription: "Metade texto, metade foto — painel à esquerda.",
         previewPath: "/templates/split-text-left.png",
         referenceFile: "split-text-left.png",
-        visionPrompt: `Vertical split — LEFT ~40% clean off-white panel for text, RIGHT ~60% lifestyle photo — match the reference's warm neutrals and soft natural light.
-
-Left panel: large italic SERIF title in deep chocolate brown. Below, ALL-CAPS sans-serif body in a slightly lighter brown; end with a short bold segment for emphasis (same sans, bold).
-
-Bottom left: optional small circular dark brown button with white chevron (carousel hint).
-
-Right side: photographic subject with premium authentic feel; neutral wall / background as in template. Subject may follow Diretrizes de imagem (e.g. medicina do trabalho context).
-
-All on-image text from user instructions (pt-BR). Do not copy reference wording.`,
+        visionPrompt: "",
     },
     {
         id: "split-text-right",
@@ -116,15 +91,7 @@ All on-image text from user instructions (pt-BR). Do not copy reference wording.
         shortDescription: "Foto à esquerda, coluna de texto à direita.",
         previewPath: "/templates/split-text-right.png",
         referenceFile: "split-text-right.png",
-        visionPrompt: `Vertical composition: lifestyle photography on the LEFT, clear text-safe zone on the RIGHT — warm neutrals, soft light, matching the reference.
-
-Typography: main headline in stylish italic SERIF, deep chocolate brown, aligned to the text column. Body below in bold clean SANS, ALL CAPS, same brown family.
-
-Bottom corner on text side: optional small dark brown circle with white chevron.
-
-Photo leaves intentional negative space toward the text side. Subject may reflect Diretrizes de imagem while keeping the template's palette and type pairing.
-
-All copy from user instructions (pt-BR). Do not replicate reference strings.`,
+        visionPrompt: "",
     },
     {
         id: "photo-with-footer-bar",
@@ -132,15 +99,7 @@ All copy from user instructions (pt-BR). Do not replicate reference strings.`,
         shortDescription: "Imagem em destaque e faixa inferior com mensagem.",
         previewPath: "/templates/photo-with-footer-bar.png",
         referenceFile: "photo-with-footer-bar.png",
-        visionPrompt: `Upper ~75–80% hero lifestyle photo (bright, soft light, neutral background) — match reference. Optional large thin-line script or monogram-like graphic in muted taupe behind the subject as subtle watermark — very light, not competing.
-
-Bottom ~20–25%: solid opaque CHOCOLATE BROWN footer band spanning full width.
-
-Footer typography: centered elegant high-contrast SERIF in WHITE (Didot/Playfair-like), 1–3 lines, editorial spacing. Message only from user (pt-BR).
-
-Overall palette: greige, taupe, chocolate brown, white type on footer — as in template. Scene/subject may follow Diretrizes de imagem.
-
-Do not copy reference wording.`,
+        visionPrompt: "",
     },
     {
         id: "carrossel-c01-dicas-bege",
@@ -262,6 +221,15 @@ export function getPostTemplateReferenceFiles(template: PostTemplate): string[] 
         return template.referenceFiles;
     }
     return [template.referenceFile];
+}
+
+/** One preview URL per slide for the molduras picker (distinct art when `previewSlidePaths` is set). */
+export function getTemplateSlidePreviewUrls(template: PostTemplate): string[] {
+    const files = getPostTemplateReferenceFiles(template);
+    if (template.previewSlidePaths && template.previewSlidePaths.length === files.length) {
+        return template.previewSlidePaths;
+    }
+    return files.map((f) => `/templates/${f}`);
 }
 
 /** Templates shown in the post composer (excludes image-only carousels from /images picker). */
