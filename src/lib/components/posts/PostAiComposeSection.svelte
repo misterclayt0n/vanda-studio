@@ -17,6 +17,7 @@
 		type Resolution,
 	} from "$lib/studio/imageGenerationCapabilities";
 	import { STALE_COMPOSE_MS } from "$lib/studio/postComposerState";
+	import { portal } from "$lib/actions/portal";
 
 	const DEFAULT_IMAGE_MODEL = "bytedance-seed/seedream-4.5";
 	const PREFERRED_POST_ASPECT: AspectRatio = "3:4";
@@ -161,7 +162,10 @@
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === "Escape") closePicker();
+		if (e.key === "Escape" && pickerOpen) {
+			e.preventDefault();
+			closePicker();
+		}
 	}}
 />
 
@@ -194,8 +198,31 @@
 			onclick={() => (pickerOpen = true)}
 		>
 			{#if activeTemplate}
-				<div class="relative h-12 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
-					<img src={activeTemplate.previewPath} alt="" class="h-full w-full object-cover" />
+				<div
+					class="flex h-12 shrink-0 gap-px overflow-hidden rounded-md bg-muted {activeTemplateSlideCount > 1
+						? 'w-[3.25rem]'
+						: 'w-10'}"
+				>
+					{#if activeTemplateSlideCount > 1}
+						{#each Array.from({ length: activeTemplateSlideCount }, (_, i) => i) as slideIdx (slideIdx)}
+							<div class="relative min-w-0 flex-1 overflow-hidden">
+								<img
+									src={activeTemplate.previewPath}
+									alt=""
+									class="h-full w-full object-cover"
+								/>
+								<span
+									class="pointer-events-none absolute bottom-0 left-0 right-0 bg-black/55 py-px text-center text-[7px] font-medium leading-none text-white"
+								>
+									{slideIdx + 1}
+								</span>
+							</div>
+						{/each}
+					{:else}
+						<div class="relative h-full w-full overflow-hidden">
+							<img src={activeTemplate.previewPath} alt="" class="h-full w-full object-cover" />
+						</div>
+					{/if}
 				</div>
 				<div class="min-w-0 flex-1">
 					<span class="block truncate text-xs font-semibold text-foreground">{activeTemplate.title}</span>
@@ -262,7 +289,8 @@
 
 {#if pickerOpen}
 	<div
-		class="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4"
+		use:portal
+		class="fixed inset-0 z-[160] flex items-end justify-center sm:items-center sm:p-4"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="post-molduras-title"
@@ -305,6 +333,7 @@
 					</button>
 
 					{#each POST_TEMPLATES_FOR_COMPOSER as template (template.id)}
+						{@const slideCount = getPostTemplateReferenceFiles(template).length}
 						<button
 							type="button"
 							class={cn(
@@ -315,7 +344,7 @@
 							)}
 							onclick={() => chooseTemplate(template.id)}
 						>
-							<div class="relative aspect-[4/5] w-full bg-muted">
+							<div class="relative aspect-[4/5] w-full shrink-0 bg-muted">
 								<img
 									src={template.previewPath}
 									alt=""
@@ -329,6 +358,32 @@
 									<span class="block text-sm font-semibold leading-tight">{template.title}</span>
 								</div>
 							</div>
+							{#if slideCount > 1}
+								<div class="border-t border-border bg-muted/30 px-2 py-2">
+									<p class="mb-1.5 text-[10px] leading-tight text-muted-foreground">
+										{slideCount} slides · mesmo layout em cada um
+									</p>
+									<div class="flex gap-1 overflow-x-auto pb-0.5">
+										{#each Array.from({ length: slideCount }, (_, i) => i) as slideIdx (slideIdx)}
+											<div
+												class="relative h-11 w-8 shrink-0 overflow-hidden rounded border border-border/80 bg-background shadow-sm"
+											>
+												<img
+													src={template.previewPath}
+													alt=""
+													class="h-full w-full object-cover"
+													loading="lazy"
+												/>
+												<span
+													class="pointer-events-none absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-center text-[9px] font-semibold text-white"
+												>
+													{slideIdx + 1}
+												</span>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
 						</button>
 					{/each}
 				</div>
