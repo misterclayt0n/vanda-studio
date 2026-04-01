@@ -12,11 +12,11 @@
 
     interface Props {
         digest: InstagramDigest | null;
-        lastInstagramSyncAt?: number;
-        lastInstagramSyncMode?: "intel_only" | "full";
+        lastInstagramSyncAt?: number | undefined;
+        lastInstagramSyncMode?: "intel_only" | "full" | undefined;
         /** Optional brand primary for subtle accent (hex) */
-        brandAccent?: string | null;
-        onOpenSettings?: () => void;
+        brandAccent?: string | null | undefined;
+        onOpenSettings?: (() => void) | undefined;
     }
 
     let {

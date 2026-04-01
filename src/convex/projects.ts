@@ -12,6 +12,7 @@ import {
     onboardingStatusValidator,
 } from "./brandKitShape";
 import { instagramContentDigestValidator } from "./instagramDigestShape";
+import { launchPostsGenerationValidator } from "../lib/convex/launchPostsShape";
 
 // Type for project with storage URL
 type ProjectWithStorageUrl = Doc<"projects"> & {
@@ -291,6 +292,18 @@ export const setInstagramContentDigestInternal = internalMutation({
         } else {
             await ctx.db.patch(args.projectId, { instagramContentDigest: args.digest });
         }
+    },
+});
+
+export const setLaunchPostsGenerationInternal = internalMutation({
+    args: {
+        projectId: v.id("projects"),
+        state: v.union(v.null(), launchPostsGenerationValidator),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.projectId, {
+            launchPostsGeneration: args.state ?? undefined,
+        });
     },
 });
 

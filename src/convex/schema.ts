@@ -6,6 +6,7 @@ import {
     onboardingStatusValidator,
 } from "./brandKitShape";
 import { instagramContentDigestValidator } from "./instagramDigestShape";
+import { launchPostsGenerationValidator } from "../lib/convex/launchPostsShape";
 
 export default defineSchema({
     users: defineTable({
@@ -44,6 +45,8 @@ export default defineSchema({
         lastInstagramSyncAt: v.optional(v.number()),
         /** How the last Instagram sync ran: captions-only vs mirrored media to storage */
         lastInstagramSyncMode: v.optional(v.union(v.literal("intel_only"), v.literal("full"))),
+        /** One-shot demo run that creates and schedules 5 launch posts for the project. */
+        launchPostsGeneration: v.optional(launchPostsGenerationValidator),
     }).index("by_user_id", ["userId"]),
 
     // Context images for brand context

@@ -110,7 +110,7 @@ export const rebuildDigestInternal = internalAction({
 /** User-triggered rebuild (auth checked via projects.get). */
 export const regenerateForProject = action({
     args: { projectId: v.id("projects") },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<{ ok: boolean; skipped?: boolean; error?: string }> => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) throw new Error("Não autenticado");
 

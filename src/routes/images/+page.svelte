@@ -370,7 +370,7 @@
 	// Navbar / logo link to `/images` drops `?tab=conversations` but the effect above only
 	// runs when `tab` is present, so `viewMode` would stay on "conversations" until a second interaction.
 	afterNavigate(({ from, to }) => {
-		if (to.url.pathname !== "/images") return;
+		if (!to || to.url.pathname !== "/images") return;
 		if (to.url.searchParams.get("tab") === "conversations") return;
 		const leftConversationsTab =
 			from != null &&

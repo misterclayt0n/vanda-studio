@@ -4,12 +4,15 @@
 	import { ProjectSettingsForm, InstagramIntelCard } from "$lib/components/projects";
 	import { BrandSummaryCard } from "$lib/components/wizard";
 	import { Badge, Button } from "$lib/components/ui";
+	import { ImageGenerationPulseLoader } from "$lib/components/studio";
+	import { pendingLaunchPosts } from "$lib/studio/pendingLaunchPostsStore";
 	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
 	import { loadGoogleFont, fontFamily } from "$lib/utils";
 	import { api } from "../../../convex/_generated/api.js";
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
+	import { get } from "svelte/store";
 	import {
 		ArrowLeft,
 		Settings,
@@ -44,6 +47,7 @@
 	let isDeletingProject = $state(false);
 	let showSettings = $state(false);
 	let isSavingKit = $state(false);
+	let launchPostsError = $state<string | null>(null);
 
 	// ── Helpers ─────────────────────────────────────────────────────────
 	function getProfilePicture(): string | null {
@@ -99,6 +103,107 @@
 		}
 	}
 
+	let launchPostsState = $derived(project?.launchPostsGeneration ?? null);
+	let pendingLaunchPostIds = $state<ReadonlySet<string>>(get(pendingLaunchPosts));
+	$effect(() => {
+		const unsub = pendingLaunchPosts.subscribe((s) => {
+			pendingLaunchPostIds = s;
+		});
+		return unsub;
+	});
+
+	let isLaunchPostsBusy = $derived(
+		pendingLaunchPostIds.has(projectId) || launchPostsState?.status === "generating"
+	);
+
+	$effect(() => {
+		if (project?.launchPostsGeneration) {
+			pendingLaunchPosts.delete(projectId);
+		}
+	});
+	let hasInstagramCapture = $derived(
+		Boolean(project?.lastInstagramSyncAt && project?.instagramContentDigest)
+	);
+	let canGenerateLaunchPosts = $derived(
+		!!project && hasInstagramCapture && !launchPostsState && !project.isFetching
+	);
+	let launchPostsProgressPercent = $derived(
+		launchPostsState
+			? Math.max(
+				0,
+				Math.min(
+					100,
+					(launchPostsState.completedPosts / Math.max(launchPostsState.totalPosts, 1)) * 100
+				)
+			  )
+			: 0
+	);
+
+	function formatLaunchPostsTimestamp(timestamp?: number): string | null {
+		if (!timestamp) return null;
+		return new Date(timestamp).toLocaleString("pt-BR", {
+			day: "2-digit",
+			month: "short",
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	}
+
+	function getLaunchPostsTitle(): string {
+		if (!project) return "Gerar 5 posts";
+		if (project.isFetching && !hasInstagramCapture) return "Aguardando captura do Instagram";
+		if (!hasInstagramCapture) return "Capture o Instagram para gerar 5 posts";
+		if (pendingLaunchPostIds.has(projectId) && !launchPostsState) return "Preparando 5 posts";
+		if (!launchPostsState) return "Gerar 5 posts";
+		if (launchPostsState.status === "generating") return "Gerando posts automáticos";
+		if (launchPostsState.status === "completed") return "5 posts criados e agendados";
+		if (launchPostsState.status === "partial") return `${launchPostsState.completedPosts} posts criados nesta demo`;
+		return "Geração automática encerrada";
+	}
+
+	function getLaunchPostsDescription(): string {
+		if (project?.isFetching && !hasInstagramCapture) {
+			return "Assim que a captura leve do Instagram terminar, a Vanda libera a demo automática de posts.";
+		}
+		if (!hasInstagramCapture) {
+			return "A demo exige uma captura do feed para evitar repetição de temas e montar os 5 posts com o contexto certo.";
+		}
+		if (pendingLaunchPostIds.has(projectId) && !launchPostsState) {
+			return "Montando ideias e contexto antes de gerar imagens e agendar no calendário. Você pode sair desta página — a Vanda continua em segundo plano.";
+		}
+		if (!launchPostsState) {
+			return "Cria imagens, legendas e agenda automaticamente 5 posts no calendário, uma única vez por projeto.";
+		}
+		if (launchPostsState.status === "generating") {
+			return `A Vanda está criando e agendando ${launchPostsState.totalPosts} posts. ${launchPostsState.completedPosts} já estão prontos.`;
+		}
+		if (launchPostsState.status === "completed") {
+			return "Os 5 posts de demonstração já foram criados e colocados no calendário às 12:00.";
+		}
+		if (launchPostsState.status === "partial") {
+			return launchPostsState.errorMessage ?? "Parte da geração concluiu, mas nem todos os 5 posts ficaram prontos.";
+		}
+		return launchPostsState.errorMessage ?? "A execução foi consumida e não pode ser rodada novamente neste projeto.";
+	}
+
+	function handleGenerateLaunchPosts() {
+		if (!canGenerateLaunchPosts || isLaunchPostsBusy) return;
+		launchPostsError = null;
+		pendingLaunchPosts.add(projectId);
+		void client
+			.action(api.ai.postIdeas.generateLaunchPostsForProject, { projectId })
+			.catch((error) => {
+				console.error("Failed to generate launch posts:", error);
+				launchPostsError =
+					error instanceof Error
+						? error.message
+						: "Não foi possível gerar os 5 posts automáticos.";
+			})
+			.finally(() => {
+				pendingLaunchPosts.delete(projectId);
+			});
+	}
+
 	// ── Vanda Sugere — mock suggestions ────────────────────────────────
 	type Suggestion = {
 		icon: typeof Palette;
@@ -126,12 +231,6 @@
 			title: "Gerar imagem",
 			description: "Produza imagens alinhadas com seu estilo.",
 			href: `/images?projectId=${projectId}`,
-		},
-		{
-			icon: CalendarDays,
-			title: "Agendar conteúdo",
-			description: "Monte um calendário editorial semanal.",
-			comingSoon: true,
 		},
 		{
 			icon: TrendingUp,
@@ -251,13 +350,101 @@
 					</div>
 
 					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+						<div
+							class="suggestion-card relative flex flex-col gap-3 border border-primary/30 bg-card p-5"
+							style="--card-delay: 0ms"
+						>
+							<div class="flex items-start justify-between gap-3">
+								<div class="flex h-8 w-8 items-center justify-center border border-primary/25 bg-primary/5 text-primary">
+									<CalendarDays class="h-4 w-4" />
+								</div>
+								{#if launchPostsState}
+									<Badge class="text-[9px]">
+										{launchPostsState.status === "generating"
+											? "Gerando"
+											: launchPostsState.status === "completed"
+												? "Concluído"
+												: launchPostsState.status === "partial"
+													? "Parcial"
+													: "Encerrado"}
+									</Badge>
+								{:else if pendingLaunchPostIds.has(projectId)}
+									<Badge class="text-[9px]">Processando</Badge>
+								{:else}
+									<Badge class="text-[9px]">Demo</Badge>
+								{/if}
+							</div>
+
+							<div class="min-h-[5.25rem]">
+								<h3 class="text-sm font-medium">{getLaunchPostsTitle()}</h3>
+								<p class="mt-1 text-xs leading-relaxed text-muted-foreground/70">
+									{getLaunchPostsDescription()}
+								</p>
+							</div>
+
+							{#if isLaunchPostsBusy}
+								<div
+									class="relative overflow-hidden rounded-lg border border-dashed border-primary/25 bg-muted/30"
+									style="aspect-ratio: 3 / 4;"
+								>
+									<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
+									<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-3">
+										<ImageGenerationPulseLoader
+											message={launchPostsState?.status === "generating"
+												? `Gerando posts (${launchPostsState.completedPosts}/${launchPostsState.totalPosts})…`
+												: "Preparando os 5 posts…"}
+											density="compact"
+											class="pointer-events-none"
+										/>
+									</div>
+								</div>
+								{#if launchPostsState?.status === "generating"}
+									<div class="space-y-2">
+										<div class="h-1.5 overflow-hidden rounded-full bg-muted">
+											<div
+												class="h-full rounded-full bg-primary transition-all duration-300"
+												style={`width: ${launchPostsProgressPercent}%`}
+											></div>
+										</div>
+										<p class="text-[11px] text-muted-foreground/60">
+											{launchPostsState.completedPosts} / {launchPostsState.totalPosts} posts prontos
+										</p>
+									</div>
+								{/if}
+							{/if}
+
+							<div class="mt-auto space-y-2">
+								{#if canGenerateLaunchPosts}
+									<Button class="w-full" size="sm" onclick={handleGenerateLaunchPosts} disabled={isLaunchPostsBusy}>
+										{isLaunchPostsBusy ? "Gerando..." : "Gerar 5 posts"}
+									</Button>
+									<p class="text-[10px] text-muted-foreground/50">
+										Uma execução por projeto · agenda às 12:00.
+									</p>
+								{:else if !hasInstagramCapture}
+									<Button variant="outline" class="w-full" size="sm" onclick={() => (showSettings = true)} disabled={project.isFetching}>
+										{project.isFetching ? "Capturando Instagram..." : "Abrir captura do Instagram"}
+									</Button>
+								{:else}
+									<Button variant="outline" class="w-full" size="sm" onclick={() => goto("/calendar")}>
+										Ver calendário
+									</Button>
+									{#if launchPostsState?.completedAt}
+										<p class="text-[10px] text-muted-foreground/50">
+											Última atualização: {formatLaunchPostsTimestamp(launchPostsState.completedAt)}
+										</p>
+									{/if}
+								{/if}
+							</div>
+						</div>
+
 						{#each suggestions as suggestion, i}
 							{@const Icon = suggestion.icon}
 							{#if suggestion.href && !suggestion.comingSoon}
 								<a
 									href={suggestion.href}
 									class="suggestion-card group relative flex flex-col gap-3 border border-border bg-card p-5 transition-all hover:border-foreground/20"
-									style="--card-delay: {i * 60}ms"
+									style="--card-delay: {(i + 1) * 60}ms"
 								>
 									<div class="flex items-center justify-between">
 										<div class="flex h-8 w-8 items-center justify-center border border-border/50 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
@@ -273,7 +460,7 @@
 							{:else}
 								<div
 									class="suggestion-card group relative flex flex-col gap-3 border border-border/50 bg-card/50 p-5 opacity-60"
-									style="--card-delay: {i * 60}ms"
+									style="--card-delay: {(i + 1) * 60}ms"
 								>
 									<div class="flex items-center justify-between">
 										<div class="flex h-8 w-8 items-center justify-center border border-border/30 text-muted-foreground/50">
@@ -289,6 +476,9 @@
 							{/if}
 						{/each}
 					</div>
+					{#if launchPostsError}
+						<p class="mt-3 text-sm text-destructive">{launchPostsError}</p>
+					{/if}
 				</section>
 
 				<!-- Memória do Instagram (digest + captura única) -->
