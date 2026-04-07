@@ -2,8 +2,8 @@
 	import { Button, Input, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Popover, PopoverTrigger, PopoverContent } from "$lib/components/ui";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
-	import { api } from "../../convex/_generated/api.js";
-	import type { Id } from "../../convex/_generated/dataModel.js";
+import { api } from "../../../convex/_generated/api.js";
+import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import Navbar from "$lib/components/Navbar.svelte";

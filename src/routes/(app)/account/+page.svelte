@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SignedIn, SignedOut, SignInButton, useClerkContext } from "svelte-clerk";
 	import { useConvexClient } from "convex-svelte";
-	import { api } from "../../convex/_generated/api.js";
+	import { api } from "../../../convex/_generated/api.js";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { Tabs } from "bits-ui";

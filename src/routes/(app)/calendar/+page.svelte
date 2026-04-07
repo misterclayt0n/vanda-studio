@@ -3,8 +3,8 @@
 	import { Calendar } from "$lib/components/ui/calendar";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
-	import { api } from "../../convex/_generated/api.js";
-	import type { Id } from "../../convex/_generated/dataModel.js";
+import { api } from "../../../convex/_generated/api.js";
+import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { CalendarDate, getLocalTimeZone, today, isSameDay } from "@internationalized/date";

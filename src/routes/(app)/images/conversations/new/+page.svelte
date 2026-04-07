@@ -9,8 +9,8 @@
 	import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
 	import { SignedIn, SignedOut, SignInButton, UserButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
-	import { api } from "../../../../convex/_generated/api.js";
-	import type { Id } from "../../../../convex/_generated/dataModel.js";
+import { api } from "../../../../../convex/_generated/api.js";
+import type { Id } from "../../../../../convex/_generated/dataModel.js";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import Logo from "$lib/components/Logo.svelte";

@@ -14,8 +14,8 @@
 	} from "$lib/studio/postsPageState";
 	import { clearPostComposerState } from "$lib/studio/postComposerState";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
-	import { api } from "../../convex/_generated/api.js";
-	import type { Id } from "../../convex/_generated/dataModel.js";
+import { api } from "../../../convex/_generated/api.js";
+import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { useConvexClient, useQuery } from "convex-svelte";
 
 	type PlatformId = PostsPagePlatform;

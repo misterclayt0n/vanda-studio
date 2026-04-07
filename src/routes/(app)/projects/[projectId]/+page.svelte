@@ -9,8 +9,8 @@
 	import { formatUserFacingMessageFromText, showUserError } from "$lib/errors";
 	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
 	import { loadGoogleFont, fontFamily } from "$lib/utils";
-	import { api } from "../../../convex/_generated/api.js";
-	import type { Id } from "../../../convex/_generated/dataModel.js";
+import { api } from "../../../../convex/_generated/api.js";
+import type { Id } from "../../../../convex/_generated/dataModel.js";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { get } from "svelte/store";

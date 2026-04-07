@@ -1,407 +1,393 @@
 <script lang="ts">
 	import Logo from "$lib/components/Logo.svelte";
-	import SettingsMenu from "$lib/components/SettingsMenu.svelte";
-	import { onMount } from "svelte";
+	import LandingThemeToggle from "$lib/components/LandingThemeToggle.svelte";
 
-	// Carousel state for stacked cards
-	let cardOrder = $state([0, 1, 2]);
-	let animatingCard = $state<number | null>(null);
-	let isAnimating = $state(false);
-	let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
 	const appUrl = "/images";
-
-	const cards = [
-		{
-			image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80",
-			alt: "AI generated abstract art",
-			caption: "Explorando novas fronteiras da criatividade digital ✨",
-			tags: ["#arte", "#design", "#ai"]
-		},
-		{
-			image: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80",
-			alt: "AI generated colorful design",
-			caption: "O futuro do conteúdo está aqui 🚀",
-			tags: ["#criativo", "#marketing"]
-		},
-		{
-			image: "https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80",
-			alt: "AI generated gradient art",
-			caption: "Transformando ideias em realidade visual 💡",
-			tags: ["#branding", "#visual", "#inovação"]
-		}
-	];
-
-	function getCardPosition(cardIndex: number): number {
-		return cardOrder.indexOf(cardIndex);
-	}
-
-	function bringToFront(cardIndex: number) {
-		const currentPosition = getCardPosition(cardIndex);
-		if (currentPosition === 0 || isAnimating) return;
-
-		isAnimating = true;
-		animatingCard = cardIndex;
-
-		// After the sweep-out animation, reorder and animate to front
-		setTimeout(() => {
-			const newOrder = cardOrder.filter(i => i !== cardIndex);
-			cardOrder = [cardIndex, ...newOrder];
-
-			// Reset animation state after settle
-			setTimeout(() => {
-				animatingCard = null;
-				isAnimating = false;
-			}, 400);
-		}, 350);
-	}
-
-	function cycleToNext() {
-		// Bring the back card (last in order) to front
-		const backCard = cardOrder[cardOrder.length - 1];
-		if (backCard === undefined) return;
-		bringToFront(backCard);
-	}
-
-	function startAutoPlay() {
-		if (autoPlayInterval) return;
-		autoPlayInterval = setInterval(cycleToNext, 3000);
-	}
-
-	function stopAutoPlay() {
-		if (autoPlayInterval) {
-			clearInterval(autoPlayInterval);
-			autoPlayInterval = null;
-		}
-	}
-
-	function resetAutoPlay() {
-		stopAutoPlay();
-		startAutoPlay();
-	}
-
-	function handleCardClick(cardIndex: number) {
-		bringToFront(cardIndex);
-		resetAutoPlay(); // Reset timer when user interacts
-	}
-
-	onMount(() => {
-		startAutoPlay();
-		return () => stopAutoPlay();
-	});
 </script>
 
 <svelte:head>
-	<title>Vanda Studio - Geração de Posts com IA</title>
-	<meta name="description" content="Crie posts incríveis para Instagram com inteligência artificial. Vanda Studio automatiza sua criação de conteúdo." />
+	<title>Vanda Studio — SOCIAL MEDIA AS A SERVICE e criação com IA</title>
+	<meta
+		name="description"
+		content="Mídia, posts e redes no mesmo fluxo. Da PME à corporação — com IA."
+	/>
 </svelte:head>
 
-<!-- DESIGN 2 REFINED: Bold geometric with design system consistency -->
-<div class="min-h-screen bg-background text-foreground overflow-hidden">
-	<!-- Navigation - Consistent with app navbar -->
-	<nav class="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
+<div class="min-h-screen bg-background text-foreground overflow-hidden ambient-glow ambient-noise">
+	<nav class="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
 		<div class="flex items-center justify-between px-6 lg:px-16 h-14">
-			<Logo size="lg" />
-			<div class="flex items-center gap-2">
-				<a href="#recursos" class="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Recursos</a>
-				<a href="#precos" class="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Preços</a>
-				<SettingsMenu />
+			<a href="/" class="hover:opacity-90 transition-opacity" aria-label="Vanda Studio — início">
+				<Logo size="lg" />
+			</a>
+			<div class="hidden md:flex items-center gap-1">
+				<a href="#solucao" class="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Solução</a>
+				<a href="#recursos" class="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Recursos</a>
+				<a href="#precos" class="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Preços</a>
+			</div>
+			<div class="flex items-center gap-2 sm:gap-3">
+				<LandingThemeToggle />
 				<a
 					href={appUrl}
-					class="btn-glow ml-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+					class="btn-glow px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
 				>
-					Ir Para App
+					Ir para o app
 				</a>
 			</div>
 		</div>
+		<div class="flex md:hidden gap-1 overflow-x-auto border-t border-border px-4 py-2.5 bg-background/90 backdrop-blur-md [scrollbar-width:none]">
+			<a href="#solucao" class="shrink-0 px-3 py-1 text-xs font-medium text-muted-foreground">Solução</a>
+			<a href="#recursos" class="shrink-0 px-3 py-1 text-xs font-medium text-muted-foreground">Recursos</a>
+			<a href="#precos" class="shrink-0 px-3 py-1 text-xs font-medium text-muted-foreground">Preços</a>
+		</div>
 	</nav>
 
-	<!-- Hero Section - Bold typography with refined structure -->
-	<section class="relative min-h-screen flex items-center pt-14">
-		<!-- Geometric accents -->
-		<div class="absolute top-32 right-0 w-[40vw] h-[60vh] bg-primary/5 dark:bg-primary/10"></div>
-		<div class="absolute bottom-0 left-0 w-[30vw] h-[40vh] border border-border"></div>
-		<div class="absolute top-1/2 left-1/4 w-24 h-24 bg-muted transform rotate-45 hidden lg:block"></div>
-
-		<!-- Vertical accent stripe -->
-		<div class="absolute left-0 top-14 bottom-0 w-1 bg-primary"></div>
+	<section class="relative min-h-[90vh] flex items-center pt-24 md:pt-14">
+		<div class="absolute top-28 right-0 w-[42vw] max-h-[70vh] h-[60vh] bg-primary/5 dark:bg-primary/10"></div>
+		<div class="absolute bottom-0 left-0 w-[32vw] h-[42vh] border border-border/80"></div>
+		<div class="absolute top-1/2 left-1/4 w-24 h-24 bg-muted/80 transform rotate-45 hidden lg:block"></div>
+		<div class="absolute left-0 top-24 md:top-14 bottom-0 w-1 bg-primary"></div>
 
 		<div class="relative z-10 px-8 lg:px-16 w-full max-w-[1800px] mx-auto">
-			<div class="grid lg:grid-cols-2 gap-16 items-center">
-				<!-- Left - Typography -->
+			<div class="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
 				<div class="space-y-8">
-					<div class="inline-block border border-border px-4 py-2">
-						<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Estúdio de Criação</span>
+					<div class="inline-block border border-border px-4 py-2 bg-background/60">
+						<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">SOCIAL MEDIA AS A SERVICE</span>
 					</div>
 
-					<h1 class="text-5xl sm:text-6xl lg:text-8xl font-serif leading-[0.9] tracking-tight">
-						Posts<br/>
-						Que<br/>
-						<span class="text-primary">Impactam</span>
+					<h1 class="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-serif leading-[0.92] tracking-tight">
+						Sua marca<br />
+						nas redes,<br />
+						<span class="text-primary">sem o caos.</span>
 					</h1>
 
-					<div class="border-l-2 border-primary pl-6">
-						<p class="text-lg lg:text-xl text-muted-foreground max-w-md leading-relaxed">
-							Geração de imagens. Legendas inteligentes. Agendamento automático.
-							<span class="text-foreground font-medium">Tudo com IA.</span>
-						</p>
-					</div>
+					<p class="text-lg lg:text-xl text-muted-foreground max-w-lg leading-relaxed border-l-2 border-primary pl-6">
+						<strong class="text-foreground font-medium">SOCIAL MEDIA AS A SERVICE</strong> — mídia, legendas e calendário num fluxo só. Menos ferramentas, mais consistência.
+					</p>
 
-					<div class="flex flex-wrap gap-4 pt-4">
+					<div class="flex flex-wrap gap-4 pt-2">
 						<a
 							href={appUrl}
 							class="btn-glow group relative bg-primary text-primary-foreground px-8 py-4 text-sm font-medium tracking-wide uppercase overflow-hidden"
 						>
-							<span class="relative z-10">Começar Agora</span>
+							<span class="relative z-10">Começar agora</span>
 							<div class="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12"></div>
 						</a>
-						<a href="#demo" class="border border-border px-8 py-4 text-sm font-medium tracking-wide uppercase hover:bg-secondary hover:border-primary/50 transition-colors">
-							Ver Demo
+						<a
+							href="#precos"
+							class="border border-border px-8 py-4 text-sm font-medium tracking-wide uppercase hover:bg-secondary hover:border-primary/50 transition-colors"
+						>
+							Ver planos
 						</a>
 					</div>
 				</div>
 
-				<!-- Right - Stacked cards with real posts (carousel) -->
-				<div class="relative h-[600px] hidden lg:block card-stack">
-					{#each cards as card, cardIndex}
-						{@const position = getCardPosition(cardIndex)}
-						{@const isSweeping = animatingCard === cardIndex}
-						<button
-							type="button"
-							onclick={() => handleCardClick(cardIndex)}
-							class="card-item absolute w-80 border bg-card overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-								{position === 0 ? 'card-front border-primary/50 shadow-md' : ''}
-								{position === 1 ? 'card-middle border-border shadow-lg' : ''}
-								{position === 2 ? 'card-back border-border shadow-xl' : ''}
-								{isSweeping ? 'card-sweep-out' : ''}
-							"
-							style="--card-index: {position};"
-						>
-							{#if position === 2 && !isSweeping}
-								<div class="absolute -top-3 -left-3 w-6 h-6 bg-primary z-10"></div>
-							{:else if position === 1 && !isSweeping}
-								<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-foreground z-10"></div>
-							{/if}
-							<img
-								src={card.image}
-								alt={card.alt}
-								class="w-full aspect-square object-cover"
-							/>
-							<div class="p-4 space-y-2 text-left">
-								<p class="text-sm text-muted-foreground line-clamp-2">{card.caption}</p>
-								<div class="flex gap-1.5 flex-wrap">
-									{#each card.tags as tag}
-										<span class="text-xs text-primary">{tag}</span>
-									{/each}
-								</div>
+				<div class="relative h-[560px] hidden lg:block card-stack" aria-hidden="true">
+					<article class="card-static card-front absolute w-80 border bg-card overflow-hidden border-primary/50 shadow-md">
+						<img
+							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80"
+							alt=""
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2 text-left">
+							<p class="text-sm text-muted-foreground line-clamp-2">Marca alinhada — rápido.</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#branding</span>
 							</div>
-						</button>
-					{/each}
+						</div>
+					</article>
+					<article class="card-static card-middle absolute w-80 border bg-card overflow-hidden border-border shadow-lg">
+						<img
+							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80"
+							alt=""
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2 text-left">
+							<p class="text-sm text-muted-foreground line-clamp-2">Legendas no tom certo.</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#feed</span>
+							</div>
+						</div>
+					</article>
+					<article class="card-static card-back absolute w-80 border bg-card overflow-hidden border-border shadow-xl">
+						<img
+							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80"
+							alt=""
+							class="w-full aspect-square object-cover"
+						/>
+						<div class="p-4 space-y-2 text-left">
+							<p class="text-sm text-muted-foreground line-clamp-2">Agenda sob controle.</p>
+							<div class="flex gap-1.5 flex-wrap">
+								<span class="text-xs text-primary">#calendário</span>
+							</div>
+						</div>
+					</article>
 				</div>
 			</div>
 		</div>
 
-		<!-- Decorative number -->
-		<div class="absolute bottom-8 right-8 text-[15vw] font-serif text-foreground/[0.02] dark:text-white/[0.03] leading-none pointer-events-none select-none">
+		<div class="absolute bottom-8 right-8 text-[min(15vw,12rem)] font-serif text-foreground/[0.04] dark:text-white/[0.05] leading-none pointer-events-none select-none">
 			01
 		</div>
 	</section>
 
-	<!-- Features Section -->
-	<section id="recursos" class="py-24 lg:py-32 border-t border-border">
+	<section id="solucao" class="py-16 lg:py-24 border-t border-border">
 		<div class="max-w-[1800px] mx-auto px-8 lg:px-16">
-			<!-- Section header -->
-			<div class="flex flex-col lg:flex-row lg:items-end justify-between mb-16 pb-8 border-b border-border">
-				<div>
-					<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Recursos</span>
-					<h2 class="text-4xl lg:text-5xl font-serif mt-4">
-						O Que Você<br/>Pode Fazer
-					</h2>
+			<div class="mb-12 max-w-2xl">
+				<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Por que a Vanda</span>
+				<h2 class="text-3xl sm:text-4xl lg:text-5xl font-serif mt-4 leading-tight">
+					Um lugar para criar, organizar e publicar.
+				</h2>
+			</div>
+			<div class="grid md:grid-cols-3 gap-px bg-border">
+				<div class="bg-background p-8 lg:p-10">
+					<h3 class="text-lg font-serif mb-2 text-primary">Para quem</h3>
+					<p class="text-muted-foreground leading-relaxed text-sm">
+						PME, marketing ou operação grande — quem precisa de escala sem perder o padrão visual.
+					</p>
 				</div>
-				<p class="text-muted-foreground max-w-md mt-6 lg:mt-0 lg:text-right">
-					Ferramentas profissionais de criação de conteúdo, simplificadas pela inteligência artificial.
-				</p>
+				<div class="bg-background p-8 lg:p-10">
+					<h3 class="text-lg font-serif mb-2 text-primary">O que muda</h3>
+					<p class="text-muted-foreground leading-relaxed text-sm">
+						Acaba o salto entre banco de imagem, editor e feed. Tudo integrado.
+					</p>
+				</div>
+				<div class="bg-background p-8 lg:p-10">
+					<h3 class="text-lg font-serif mb-2 text-primary">Diferencial</h3>
+					<p class="text-muted-foreground leading-relaxed text-sm">
+						UX pensada para produção diária — mídia e posts no mesmo fluxo.
+					</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section id="recursos" class="py-16 lg:py-24 border-t border-border bg-card/40">
+		<div class="max-w-[1800px] mx-auto px-8 lg:px-16">
+			<div class="mb-12 pb-8 border-b border-border">
+				<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Recursos</span>
+				<h2 class="text-3xl sm:text-4xl lg:text-5xl font-serif mt-4 leading-tight">O essencial para executar</h2>
 			</div>
 
-			<!-- Features grid -->
-			<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-border">
-				<div class="bg-background p-8 lg:p-10 group hover:bg-muted/30 transition-colors">
-					<div class="text-4xl font-serif text-primary mb-4">01</div>
-					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Imagens com IA</h3>
-					<p class="text-muted-foreground leading-relaxed">
-						Gere visuais únicos com modelos de última geração. Controle estilo, composição e formato.
-					</p>
+			<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border">
+				<div class="bg-background p-6 lg:p-8">
+					<h3 class="text-lg font-serif text-foreground">Imagens com IA</h3>
+					<p class="text-sm text-muted-foreground mt-1">Modelos e formatos sob controle.</p>
 				</div>
-
-				<div class="bg-background p-8 lg:p-10 group hover:bg-muted/30 transition-colors">
-					<div class="text-4xl font-serif text-primary mb-4">02</div>
-					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Legendas Inteligentes</h3>
-					<p class="text-muted-foreground leading-relaxed">
-						IA que entende seu contexto. Gere textos envolventes com hashtags otimizadas.
-					</p>
+				<div class="bg-background p-6 lg:p-8">
+					<h3 class="text-lg font-serif text-foreground">Legendas inteligentes</h3>
+					<p class="text-sm text-muted-foreground mt-1">Texto e hashtags no contexto da marca.</p>
 				</div>
-
-				<div class="bg-background p-8 lg:p-10 group hover:bg-muted/30 transition-colors">
-					<div class="text-4xl font-serif text-primary mb-4">03</div>
-					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Agendamento</h3>
-					<p class="text-muted-foreground leading-relaxed">
-						Agende posts no calendário do Vanda e exporte lembretes em ICS quando precisar.
-					</p>
+				<div class="bg-background p-6 lg:p-8">
+					<h3 class="text-lg font-serif text-foreground">Agenda</h3>
+					<p class="text-sm text-muted-foreground mt-1">Calendário e lembretes alinhados.</p>
 				</div>
-
-				<div class="bg-background p-8 lg:p-10 group hover:bg-muted/30 transition-colors">
-					<div class="text-4xl font-serif text-primary mb-4">04</div>
-					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Multi-Projetos</h3>
-					<p class="text-muted-foreground leading-relaxed">
-						Organize múltiplas contas. Cada projeto com sua identidade visual única.
-					</p>
+				<div class="bg-background p-6 lg:p-8">
+					<h3 class="text-lg font-serif text-foreground">Multi-projetos</h3>
+					<p class="text-sm text-muted-foreground mt-1">Várias frentes, identidades separadas.</p>
 				</div>
-
-				<div class="bg-background p-8 lg:p-10 group hover:bg-muted/30 transition-colors">
-					<div class="text-4xl font-serif text-primary mb-4">05</div>
-					<h3 class="text-xl font-serif mb-3 group-hover:text-primary transition-colors">Galeria</h3>
-					<p class="text-muted-foreground leading-relaxed">
-						Visualize todos seus posts gerados. Busca avançada e filtros inteligentes.
-					</p>
+				<div class="bg-background p-6 lg:p-8">
+					<h3 class="text-lg font-serif text-foreground">Galeria</h3>
+					<p class="text-sm text-muted-foreground mt-1">Histórico pesquisável do que já criou.</p>
 				</div>
-
-				<div class="bg-primary text-primary-foreground p-8 lg:p-10">
-					<div class="text-4xl font-serif mb-4">→</div>
-					<h3 class="text-xl font-serif mb-3">Comece Agora</h3>
-					<p class="text-primary-foreground/80 leading-relaxed mb-6">
-						Crie sua conta gratuita e transforme seu conteúdo.
-					</p>
+				<div class="bg-primary text-primary-foreground p-6 lg:p-8 flex flex-col justify-between min-h-[140px]">
+					<h3 class="text-lg font-serif">Ver no app</h3>
 					<a
 						href={appUrl}
-						class="border border-primary-foreground px-5 py-2.5 text-sm font-medium hover:bg-primary-foreground hover:text-primary transition-colors"
+						class="inline-block self-start border border-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary-foreground hover:text-primary transition-colors mt-4"
 					>
-						Criar Conta
+						Abrir Vanda
 					</a>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<!-- Stats Section -->
-	<section class="py-24 border-t border-border bg-card">
+	<section id="precos" class="py-16 lg:py-24 border-t border-border scroll-mt-20">
 		<div class="max-w-[1800px] mx-auto px-8 lg:px-16">
-			<div class="grid md:grid-cols-3 gap-8 lg:gap-16">
-				<div class="text-center lg:text-left">
-					<div class="text-5xl lg:text-7xl font-serif text-primary">5K+</div>
-					<p class="text-sm font-medium uppercase tracking-widest mt-3 text-muted-foreground">Criadores Ativos</p>
+			<div class="mb-12 pb-8 border-b border-border">
+				<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Preços</span>
+				<h2 class="text-3xl sm:text-4xl lg:text-5xl font-serif mt-4 leading-tight">Mesmos valores da conta</h2>
+				<p class="text-muted-foreground mt-3 text-sm max-w-md">Assinatura e cobrança em <span class="text-foreground">Conta → Planos</span>.</p>
+			</div>
+
+			<div class="grid gap-6 lg:gap-8 md:grid-cols-3">
+				<div class="relative flex flex-col border-2 border-primary bg-card p-8 lg:p-10 shadow-sm">
+					<div class="absolute -top-3 left-1/2 -translate-x-1/2">
+						<span class="inline-block bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 uppercase tracking-wide">Mais popular</span>
+					</div>
+					<div class="mb-4">
+						<h3 class="font-serif text-2xl font-semibold">Básico</h3>
+						<p class="text-xs text-muted-foreground mt-1">Rotina consistente, fluxos essenciais.</p>
+					</div>
+					<div class="mb-2">
+						<span class="text-4xl font-bold">R$&nbsp;87</span>
+						<span class="text-muted-foreground">/mês</span>
+					</div>
+					<div class="mb-5 flex items-center gap-2 border border-green-600/25 bg-green-600/10 px-3 py-2 text-xs font-semibold text-green-700 dark:text-green-500">
+						<span aria-hidden="true">⏱</span>
+						1 semana grátis
+					</div>
+					<ul class="mb-8 flex-1 space-y-2 text-sm text-muted-foreground">
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Uso recorrente individual</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Imagens, legendas e modelos</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Suporte por email</li>
+					</ul>
+					<a
+						href="/account#planos"
+						class="btn-glow w-full text-center bg-primary text-primary-foreground py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
+					>
+						Assinar Básico
+					</a>
 				</div>
-				<div class="text-center">
-					<div class="text-5xl lg:text-7xl font-serif text-primary">100K+</div>
-					<p class="text-sm font-medium uppercase tracking-widest mt-3 text-muted-foreground">Posts Gerados</p>
+
+				<div class="relative flex flex-col border border-border bg-card p-8 lg:p-10">
+					<div class="mb-4">
+						<h3 class="font-serif text-2xl font-semibold">Mediano</h3>
+						<p class="text-xs text-muted-foreground mt-1">Mais volume e iteração no mês.</p>
+					</div>
+					<div class="mb-6">
+						<span class="text-4xl font-bold">R$&nbsp;149</span>
+						<span class="text-muted-foreground">/mês</span>
+					</div>
+					<ul class="mb-8 flex-1 space-y-2 text-sm text-muted-foreground">
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Faixa ampliada para produção</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Todos os modelos e estilos</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Suporte prioritário</li>
+					</ul>
+					<a
+						href="/account#planos"
+						class="w-full text-center border border-border py-3 text-sm font-medium hover:bg-secondary hover:border-primary/40 transition-colors"
+					>
+						Assinar Mediano
+					</a>
 				</div>
-				<div class="text-center lg:text-right">
-					<div class="text-5xl lg:text-7xl font-serif text-primary">99%</div>
-					<p class="text-sm font-medium uppercase tracking-widest mt-3 text-muted-foreground">Satisfação</p>
+
+				<div class="relative flex flex-col border border-border bg-card p-8 lg:p-10">
+					<div class="mb-4">
+						<h3 class="font-serif text-2xl font-semibold">Profissional</h3>
+						<p class="text-xs text-muted-foreground mt-1">Times e campanhas em escala.</p>
+					</div>
+					<div class="mb-6">
+						<span class="text-4xl font-bold">R$&nbsp;249</span>
+						<span class="text-muted-foreground">/mês</span>
+					</div>
+					<ul class="mb-8 flex-1 space-y-2 text-sm text-muted-foreground">
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Maior capacidade mensal</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Tudo do Mediano + consultoria</li>
+						<li class="flex gap-2"><span class="text-green-600 shrink-0" aria-hidden="true">✓</span> Suporte prioritário</li>
+					</ul>
+					<a
+						href="/account#planos"
+						class="w-full text-center border border-border py-3 text-sm font-medium hover:bg-secondary hover:border-primary/40 transition-colors"
+					>
+						Assinar Profissional
+					</a>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<!-- CTA Section -->
-	<section class="py-24 lg:py-32 border-t border-border relative">
+	<section class="py-16 lg:py-24 border-t border-border relative">
 		<div class="absolute top-0 left-0 w-1/2 h-full bg-primary/5 dark:bg-primary/10"></div>
-
-		<div class="relative max-w-[1800px] mx-auto px-8 lg:px-16">
-			<div class="grid lg:grid-cols-2 gap-16 items-center">
-				<div>
-					<span class="text-sm font-medium uppercase tracking-[0.2em] text-primary">Começar</span>
-					<h2 class="text-4xl lg:text-5xl font-serif mt-4">
-						Pronto Para<br/>
-						<span class="text-primary">Transformar</span><br/>
-						Seu Conteúdo?
-					</h2>
-				</div>
-				<div class="flex flex-col items-start gap-6">
-					<p class="text-lg text-muted-foreground">
-						Junte-se a milhares de criadores. Comece gratuitamente, escale quando precisar.
-					</p>
-					<a
-						href={appUrl}
-						class="btn-glow group relative bg-primary text-primary-foreground px-10 py-5 text-sm font-medium tracking-wide uppercase overflow-hidden"
-					>
-						<span class="relative z-10">Começar Gratuitamente</span>
-						<div class="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12"></div>
-					</a>
-				</div>
+		<div class="relative max-w-[1800px] mx-auto px-8 lg:px-16 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-8">
+			<h2 class="text-3xl lg:text-4xl font-serif leading-tight">
+				Pronto para <span class="text-primary">começar?</span>
+			</h2>
+			<div class="flex flex-wrap gap-4">
+				<a
+					href={appUrl}
+					class="btn-glow group relative bg-primary text-primary-foreground px-8 py-4 text-sm font-medium tracking-wide uppercase overflow-hidden"
+				>
+					<span class="relative z-10">Ir para o app</span>
+					<div class="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12"></div>
+				</a>
+				<a
+					href="/account#planos"
+					class="border border-border px-8 py-4 text-sm font-medium tracking-wide uppercase hover:bg-secondary transition-colors"
+				>
+					Planos na conta
+				</a>
 			</div>
 		</div>
 	</section>
 
-	<!-- Footer -->
 	<footer class="border-t border-border py-12">
 		<div class="max-w-[1800px] mx-auto px-8 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-6">
 			<Logo size="sm" />
 			<p class="text-sm text-muted-foreground">
-				© 2025 Vanda Studio. Todos os direitos reservados.
+				© 2026 Vanda Studio. Todos os direitos reservados.
 			</p>
-			<div class="flex items-center gap-6">
-				<a href="/privacidade" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Privacidade</a>
-				<a href="/termos" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Termos</a>
-			</div>
 		</div>
 	</footer>
 </div>
 
 <style>
-	/* Card stack positions */
 	.card-stack {
-		perspective: 1000px;
+		perspective: 1200px;
 	}
 
-	.card-item {
-		transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-		transform-style: preserve-3d;
+	.card-static {
+		transition: transform 0.35s ease;
 	}
 
-	/* Front card - closest to viewer */
 	.card-front {
-		top: 160px;
-		right: 128px;
+		top: 140px;
+		right: 120px;
 		z-index: 30;
-		transform: translateZ(0);
+		animation: floatA 7s ease-in-out infinite;
 	}
 
-	/* Middle card */
 	.card-middle {
-		top: 64px;
-		right: 64px;
+		top: 56px;
+		right: 56px;
 		z-index: 20;
 		transform: translateZ(-20px) scale(0.98);
+		animation: floatB 8s ease-in-out infinite;
 	}
 
-	/* Back card - furthest */
 	.card-back {
-		top: -32px;
-		right: 0px;
+		top: -28px;
+		right: 0;
 		z-index: 10;
-		transform: translate(32px, 32px) translateZ(-40px) scale(0.96);
+		transform: translate(28px, 28px) translateZ(-40px) scale(0.96);
+		animation: floatC 9s ease-in-out infinite;
 	}
 
-	/* Sweep out animation - card arcs out to the left then comes to front */
-	.card-sweep-out {
-		animation: sweepOut 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-		z-index: 50 !important;
-	}
-
-	@keyframes sweepOut {
-		0% {
-			transform: translateZ(0);
-		}
-		30% {
-			transform: translateX(-120px) translateY(-80px) rotateY(-25deg) rotateZ(-8deg) scale(1.05);
-		}
-		60% {
-			transform: translateX(-60px) translateY(-40px) rotateY(-10deg) rotateZ(-3deg) scale(1.02);
-		}
+	@keyframes floatA {
+		0%,
 		100% {
-			/* End at front position */
-			top: 160px;
-			right: 128px;
-			transform: translateZ(0) rotateY(0) rotateZ(0) scale(1);
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-10px);
+		}
+	}
+
+	@keyframes floatB {
+		0%,
+		100% {
+			transform: translateZ(-20px) scale(0.98) translateY(0);
+		}
+		50% {
+			transform: translateZ(-20px) scale(0.98) translateY(-14px);
+		}
+	}
+
+	@keyframes floatC {
+		0%,
+		100% {
+			transform: translate(28px, 28px) translateZ(-40px) scale(0.96) translateY(0);
+		}
+		50% {
+			transform: translate(28px, 22px) translateZ(-40px) scale(0.96) translateY(-8px);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.card-front,
+		.card-middle,
+		.card-back {
+			animation: none;
 		}
 	}
 </style>

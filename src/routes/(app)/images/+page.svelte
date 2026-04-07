@@ -21,8 +21,8 @@
 	} from "$lib/components/studio";
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import { useConvexClient, useQuery } from "convex-svelte";
-	import { api } from "../../convex/_generated/api.js";
-	import type { Id } from "../../convex/_generated/dataModel.js";
+	import { api } from "../../../convex/_generated/api.js";
+	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import { afterNavigate, goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";

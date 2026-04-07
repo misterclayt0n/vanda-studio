@@ -20,7 +20,7 @@
     import { BRAND_VIBES, getVibeByKey, type VibeKey } from "$lib/data/brandVibes";
     import { AUDIENCE_OPTIONS, TONE_OPTIONS } from "$lib/data/wizardOptions";
     import { useConvexClient } from "convex-svelte";
-    import { api } from "../../../convex/_generated/api.js";
+    import { api } from "../../../../convex/_generated/api.js";
     import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
     import { normalizeInstagramInput } from "$lib/utils/instagram";
     import { formatUserFacingMessage } from "$lib/errors";

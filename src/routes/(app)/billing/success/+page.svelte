@@ -4,7 +4,7 @@
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { onMount } from "svelte";
 	import { useConvexClient } from "convex-svelte";
-	import { api } from "../../../convex/_generated/api.js";
+	import { api } from "../../../../convex/_generated/api.js";
 
 	let countdown = $state(5);
 	const client = useConvexClient();
