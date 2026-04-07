@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Logo from "$lib/components/Logo.svelte";
+	import LandingAppPreview from "$lib/components/LandingAppPreview.svelte";
 	import LandingThemeToggle from "$lib/components/LandingThemeToggle.svelte";
 
 	const appUrl = "/images";
@@ -81,46 +82,8 @@
 					</div>
 				</div>
 
-				<div class="relative h-[560px] hidden lg:block card-stack" aria-hidden="true">
-					<article class="card-static card-front absolute w-80 border bg-card overflow-hidden border-primary/50 shadow-md">
-						<img
-							src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop&q=80"
-							alt=""
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2 text-left">
-							<p class="text-sm text-muted-foreground line-clamp-2">Marca alinhada — rápido.</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#branding</span>
-							</div>
-						</div>
-					</article>
-					<article class="card-static card-middle absolute w-80 border bg-card overflow-hidden border-border shadow-lg">
-						<img
-							src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=500&fit=crop&q=80"
-							alt=""
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2 text-left">
-							<p class="text-sm text-muted-foreground line-clamp-2">Legendas no tom certo.</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#feed</span>
-							</div>
-						</div>
-					</article>
-					<article class="card-static card-back absolute w-80 border bg-card overflow-hidden border-border shadow-xl">
-						<img
-							src="https://images.unsplash.com/photo-1633177317976-3f9bc45e1d1d?w=500&h=500&fit=crop&q=80"
-							alt=""
-							class="w-full aspect-square object-cover"
-						/>
-						<div class="p-4 space-y-2 text-left">
-							<p class="text-sm text-muted-foreground line-clamp-2">Agenda sob controle.</p>
-							<div class="flex gap-1.5 flex-wrap">
-								<span class="text-xs text-primary">#calendário</span>
-							</div>
-						</div>
-					</article>
+				<div class="hidden lg:flex lg:items-center lg:justify-end w-full min-h-[360px]">
+					<LandingAppPreview />
 				</div>
 			</div>
 		</div>
@@ -320,74 +283,3 @@
 		</div>
 	</footer>
 </div>
-
-<style>
-	.card-stack {
-		perspective: 1200px;
-	}
-
-	.card-static {
-		transition: transform 0.35s ease;
-	}
-
-	.card-front {
-		top: 140px;
-		right: 120px;
-		z-index: 30;
-		animation: floatA 7s ease-in-out infinite;
-	}
-
-	.card-middle {
-		top: 56px;
-		right: 56px;
-		z-index: 20;
-		transform: translateZ(-20px) scale(0.98);
-		animation: floatB 8s ease-in-out infinite;
-	}
-
-	.card-back {
-		top: -28px;
-		right: 0;
-		z-index: 10;
-		transform: translate(28px, 28px) translateZ(-40px) scale(0.96);
-		animation: floatC 9s ease-in-out infinite;
-	}
-
-	@keyframes floatA {
-		0%,
-		100% {
-			transform: translateY(0);
-		}
-		50% {
-			transform: translateY(-10px);
-		}
-	}
-
-	@keyframes floatB {
-		0%,
-		100% {
-			transform: translateZ(-20px) scale(0.98) translateY(0);
-		}
-		50% {
-			transform: translateZ(-20px) scale(0.98) translateY(-14px);
-		}
-	}
-
-	@keyframes floatC {
-		0%,
-		100% {
-			transform: translate(28px, 28px) translateZ(-40px) scale(0.96) translateY(0);
-		}
-		50% {
-			transform: translate(28px, 22px) translateZ(-40px) scale(0.96) translateY(-8px);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.card-front,
-		.card-middle,
-		.card-back {
-			animation: none;
-		}
-	}
-</style>
