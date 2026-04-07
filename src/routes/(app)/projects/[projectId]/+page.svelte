@@ -4,7 +4,6 @@
 	import { ProjectSettingsForm, InstagramIntelCard } from "$lib/components/projects";
 	import { BrandSummaryCard } from "$lib/components/wizard";
 	import { Badge, Button } from "$lib/components/ui";
-	import { ImageGenerationPulseLoader } from "$lib/components/studio";
 	import { pendingLaunchPosts } from "$lib/studio/pendingLaunchPostsStore";
 	import { formatUserFacingMessageFromText, showUserError } from "$lib/errors";
 	import { emptyBrandKit, type BrandKitState } from "$lib/types/brandKit";
@@ -310,17 +309,22 @@ import type { Id } from "../../../../convex/_generated/dataModel.js";
 						>
 							{#if isLaunchPostsBusy}
 								<div
-									class="flex min-h-[11rem] flex-1 flex-col items-center justify-center gap-10 bg-card px-4 py-8"
+									class="flex min-h-[11rem] flex-1 flex-col justify-center gap-4 bg-card px-4 py-6"
 									aria-busy="true"
 									aria-label="Gerando posts automáticos"
 								>
-									<ImageGenerationPulseLoader
-										message="Gerando o pacote de posts do projeto"
-										density="comfortable"
-										showBar={false}
-										class="pointer-events-none [&_p]:sr-only"
-									/>
-									<div class="relative h-1.5 w-full max-w-[11rem] overflow-hidden rounded-full bg-muted">
+									<div class="flex items-start gap-3">
+										<div class="flex h-10 w-10 shrink-0 items-center justify-center border border-primary/25 bg-primary/5">
+											<Sparkles class="h-5 w-5 animate-pulse text-primary" />
+										</div>
+										<div class="min-w-0">
+											<p class="text-sm font-medium leading-snug">{getLaunchPostsTitle()}</p>
+											<p class="mt-1 text-xs leading-relaxed text-muted-foreground/80">
+												Painel completo no centro da tela — você pode minimizar e continuar navegando.
+											</p>
+										</div>
+									</div>
+									<div class="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
 										{#if launchPostsState?.status === "generating"}
 											<div
 												class="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"

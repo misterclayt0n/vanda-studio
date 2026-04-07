@@ -243,6 +243,14 @@ function getNextWeekdaySlots(count: number): number[] {
     return slots;
 }
 
+const PROGRESS_TEXT_MAX = 520;
+
+function truncateForProgress(text: string, max = PROGRESS_TEXT_MAX): string {
+    const t = text.trim();
+    if (t.length <= max) return t;
+    return `${t.slice(0, max - 1)}…`;
+}
+
 function buildLaunchPostsState(args: {
     status: "generating" | "completed" | "partial" | "error";
     startedAt: number;
@@ -250,8 +258,13 @@ function buildLaunchPostsState(args: {
     generatedPostIds: Id<"generated_posts">[];
     errorMessage?: string;
     completedAt?: number;
+    phase?: "ideas" | "image" | "post" | "schedule";
+    activePostNumber?: number;
+    currentImagePrompt?: string;
+    currentCaption?: string;
+    scheduledFor?: number;
 }) {
-    return {
+    const base = {
         status: args.status,
         totalPosts: LAUNCH_POST_COUNT,
         completedPosts: args.completedPosts,
@@ -260,6 +273,17 @@ function buildLaunchPostsState(args: {
         updatedAt: Date.now(),
         ...(args.errorMessage ? { errorMessage: args.errorMessage } : {}),
         ...(args.completedAt ? { completedAt: args.completedAt } : {}),
+    };
+    if (args.status !== "generating") {
+        return base as const;
+    }
+    return {
+        ...base,
+        ...(args.phase ? { phase: args.phase } : {}),
+        ...(args.activePostNumber != null ? { activePostNumber: args.activePostNumber } : {}),
+        ...(args.currentImagePrompt ? { currentImagePrompt: args.currentImagePrompt } : {}),
+        ...(args.currentCaption ? { currentCaption: args.currentCaption } : {}),
+        ...(args.scheduledFor != null ? { scheduledFor: args.scheduledFor } : {}),
     } as const;
 }
 
@@ -368,33 +392,7 @@ export const generateLaunchPostsForProject = action({
         ];
         const reservation = await reserveAiUsage(ctx, reservationItems);
 
-        const { project, ideas } = await (async () => {
-            try {
-                return await generateIdeasWithModel(ctx, {
-                    projectId: args.projectId,
-                    userIntent:
-                        "Monte um pacote inicial de demonstração com 5 posts distintos, prontos para agendamento, variando ângulo editorial e evitando repetição de tema.",
-                    avoidRecentThemes: true,
-                    extraExclusions: undefined,
-                    count: LAUNCH_POST_COUNT,
-                });
-            } catch (error) {
-                await refundAiUsage(ctx, reservation);
-                throw error;
-            }
-        })();
-
-        if (ideas.length !== LAUNCH_POST_COUNT) {
-            await refundAiUsage(ctx, reservation);
-            throw new Error("A geração de ideias não retornou os 5 posts esperados.");
-        }
-
         const startedAt = Date.now();
-        const createdPostIds: Id<"generated_posts">[] = [];
-        const failedImageRefunds: ReturnType<typeof estimateImageLineItem>[] = [];
-        let creditsUsed = sumUsageLineItemCredits(reservationItems);
-        let attemptedIdeas = 0;
-
         await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
             projectId: args.projectId,
             state: buildLaunchPostsState({
@@ -402,8 +400,61 @@ export const generateLaunchPostsForProject = action({
                 startedAt,
                 completedPosts: 0,
                 generatedPostIds: [],
+                phase: "ideas",
             }),
         });
+
+        let project: Doc<"projects">;
+        let ideas: PostIdea[];
+
+        try {
+            const result = await generateIdeasWithModel(ctx, {
+                projectId: args.projectId,
+                userIntent:
+                    "Monte um pacote inicial de demonstração com 5 posts distintos, prontos para agendamento, variando ângulo editorial e evitando repetição de tema.",
+                avoidRecentThemes: true,
+                extraExclusions: undefined,
+                count: LAUNCH_POST_COUNT,
+            });
+            project = result.project;
+            ideas = result.ideas;
+        } catch (error) {
+            await refundAiUsage(ctx, reservation);
+            await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
+                projectId: args.projectId,
+                state: buildLaunchPostsState({
+                    status: "error",
+                    startedAt,
+                    completedPosts: 0,
+                    generatedPostIds: [],
+                    completedAt: Date.now(),
+                    errorMessage:
+                        error instanceof Error ? error.message : "Falha ao montar ideias para os posts.",
+                }),
+            });
+            throw error;
+        }
+
+        if (ideas.length !== LAUNCH_POST_COUNT) {
+            await refundAiUsage(ctx, reservation);
+            await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
+                projectId: args.projectId,
+                state: buildLaunchPostsState({
+                    status: "error",
+                    startedAt,
+                    completedPosts: 0,
+                    generatedPostIds: [],
+                    completedAt: Date.now(),
+                    errorMessage: "A geração de ideias não retornou os 5 posts esperados.",
+                }),
+            });
+            throw new Error("A geração de ideias não retornou os 5 posts esperados.");
+        }
+
+        const createdPostIds: Id<"generated_posts">[] = [];
+        const failedImageRefunds: ReturnType<typeof estimateImageLineItem>[] = [];
+        let creditsUsed = sumUsageLineItemCredits(reservationItems);
+        let attemptedIdeas = 0;
 
         try {
             const brandContextMarkdown = project.brandContextMarkdown?.trim();
@@ -411,9 +462,27 @@ export const generateLaunchPostsForProject = action({
 
             for (const idea of ideas) {
                 attemptedIdeas += 1;
+                const postNumber = attemptedIdeas;
                 let imageCreated = false;
 
                 try {
+                    const cap = truncateForProgress(idea.caption);
+                    const imgBrief = truncateForProgress(idea.imagePrompt);
+
+                    await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
+                        projectId: args.projectId,
+                        state: buildLaunchPostsState({
+                            status: "generating",
+                            startedAt,
+                            completedPosts: createdPostIds.length,
+                            generatedPostIds: createdPostIds,
+                            phase: "image",
+                            activePostNumber: postNumber,
+                            currentImagePrompt: imgBrief,
+                            currentCaption: cap,
+                        }),
+                    });
+
                     const imagePrompt = buildLaunchPostPrompt(idea);
                     const augmentedMessage = brandContextMarkdown
                         ? `${brandContextMarkdown}\n\n${imagePrompt}`
@@ -439,6 +508,20 @@ export const generateLaunchPostsForProject = action({
                     }
                     imageCreated = true;
 
+                    await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
+                        projectId: args.projectId,
+                        state: buildLaunchPostsState({
+                            status: "generating",
+                            startedAt,
+                            completedPosts: createdPostIds.length,
+                            generatedPostIds: createdPostIds,
+                            phase: "post",
+                            activePostNumber: postNumber,
+                            currentImagePrompt: imgBrief,
+                            currentCaption: cap,
+                        }),
+                    });
+
                     const postId = await ctx.runMutation(api.generatedPosts.saveComposedDraft, {
                         projectId: args.projectId,
                         platform: "instagram",
@@ -451,6 +534,21 @@ export const generateLaunchPostsForProject = action({
                     if (scheduledFor === undefined) {
                         throw new Error("Não foi possível calcular a próxima data de agendamento.");
                     }
+
+                    await ctx.runMutation(internal.projects.setLaunchPostsGenerationInternal, {
+                        projectId: args.projectId,
+                        state: buildLaunchPostsState({
+                            status: "generating",
+                            startedAt,
+                            completedPosts: createdPostIds.length,
+                            generatedPostIds: createdPostIds,
+                            phase: "schedule",
+                            activePostNumber: postNumber,
+                            currentImagePrompt: imgBrief,
+                            currentCaption: cap,
+                            scheduledFor,
+                        }),
+                    });
 
                     await ctx.runMutation(api.scheduledPosts.schedulePost, {
                         postId,

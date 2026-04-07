@@ -6,6 +6,7 @@
 	import { Toaster } from "svelte-sonner";
 	import ConvexClerkProvider from "$lib/components/convex-clerk-provider.svelte";
 	import CommandPalette from "$lib/components/CommandPalette.svelte";
+	import LaunchPostsGenerationOverlay from "$lib/components/LaunchPostsGenerationOverlay.svelte";
 	import { goto } from "$app/navigation";
 	import type { Appearance } from "@clerk/types";
 
@@ -95,6 +96,7 @@
 		{#if env.PUBLIC_CONVEX_URL}
 			<ConvexClerkProvider>
 				{@render children()}
+				<LaunchPostsGenerationOverlay />
 				<CommandPalette open={commandPaletteOpen} onclose={() => commandPaletteOpen = false} />
 			</ConvexClerkProvider>
 		{:else}
