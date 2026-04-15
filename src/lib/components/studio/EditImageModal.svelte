@@ -218,7 +218,7 @@
             const result = await client.action(api.ai.imageEdit.startConversation, startArgs as any);
 
             // Navigate to the conversation page under images
-            goto(`/images/conversations/${result.conversationId}?turnId=${result.turnId}`);
+            goto(`/library/conversations/${result.conversationId}?turnId=${result.turnId}`);
         } catch (err) {
             console.error("Failed to start conversation:", err);
             error = formatUserFacingMessage(err);

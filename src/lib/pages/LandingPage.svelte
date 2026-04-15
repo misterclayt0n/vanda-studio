@@ -3,7 +3,7 @@
 	import LandingAppPreview from "$lib/components/LandingAppPreview.svelte";
 	import LandingThemeToggle from "$lib/components/LandingThemeToggle.svelte";
 
-	const appUrl = "/images";
+	const appUrl = "/library";
 </script>
 
 <svelte:head>

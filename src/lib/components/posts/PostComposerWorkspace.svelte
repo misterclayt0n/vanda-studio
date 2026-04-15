@@ -89,7 +89,7 @@
 		postId = null,
 		onclose,
 		ondelete,
-		closeLabel = "Ver todos os posts",
+		closeLabel = "Voltar à galeria",
 		showToolbar = true,
 		showPlatformSelector = true,
 		showCloseAction = true,
@@ -170,7 +170,7 @@
 			return;
 		}
 
-		void goto("/posts");
+		void goto("/library");
 	}
 
 	const client = useConvexClient();
@@ -518,7 +518,7 @@
 			if (ondelete) {
 				ondelete();
 			} else {
-				void goto("/posts");
+				void goto("/library");
 			}
 		} catch (err) {
 			error = formatUserFacingMessage(err);

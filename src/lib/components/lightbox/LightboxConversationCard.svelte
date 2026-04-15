@@ -62,7 +62,7 @@
 	}
 
 	function handleClick() {
-		goto(`/images/conversations/${conversation._id}`);
+		goto(`/library/conversations/${conversation._id}`);
 	}
 </script>
 

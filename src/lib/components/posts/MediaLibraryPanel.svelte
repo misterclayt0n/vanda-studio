@@ -190,7 +190,7 @@
 							? "Ajuste os filtros para ver mais imagens."
 							: "Sua biblioteca está vazia."}
 					</p>
-					<Button class="mt-3" size="sm" onclick={() => goto("/images")}>
+					<Button class="mt-3" size="sm" onclick={() => goto("/library")}>
 						Criar imagens
 				</Button>
 			</div>

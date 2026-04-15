@@ -342,7 +342,7 @@
 
 	function handleRefine() {
 		if (!currentItem) return;
-		goto(`/images/conversations/new?sourceMediaId=${currentItem._id}`);
+		goto(`/library/conversations/new?sourceMediaId=${currentItem._id}`);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {

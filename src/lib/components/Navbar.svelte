@@ -12,8 +12,7 @@
 
 	// Navigation items
 	const navItems = [
-		{ href: "/images", label: "Imagens", icon: "gallery" },
-		{ href: "/posts", label: "Posts", icon: "sparkles" },
+		{ href: "/library", label: "Galeria", icon: "gallery" },
 		{ href: "/calendar", label: "Calendário", icon: "calendar" },
 		{ href: "/projects", label: "Projetos", icon: "projects" },
 		{ href: "/account#planos", activeHref: "/account", label: "Planos", icon: "plans" },
@@ -28,7 +27,7 @@
 <header class="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
 	<div class="flex h-14 items-center justify-between px-4">
 		<div class="flex items-center gap-4">
-			<a href="/images" class="transition-opacity hover:opacity-80">
+			<a href="/library" class="transition-opacity hover:opacity-80">
 				<Logo />
 			</a>
 
