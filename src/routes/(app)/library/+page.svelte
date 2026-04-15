@@ -28,6 +28,7 @@
 	import { onMount } from "svelte";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { MediaLightbox } from "$lib/components/lightbox";
+	import { PostLightbox } from "$lib/components/posts";
 	import {
 		coerceImageGenerationSettings,
 		DEFAULT_STUDIO_IMAGE_MODEL,
@@ -242,6 +243,8 @@
 	let initialProjectId = $derived($page.url.searchParams.get("projectId") as Id<"projects"> | null);
 	let lightboxMediaId = $derived($page.url.searchParams.get("view"));
 	let lightboxOpen = $derived(!!lightboxMediaId);
+	let lightboxPostId = $derived(($page.url.searchParams.get("viewPost") as Id<"generated_posts"> | null) ?? null);
+	let postLightboxOpen = $derived(!!lightboxPostId);
 
 	onMount(() => {
 		const savedState = loadImagesPageState();
@@ -303,6 +306,7 @@
 
 	function openLightbox(mediaId: string) {
 		const url = new URL($page.url);
+		url.searchParams.delete("viewPost");
 		url.searchParams.set("view", mediaId);
 		goto(url.toString(), { replaceState: true, noScroll: true });
 	}
@@ -315,7 +319,27 @@
 
 	function navigateLightbox(mediaId: string) {
 		const url = new URL($page.url);
+		url.searchParams.delete("viewPost");
 		url.searchParams.set("view", mediaId);
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	function openPostLightbox(postId: Id<"generated_posts">) {
+		const url = new URL($page.url);
+		url.searchParams.delete("view");
+		url.searchParams.set("viewPost", postId);
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	function closePostLightbox() {
+		const url = new URL($page.url);
+		url.searchParams.delete("viewPost");
+		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	function navigatePostLightbox(postId: Id<"generated_posts">) {
+		const url = new URL($page.url);
+		url.searchParams.set("viewPost", postId);
 		goto(url.toString(), { replaceState: true, noScroll: true });
 	}
 
@@ -327,6 +351,7 @@
 		} else {
 			url.searchParams.set("tab", mode);
 			url.searchParams.delete("view");
+			url.searchParams.delete("viewPost");
 		}
 		goto(url.toString(), { replaceState: true, noScroll: true });
 	}
@@ -596,6 +621,30 @@
 	});
 
 	let lightboxItems = $derived(itemsVisibleInLibrary);
+
+	function toPostLightboxItem(p: PostCard) {
+		return {
+			_id: p._id,
+			caption: p.caption,
+			title: p.title,
+			platform: p.platform,
+			projectId: p.projectId,
+			projectName: p.projectName,
+			scheduledFor: p.scheduledFor,
+			schedulingStatus: p.schedulingStatus,
+			updatedAt: p.updatedAt,
+			mediaCount: p.mediaCount,
+		};
+	}
+
+	let postLightboxNavItems = $derived.by(() => {
+		const mapped = filteredPostCards.map(toPostLightboxItem);
+		const id = lightboxPostId;
+		if (!id) return mapped;
+		if (mapped.some((p) => p._id === id)) return mapped;
+		const fallback = rawPostCards.find((p) => p._id === id);
+		return fallback ? [toPostLightboxItem(fallback)] : mapped;
+	});
 
 	let conversations = $derived((conversationsQuery.data ?? []) as ConversationSummary[]);
 	let pendingConversations = $derived((pendingConversationsQuery.data ?? []) as PendingConversationSummary[]);
@@ -965,7 +1014,7 @@
 	}
 
 	function openPostEditor(postId: Id<"generated_posts">) {
-		goto(`/posts/create?postId=${postId}`);
+		void goto(`/posts/create?postId=${postId}`);
 	}
 
 	function postSchedulingLabel(schedulingStatus?: string): string {
@@ -1497,7 +1546,7 @@
 												<button
 													type="button"
 													class="w-full overflow-hidden rounded-xl border border-border/80 bg-card/80 text-left shadow-sm transition hover:border-border hover:bg-card"
-													onclick={() => openPostEditor(card.post._id)}
+													onclick={() => openPostLightbox(card.post._id)}
 												>
 													<div class="relative aspect-square overflow-hidden bg-muted">
 														{#if card.post.coverThumbnailUrl ?? card.post.coverUrl}
@@ -1694,5 +1743,15 @@
 		currentMediaId={lightboxMediaId}
 		onclose={closeLightbox}
 		onnavigate={navigateLightbox}
+	/>
+{/if}
+
+{#if viewMode === "images" && postLightboxOpen && lightboxPostId && postLightboxNavItems.some((p) => p._id === lightboxPostId)}
+	<PostLightbox
+		items={postLightboxNavItems}
+		currentPostId={lightboxPostId}
+		onclose={closePostLightbox}
+		onnavigate={navigatePostLightbox}
+		onedit={openPostEditor}
 	/>
 {/if}

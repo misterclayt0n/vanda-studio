@@ -15,6 +15,8 @@
 		profilePictureUrl?: string | undefined;
 		currentIndex?: number;
 		onindexchange?: (index: number) => void;
+		/** Tighter max heights + scroll so overlays (e.g. post lightbox) never exceed the viewport */
+		variant?: "default" | "lightbox";
 	}
 
 	let {
@@ -24,7 +26,10 @@
 		profilePictureUrl,
 		currentIndex = $bindable(0),
 		onindexchange,
+		variant = "default",
 	}: Props = $props();
+
+	const isLightbox = $derived(variant === "lightbox");
 
 	let activeIndex = $state(currentIndex);
 
@@ -86,7 +91,11 @@
 </script>
 
 <!-- Phone chrome -->
-<div class="mx-auto w-full max-w-[320px] select-none">
+<div
+	class="mx-auto w-full max-w-[320px] select-none {isLightbox
+		? 'max-h-[min(90dvh,880px)] overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-gutter:stable]'
+		: ''}"
+>
 	<!-- Phone outer frame -->
 	<div class="relative rounded-[2.5rem] border-4 border-neutral-800 bg-neutral-900 shadow-[0_0_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)]">
 		<!-- Top notch -->
@@ -123,14 +132,18 @@
 			</div>
 
 			<!-- Media area -->
-			<div class="relative bg-neutral-900">
+			<div
+				class="relative bg-neutral-900 {isLightbox
+					? 'flex max-h-[min(46dvh,400px)] min-h-[140px] items-center justify-center overflow-hidden'
+					: ''}"
+			>
 				{#if activeItem?.url}
 					{#if isVideo(activeItem)}
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							src={activeItem.url}
-							class="w-full object-cover"
-							style="aspect-ratio: {previewAspect};"
+							class="{isLightbox ? 'max-h-full max-w-full object-contain' : 'w-full object-cover'}"
+							style={isLightbox ? undefined : `aspect-ratio: ${previewAspect};`}
 							autoplay
 							muted
 							loop
@@ -140,8 +153,8 @@
 						<img
 							src={activeItem.thumbnailUrl ?? activeItem.url}
 							alt=""
-							class="w-full object-cover"
-							style="aspect-ratio: {previewAspect};"
+							class="{isLightbox ? 'max-h-full max-w-full object-contain' : 'w-full object-cover'}"
+							style={isLightbox ? undefined : `aspect-ratio: ${previewAspect};`}
 							loading="lazy"
 							decoding="async"
 						/>
@@ -188,7 +201,11 @@
 					{/if}
 				{:else}
 					<!-- Empty placeholder -->
-					<div class="flex aspect-square items-center justify-center bg-neutral-800">
+					<div
+						class="flex items-center justify-center bg-neutral-800 {isLightbox
+							? 'aspect-auto max-h-[min(46dvh,400px)] min-h-[140px] w-full'
+							: 'aspect-square'}"
+					>
 						<svg class="h-12 w-12 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" />
 						</svg>
@@ -216,7 +233,11 @@
 
 			<!-- Caption: scroll inside phone so outer page scroll stays predictable -->
 			{#if caption}
-				<div class="max-h-[min(320px,50vh)] overflow-y-auto overflow-x-hidden bg-black px-3 pb-3 [scrollbar-gutter:stable]">
+				<div
+					class="overflow-y-auto overflow-x-hidden bg-black px-3 pb-3 [scrollbar-gutter:stable] {isLightbox
+						? 'max-h-[min(200px,30dvh)]'
+						: 'max-h-[min(280px,38vh)]'}"
+				>
 					<p class="text-xs leading-relaxed text-white">
 						<span class="mr-1 font-semibold">{accountName}</span><!-- eslint-disable-next-line svelte/no-at-html-tags -->{@html renderCaption(caption)}
 					</p>

@@ -8,6 +8,8 @@
 	type PostCard = {
 		_id: Id<"generated_posts">;
 		caption: string;
+		title?: string;
+		platform?: string;
 		projectId?: Id<"projects">;
 		projectName?: string;
 		scheduledFor?: number;
@@ -19,7 +21,7 @@
 	type MediaItem = {
 		_id: Id<"media_items">;
 		url: string | null;
-		thumbnailUrl?: string | null;
+		thumbnailUrl?: string | null | undefined;
 		mimeType?: string;
 		width: number;
 		height: number;
@@ -56,6 +58,7 @@
 			.map((item) => ({
 				_id: item._id,
 				url: item.url ?? null,
+				thumbnailUrl: item.thumbnailUrl ?? undefined,
 				mimeType: item.mimeType,
 				width: item.width,
 				height: item.height,
@@ -83,6 +86,13 @@
 			hour: "2-digit",
 			minute: "2-digit",
 		});
+	}
+
+	function platformLabel(platform?: string): string {
+		if (platform === "instagram") return "Instagram";
+		if (platform === "twitter") return "X";
+		if (platform === "linkedin") return "LinkedIn";
+		return platform?.trim() ? platform : "Instagram";
 	}
 
 	function formatUpdatedDate(timestamp: number): string {
@@ -133,7 +143,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex animate-in fade-in duration-150"
+	class="fixed inset-0 z-50 flex max-h-[100dvh] flex-col overflow-hidden animate-in fade-in duration-150"
 	role="dialog"
 	aria-modal="true"
 	aria-label="Visualizador de post"
@@ -147,9 +157,9 @@
 		onkeydown={(event) => event.key === "Enter" && onclose()}
 	></div>
 
-	<div class="relative flex h-full w-full">
-		<div class="relative flex flex-1 items-center justify-center bg-black/60 px-6 py-10">
-			<div class="absolute left-4 top-4 z-10 flex items-center gap-2 text-sm text-white/70">
+	<div class="relative flex min-h-0 flex-1 w-full flex-row items-stretch overflow-hidden">
+		<div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-black/60">
+			<div class="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-2 text-sm text-white/70">
 				<span>{Math.max(currentIndex, 0) + 1} / {items.length}</span>
 			</div>
 
@@ -157,7 +167,7 @@
 				<button
 					type="button"
 					aria-label="Post anterior"
-					class="absolute left-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/10 bg-white/10 text-white/80 backdrop-blur transition hover:bg-white/20 hover:text-white"
+					class="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/10 bg-white/10 text-white/80 backdrop-blur transition hover:bg-white/20 hover:text-white sm:left-4"
 					onclick={handlePrev}
 				>
 					<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -170,7 +180,7 @@
 				<button
 					type="button"
 					aria-label="Próximo post"
-					class="absolute right-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/10 bg-white/10 text-white/80 backdrop-blur transition hover:bg-white/20 hover:text-white"
+					class="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/10 bg-white/10 text-white/80 backdrop-blur transition hover:bg-white/20 hover:text-white sm:right-4"
 					onclick={handleNext}
 				>
 					<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -179,45 +189,55 @@
 				</button>
 			{/if}
 
-			<div class="flex max-w-[440px] flex-col items-center gap-6">
-				<InstagramPreview
-					mediaItems={mediaItems}
-					caption={currentPost?.caption ?? ""}
-					accountName={currentPost?.projectName ?? "sua_conta"}
-					bind:currentIndex={previewIndex}
-				/>
+			<div
+				class="flex min-h-0 flex-1 flex-col items-center gap-4 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-6 pt-14 sm:px-6 sm:pb-8 sm:pt-16"
+			>
+				<div class="flex w-full max-w-[400px] shrink-0 flex-col items-center gap-4">
+					<InstagramPreview
+						variant="lightbox"
+						mediaItems={mediaItems}
+						caption={currentPost?.caption ?? ""}
+						accountName={currentPost?.projectName ?? "sua_conta"}
+						bind:currentIndex={previewIndex}
+					/>
 
-				{#if mediaItems.length > 1}
-					<div class="flex max-w-full gap-2 overflow-x-auto pb-2">
-						{#each mediaItems as item, index (item._id)}
-							<button
-								type="button"
-								class="overflow-hidden border transition {previewIndex === index ? 'border-primary ring-1 ring-primary/30' : 'border-white/10 hover:border-white/25'}"
-								onclick={() => (previewIndex = index)}
-							>
-								{#if item.url}
-									<img src={item.url} alt="" class="h-16 w-16 object-cover" />
-								{:else}
-									<div class="flex h-16 w-16 items-center justify-center bg-white/5 text-white/50">
-										<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159" />
-										</svg>
-									</div>
-								{/if}
-							</button>
-						{/each}
-					</div>
-				{/if}
+					{#if mediaItems.length > 1}
+						<div class="flex max-w-full shrink-0 gap-2 overflow-x-auto pb-1 [scrollbar-gutter:stable]">
+							{#each mediaItems as item, index (item._id)}
+								<button
+									type="button"
+									class="shrink-0 overflow-hidden border transition {previewIndex === index ? 'border-primary ring-1 ring-primary/30' : 'border-white/10 hover:border-white/25'}"
+									onclick={() => (previewIndex = index)}
+								>
+									{#if item.url}
+										<img src={item.thumbnailUrl ?? item.url} alt="" class="h-16 w-16 object-cover" />
+									{:else}
+										<div class="flex h-16 w-16 items-center justify-center bg-white/5 text-white/50">
+											<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159" />
+											</svg>
+										</div>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
 			</div>
 		</div>
 
-		<aside class="relative flex w-[380px] shrink-0 flex-col border-l border-white/10 bg-[#0f1015] text-white">
-			<div class="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+		<aside
+			class="relative flex w-full min-w-0 max-w-[100vw] shrink-0 flex-col border-l border-white/10 bg-[#0f1015] text-white sm:w-[min(380px,42vw)] sm:max-w-[380px]"
+		>
+			<div class="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
 				<div class="min-w-0">
 					<p class="text-xs font-medium uppercase tracking-wide text-white/45">Post</p>
-					<h2 class="mt-2 truncate text-3xl font-semibold leading-none">
-						{currentPost?.projectName ?? "Sem projeto"}
+					<h2 class="mt-2 truncate text-2xl font-semibold leading-tight sm:text-3xl sm:leading-none">
+						{currentPost?.title?.trim() || currentPost?.projectName || "Sem título"}
 					</h2>
+					{#if currentPost?.title?.trim() && currentPost?.projectName}
+						<p class="mt-1 truncate text-sm text-white/50">{currentPost.projectName}</p>
+					{/if}
 				</div>
 
 				<div class="flex items-center gap-2">
@@ -237,10 +257,10 @@
 				</div>
 			</div>
 
-			<div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+			<div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 [scrollbar-gutter:stable]">
 				<div class="space-y-5">
 					<div class="flex flex-wrap items-center gap-2">
-						<Badge variant="secondary" class="bg-white/10 text-white">Instagram</Badge>
+						<Badge variant="secondary" class="bg-white/10 text-white">{platformLabel(currentPost?.platform)}</Badge>
 						<Badge variant="outline" class="border-white/10 text-white/80">
 							{currentPost?.schedulingStatus === "scheduled" ? "Agendado" : "Rascunho"}
 						</Badge>
@@ -264,7 +284,9 @@
 
 					<div class="space-y-2">
 						<p class="text-xs font-medium uppercase tracking-wide text-white/45">Legenda</p>
-						<div class="border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-white/80">
+						<div
+							class="max-h-[min(320px,40dvh)] overflow-y-auto border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-white/80"
+						>
 							{currentPost?.caption || "Sem legenda ainda."}
 						</div>
 					</div>
