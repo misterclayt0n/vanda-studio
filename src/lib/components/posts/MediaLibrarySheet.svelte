@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Id } from "../../../convex/_generated/dataModel.js";
 	import MediaLibraryPanel from "./MediaLibraryPanel.svelte";
+	import { portal } from "$lib/actions/portal";
+	import { DEFAULT_POST_MEDIA_MAX } from "$lib/data/postLimits";
 
 	interface Props {
 		open: boolean;
@@ -16,28 +18,30 @@
 		open,
 		selectedIds,
 		projectId,
-		max = 10,
+		max = DEFAULT_POST_MEDIA_MAX,
 		onselect,
 		ondeselect,
 		onclose,
 	}: Props = $props();
 </script>
 
-<!-- Backdrop -->
-{#if open}
-	<div
-		class="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
-		role="presentation"
-		onclick={onclose}
-	></div>
-{/if}
+<!-- Portal to body so the sheet renders above the post lightbox (which is z-50). -->
+<div use:portal>
+	<!-- Backdrop -->
+	{#if open}
+		<div
+			class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm"
+			role="presentation"
+			onclick={onclose}
+		></div>
+	{/if}
 
-<!-- Sheet -->
-<div
-	class="fixed bottom-0 right-0 top-14 z-40 flex w-[380px] flex-col border-l border-border bg-background shadow-xl transition-transform duration-300 {open
-		? 'translate-x-0'
-		: 'translate-x-full'}"
->
+	<!-- Sheet -->
+	<div
+		class="fixed bottom-0 right-0 top-0 z-[80] flex w-[420px] max-w-[92vw] flex-col border-l border-border bg-background shadow-2xl transition-transform duration-300 {open
+			? 'translate-x-0'
+			: 'translate-x-full pointer-events-none'}"
+	>
 	<!-- Header -->
 	<div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
 		<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -71,5 +75,6 @@
 			{onselect}
 			{ondeselect}
 		/>
+	</div>
 	</div>
 </div>

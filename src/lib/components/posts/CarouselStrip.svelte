@@ -17,7 +17,9 @@
 		onremove: (id: Id<"media_items">) => void;
 	}
 
-	let { items, max = 10, onreorder, onremove }: Props = $props();
+	import { DEFAULT_POST_MEDIA_MAX } from "$lib/data/postLimits";
+
+	let { items, max = DEFAULT_POST_MEDIA_MAX, onreorder, onremove }: Props = $props();
 
 	function isVideo(item: CarouselItem): boolean {
 		return (item.mimeType ?? "").startsWith("video/");

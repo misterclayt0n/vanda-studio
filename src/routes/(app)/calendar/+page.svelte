@@ -266,7 +266,7 @@ import type { Id } from "../../../convex/_generated/dataModel.js";
 					<Button variant="outline" size="sm" onclick={() => settingsOpen = true}>
 						<Settings class="h-4 w-4" />
 					</Button>
-					<Button onclick={() => goto('/posts/create')}>
+					<Button onclick={() => goto('/library')}>
 						Criar Post
 					</Button>
 				</div>
@@ -470,7 +470,7 @@ import type { Id } from "../../../convex/_generated/dataModel.js";
 									Marcar como Postado
 								</Button>
 							{/if}
-							<Button size="sm" variant="ghost" onclick={() => goto(`/posts/${post._id}`)}>
+							<Button size="sm" variant="ghost" onclick={() => goto(`/library?viewPost=${post._id}`)}>
 								Ver Post
 							</Button>
 							{#if post.schedulingStatus === 'scheduled'}

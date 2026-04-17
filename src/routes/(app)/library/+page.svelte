@@ -9,6 +9,7 @@
 	} from "$lib/components/ui";
 	import {
 		ImageModelSelector,
+		CaptionModelSelector,
 		AspectRatioSelector,
 		ResolutionSelector,
 		ProjectSelector,
@@ -28,7 +29,7 @@
 	import { onMount } from "svelte";
 	import Navbar from "$lib/components/Navbar.svelte";
 	import { MediaLightbox } from "$lib/components/lightbox";
-	import { PostLightbox } from "$lib/components/posts";
+	import { PostLightbox, AddToPostDialog } from "$lib/components/posts";
 	import {
 		coerceImageGenerationSettings,
 		DEFAULT_STUDIO_IMAGE_MODEL,
@@ -54,8 +55,10 @@
 		type LibraryGalleryAssetFilter,
 		type LibraryPostPlatformFilter,
 		type LibraryPostSchedulingFilter,
+		type LibraryMediaLinkFilter,
 	} from "$lib/studio/libraryPageFiltersState";
 	import { DEFAULT_PRESET, getStylePresetPromptForApi } from "$lib/data/imagePresets";
+	import { INSTAGRAM_CAROUSEL_MAX } from "$lib/data/postLimits";
 	import {
 		filterMediaItems,
 		getMediaModelDisplayName,
@@ -70,6 +73,7 @@
 		sumUsageLineItemCredits,
 	} from "$lib/billing/aiCredits";
 	import { formatUserFacingMessageFromText } from "$lib/errors";
+	import { toast } from "svelte-sonner";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -91,6 +95,7 @@
 		storageId: Id<"_storage">;
 		mimeType: string;
 		deletedAt?: number;
+		linkedPostCount?: number;
 	};
 
 	type PostCard = {
@@ -129,6 +134,11 @@
 			updatedAt: number;
 		}
 		| { type: "post"; key: string; post: PostCard };
+
+	type GalleryLightboxEntry =
+		| { kind: "media"; id: Id<"media_items"> }
+		| { kind: "post"; id: Id<"generated_posts"> };
+	type CreatorMode = "images" | "instagram" | "twitter" | "linkedin";
 
 	type ViewMode = "images" | "conversations";
 
@@ -233,10 +243,30 @@
 	let persistedStateRestored = $state(false);
 	let hiddenItemIds = $state<string[]>([]);
 	let hiddenPostIds = $state<string[]>([]);
+	let selectionMode = $state(false);
+	let selectedMediaIds = $state<Id<"media_items">[]>([]);
+	let addToPostOpen = $state(false);
+	let isBulkSaving = $state(false);
+	let selectionOverLimit = $derived(selectedMediaIds.length > INSTAGRAM_CAROUSEL_MAX);
+	let creatorMode = $state<CreatorMode>("images");
+	let captionModel = $state("moonshotai/kimi-k2-0905");
+	let postGenerationPending = $state<{
+		model: string;
+		aspectRatio: string;
+		imageCount: number;
+		startedAt: number;
+	} | null>(null);
+	let generationLoaderLabel = $derived(
+		creatorMode === "instagram" ? "Gerando Post..." : "Gerando Imagem..."
+	);
+	let generateButtonLabel = $derived(
+		creatorMode === "instagram" ? "Gerar Post" : "Gerar Imagem"
+	);
 
 	let galleryAssetFilter = $state<LibraryGalleryAssetFilter>("all");
 	let postPlatformFilter = $state<LibraryPostPlatformFilter>("all");
 	let postSchedulingFilter = $state<LibraryPostSchedulingFilter>("all");
+	let mediaLinkFilter = $state<LibraryMediaLinkFilter>("all");
 	let gallerySearch = $state("");
 	let debouncedGallerySearch = $state("");
 
@@ -274,6 +304,7 @@
 			galleryAssetFilter = gallerySaved.galleryAssetFilter;
 			postPlatformFilter = gallerySaved.postPlatformFilter;
 			postSchedulingFilter = gallerySaved.postSchedulingFilter;
+			mediaLinkFilter = gallerySaved.mediaLinkFilter;
 			gallerySearch = gallerySaved.gallerySearch;
 			debouncedGallerySearch = gallerySaved.gallerySearch.trim();
 		}
@@ -343,6 +374,14 @@
 		goto(url.toString(), { replaceState: true, noScroll: true });
 	}
 
+	function navigateToGalleryEntry(entry: GalleryLightboxEntry) {
+		if (entry.kind === "media") {
+			navigateLightbox(entry.id);
+			return;
+		}
+		navigatePostLightbox(entry.id);
+	}
+
 	function setViewMode(mode: ViewMode) {
 		viewMode = mode;
 		const url = new URL($page.url);
@@ -354,6 +393,18 @@
 			url.searchParams.delete("viewPost");
 		}
 		goto(url.toString(), { replaceState: true, noScroll: true });
+	}
+
+	function selectCreatorMode(mode: CreatorMode) {
+		if (mode === "twitter") {
+			toast.info("Em breve", { description: "Criação para X chega em breve." });
+			return;
+		}
+		if (mode === "linkedin") {
+			toast.info("Em breve", { description: "Criação para LinkedIn chega em breve." });
+			return;
+		}
+		creatorMode = mode;
 	}
 
 	const projectsQuery = useQuery(api.projects.list, () => ({}));
@@ -408,6 +459,7 @@
 		galleryAssetFilter === "all" &&
 		postPlatformFilter === "all" &&
 		postSchedulingFilter === "all" &&
+		mediaLinkFilter === "all" &&
 		!debouncedGallerySearch.trim()
 	);
 	let showGeneratingBatchCards = $derived(
@@ -476,6 +528,7 @@
 			galleryAssetFilter,
 			postPlatformFilter,
 			postSchedulingFilter,
+			mediaLinkFilter,
 			gallerySearch,
 		});
 	});
@@ -580,8 +633,14 @@
 
 	let itemsVisibleInLibrary = $derived.by(() => {
 		const q = debouncedGallerySearch.trim().toLowerCase();
-		if (!q) return items;
-		return items.filter((item) => {
+		let list = items;
+		if (mediaLinkFilter === "linked") {
+			list = list.filter((item) => (item.linkedPostCount ?? 0) > 0);
+		} else if (mediaLinkFilter === "unlinked") {
+			list = list.filter((item) => (item.linkedPostCount ?? 0) === 0);
+		}
+		if (!q) return list;
+		return list.filter((item) => {
 			const hay = `${item.userPrompt ?? ""} ${item.prompt ?? ""}`.toLowerCase();
 			return hay.includes(q);
 		});
@@ -626,12 +685,12 @@
 		return {
 			_id: p._id,
 			caption: p.caption,
-			title: p.title,
+		...(p.title !== undefined ? { title: p.title } : {}),
 			platform: p.platform,
-			projectId: p.projectId,
-			projectName: p.projectName,
-			scheduledFor: p.scheduledFor,
-			schedulingStatus: p.schedulingStatus,
+		...(p.projectId !== undefined ? { projectId: p.projectId } : {}),
+		...(p.projectName !== undefined ? { projectName: p.projectName } : {}),
+		...(p.scheduledFor !== undefined ? { scheduledFor: p.scheduledFor } : {}),
+		...(p.schedulingStatus !== undefined ? { schedulingStatus: p.schedulingStatus } : {}),
 			updatedAt: p.updatedAt,
 			mediaCount: p.mediaCount,
 		};
@@ -694,6 +753,17 @@
 			cards.push(pendingCard);
 		}
 
+		if (postGenerationPending) {
+			for (let i = 0; i < postGenerationPending.imageCount; i++) {
+				cards.push({
+					type: "pending",
+					key: `post-img-pending-${postGenerationPending.startedAt}-${i}`,
+					model: postGenerationPending.model,
+					aspectRatio: postGenerationPending.aspectRatio,
+				});
+			}
+		}
+
 		if (showGeneratingBatchCards) {
 			for (const item of batchItems) {
 				cards.push({ type: "item", key: item._id, item });
@@ -738,6 +808,64 @@
 			(a, b) => dir * (gridCardSortTs(a, batchProgressTs) - gridCardSortTs(b, batchProgressTs))
 		);
 	});
+
+	let galleryLightboxSequence = $derived.by(() => {
+		const entries: GalleryLightboxEntry[] = [];
+		for (const card of gridCards()) {
+			if (card.type === "item") {
+				entries.push({ kind: "media", id: card.item._id });
+			}
+			if (card.type === "post") {
+				entries.push({ kind: "post", id: card.post._id });
+			}
+		}
+		return entries;
+	});
+
+	let currentGalleryEntry = $derived.by(() => {
+		if (lightboxPostId) {
+			return { kind: "post", id: lightboxPostId } as const;
+		}
+		if (lightboxMediaId) {
+			return { kind: "media", id: lightboxMediaId as Id<"media_items"> } as const;
+		}
+		return null;
+	});
+
+	let currentGalleryIndex = $derived.by(() => {
+		const current = currentGalleryEntry;
+		if (!current) return -1;
+		return galleryLightboxSequence.findIndex(
+			(entry) => entry.kind === current.kind && entry.id === current.id
+		);
+	});
+
+	let galleryCanPrev = $derived(currentGalleryIndex > 0);
+	let galleryCanNext = $derived(
+		currentGalleryIndex >= 0 && currentGalleryIndex < galleryLightboxSequence.length - 1
+	);
+	let galleryCounterText = $derived.by(() => {
+		const index = currentGalleryIndex;
+		const total = galleryLightboxSequence.length;
+		if (index < 0 || total === 0) return "";
+		return `${index + 1} / ${total}`;
+	});
+
+	function navigateGalleryPrev() {
+		const index = currentGalleryIndex;
+		if (index <= 0) return;
+		const previous = galleryLightboxSequence[index - 1];
+		if (!previous) return;
+		navigateToGalleryEntry(previous);
+	}
+
+	function navigateGalleryNext() {
+		const index = currentGalleryIndex;
+		if (index < 0 || index >= galleryLightboxSequence.length - 1) return;
+		const next = galleryLightboxSequence[index + 1];
+		if (!next) return;
+		navigateToGalleryEntry(next);
+	}
 
 	let viewportWidth = $state(typeof window !== "undefined" ? window.innerWidth : 1280);
 
@@ -807,7 +935,8 @@
 
 	let batchPendingCount = $derived(showGeneratingBatchCards ? batchData?.pendingModels?.length ?? 0 : 0);
 	let conversationPendingCount = $derived(conversationPendingCards().length);
-	let pendingCount = $derived(batchPendingCount + conversationPendingCount);
+	let postImagePendingCount = $derived(postGenerationPending?.imageCount ?? 0);
+	let pendingCount = $derived(batchPendingCount + conversationPendingCount + postImagePendingCount);
 	let activeConversationCount = $derived(
 		conversations.filter(
 			(conversation) => (conversation.latestTurn?.pendingModels?.length ?? 0) > 0
@@ -930,25 +1059,79 @@
 
 			const stylePresetPrompt = getStylePresetPromptForApi(selectedPreset);
 
-			const result = await client.action(api.ai.generateImages.generate, {
-				...(selectedProjectId && { projectId: selectedProjectId }),
-				message: prompt.trim(),
-				imageModels: selectedModels,
-				aspectRatio: normalized.aspectRatio,
-				resolution: normalized.resolution,
-				...(projectContext && { projectContext }),
-				...(manualReferences.length > 0 && {
-					manualReferenceIds: manualReferences.map((r) => r.storageId),
-				}),
-				...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
-			});
+			if (creatorMode === "instagram") {
+				const imageModel = selectedModels[0] ?? DEFAULT_STUDIO_IMAGE_MODEL;
+				postGenerationPending = {
+					model: imageModel,
+					aspectRatio: normalized.aspectRatio,
+					imageCount: 1,
+					startedAt: Date.now(),
+				};
+				const composed = await client.action(api.ai.composePostFromBrief.composeFromBrief, {
+					brief: prompt.trim(),
+					imageModel,
+					captionModel,
+					aspectRatio: normalized.aspectRatio,
+					resolution: normalized.resolution,
+					...(selectedProjectId && { projectId: selectedProjectId }),
+					...(projectContext && { projectContext }),
+					...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
+				});
 
-			activeBatchId = result.batchId;
+				const postId = await client.mutation(api.generatedPosts.saveComposedDraft, {
+					...(selectedProjectId && { projectId: selectedProjectId }),
+					platform: "instagram",
+					caption: composed.caption,
+					mediaItemIds: composed.mediaItemIds,
+				});
+				if (composed.captionFallbackUsed && !composed.captionFailed) {
+					toast.warning("Legenda gerada com fallback", {
+						description:
+							`O modelo ${composed.captionModelRequested ?? captionModel} falhou. ` +
+							`Usamos ${composed.captionModelUsed ?? "Google Flash 2.5"} para concluir a legenda.`,
+					});
+				}
+				if (composed.captionFailed) {
+					toast.warning("Post criado sem legenda", {
+						description:
+							"Imagem gerada, mas o modelo de legenda falhou. Edite a legenda manualmente no post.",
+					});
+				}
+				openPostLightbox(postId);
+			} else {
+				const result = await client.action(api.ai.generateImages.generate, {
+					...(selectedProjectId && { projectId: selectedProjectId }),
+					message: prompt.trim(),
+					imageModels: selectedModels,
+					aspectRatio: normalized.aspectRatio,
+					resolution: normalized.resolution,
+					...(projectContext && { projectContext }),
+					...(manualReferences.length > 0 && {
+						manualReferenceIds: manualReferences.map((r) => r.storageId),
+					}),
+					...(stylePresetPrompt && { stylePreset: stylePresetPrompt }),
+				});
+				activeBatchId = result.batchId;
+			}
 			prompt = "";
 			void loadBillingOverview();
 		} catch (err: any) {
+			console.error("[library] generation failed", {
+				creatorMode,
+				selectedProjectId,
+				selectedModels,
+				aspectRatio,
+				resolution,
+				error: err,
+			});
+			if (creatorMode === "instagram") {
+				toast.error("Falha ao gerar post", {
+					description: "Confira o console para detalhes e tente novamente.",
+				});
+			}
 			showError(err, "GENERATION_FAILED");
 		} finally {
+			postGenerationPending = null;
 			isGenerating = false;
 		}
 	}
@@ -1007,15 +1190,130 @@
 		hiddenItemIds = [...hiddenItemIds, id];
 	}
 
+	function enterSelectionMode(initialId?: Id<"media_items">) {
+		selectionMode = true;
+		if (initialId && !selectedMediaIds.includes(initialId)) {
+			selectedMediaIds = [...selectedMediaIds, initialId];
+		}
+	}
+
+	function exitSelectionMode() {
+		selectionMode = false;
+		selectedMediaIds = [];
+	}
+
+	function toggleMediaSelection(id: Id<"media_items">) {
+		if (selectedMediaIds.includes(id)) {
+			selectedMediaIds = selectedMediaIds.filter((x) => x !== id);
+			return;
+		}
+		selectedMediaIds = [...selectedMediaIds, id];
+	}
+
+	function isMediaSelected(id: Id<"media_items">): boolean {
+		return selectedMediaIds.includes(id);
+	}
+
+	function selectionIndex(id: Id<"media_items">): number {
+		return selectedMediaIds.indexOf(id) + 1;
+	}
+
+	async function createPostFromSelection() {
+		if (selectedMediaIds.length === 0 || isBulkSaving) return;
+		if (selectedMediaIds.length > INSTAGRAM_CAROUSEL_MAX) {
+			toast.warning(
+				`Instagram permite no máximo ${INSTAGRAM_CAROUSEL_MAX} mídias por carrossel.`
+			);
+			return;
+		}
+		isBulkSaving = true;
+		try {
+			const newPostId = await client.mutation(api.generatedPosts.saveComposedDraft, {
+				caption: "",
+				platform: "instagram",
+				mediaItemIds: [...selectedMediaIds],
+				...(selectedProjectId && { projectId: selectedProjectId }),
+			});
+			toast.success(`Post criado com ${selectedMediaIds.length} ${selectedMediaIds.length === 1 ? "imagem" : "imagens"}`);
+			exitSelectionMode();
+			openPostLightbox(newPostId);
+		} catch (err) {
+			console.error("[library] createPostFromSelection failed", err);
+			toast.error("Não foi possível criar o post");
+		} finally {
+			isBulkSaving = false;
+		}
+	}
+
+	async function appendSelectionToPost(postId: Id<"generated_posts">) {
+		if (selectedMediaIds.length === 0 || isBulkSaving) return;
+		isBulkSaving = true;
+		try {
+			const result = await client.mutation(api.postMediaItems.appendManyToPost, {
+				postId,
+				mediaItemIds: [...selectedMediaIds],
+			});
+			if (result.added === 0) {
+				if (result.skippedAlreadyLinked > 0 && result.skippedDueToLimit === 0) {
+					toast.info("Essas imagens já estão no post");
+				} else if (result.skippedDueToLimit > 0) {
+					toast.warning(`Post já atingiu o limite de ${INSTAGRAM_CAROUSEL_MAX} mídias`);
+				} else {
+					toast.info("Nada para adicionar");
+				}
+			} else {
+				const pieces = [
+					`${result.added} ${result.added === 1 ? "imagem adicionada" : "imagens adicionadas"}`,
+				];
+				if (result.skippedAlreadyLinked > 0) {
+					pieces.push(`${result.skippedAlreadyLinked} já estava${result.skippedAlreadyLinked === 1 ? "" : "m"} no post`);
+				}
+				if (result.skippedDueToLimit > 0) {
+					pieces.push(`${result.skippedDueToLimit} ignorada${result.skippedDueToLimit === 1 ? "" : "s"} pelo limite de ${INSTAGRAM_CAROUSEL_MAX}`);
+				}
+				toast.success(pieces.join(" · "));
+			}
+			addToPostOpen = false;
+			exitSelectionMode();
+			if (result.added > 0) {
+				openPostLightbox(postId);
+			}
+		} catch (err) {
+			console.error("[library] appendSelectionToPost failed", err);
+			toast.error("Não foi possível adicionar ao post");
+		} finally {
+			isBulkSaving = false;
+		}
+	}
+
+	async function deleteSelection() {
+		if (selectedMediaIds.length === 0 || isBulkSaving) return;
+		const count = selectedMediaIds.length;
+		const confirmed = confirm(
+			`Mover ${count} ${count === 1 ? "imagem" : "imagens"} para a lixeira?`
+		);
+		if (!confirmed) return;
+		isBulkSaving = true;
+		try {
+			const ids = [...selectedMediaIds];
+			await client.mutation(api.mediaItems.softDeleteMany, { ids });
+			hiddenItemIds = [...hiddenItemIds, ...ids];
+			toast.success(`${count} ${count === 1 ? "imagem removida" : "imagens removidas"}`);
+			exitSelectionMode();
+		} catch (err) {
+			console.error("[library] deleteSelection failed", err);
+			toast.error("Não foi possível excluir as imagens");
+		} finally {
+			isBulkSaving = false;
+		}
+	}
+
 	async function handleDeletePost(id: Id<"generated_posts">, event: Event) {
 		event.stopPropagation();
 		await client.mutation(api.generatedPosts.softDelete, { id });
 		hiddenPostIds = [...hiddenPostIds, id];
 	}
 
-	function openPostEditor(postId: Id<"generated_posts">) {
-		void goto(`/posts/create?postId=${postId}`);
-	}
 
 	function postSchedulingLabel(schedulingStatus?: string): string {
 		return schedulingStatus === "scheduled" ? "Agendado" : "Rascunho";
@@ -1064,6 +1362,50 @@
 			<!-- Scrollable content -->
 			<div class="flex-1 overflow-y-auto p-4 space-y-5">
 				<div class="space-y-2">
+					<p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Criador</p>
+					<div class="grid grid-cols-4 gap-2">
+						<button
+							type="button"
+							class="flex h-10 items-center justify-center rounded-lg border transition-colors {creatorMode === 'images' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground'}"
+							aria-label="Criar imagem"
+							onclick={() => selectCreatorMode("images")}
+						>
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" />
+							</svg>
+						</button>
+						<button
+							type="button"
+							class="flex h-10 items-center justify-center rounded-lg border transition-colors {creatorMode === 'instagram' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground'}"
+							aria-label="Criar post para Instagram"
+							onclick={() => selectCreatorMode("instagram")}
+						>
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+								<rect x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+								<circle cx="12" cy="12" r="4.2" />
+								<circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none" />
+							</svg>
+						</button>
+						<button
+							type="button"
+							class="flex h-10 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground/60"
+							aria-label="Criar post para X (em breve)"
+							onclick={() => selectCreatorMode("twitter")}
+						>
+							<span class="text-sm font-semibold">X</span>
+						</button>
+						<button
+							type="button"
+							class="flex h-10 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground/60"
+							aria-label="Criar post para LinkedIn (em breve)"
+							onclick={() => selectCreatorMode("linkedin")}
+						>
+							<span class="text-sm font-semibold">in</span>
+						</button>
+					</div>
+				</div>
+
+				<div class="space-y-2">
 					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
@@ -1077,40 +1419,6 @@
 						label={null}
 						compact
 					/>
-					{#if selectedProjectId}
-						<button
-							type="button"
-							class="mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors {useProjectContext ? 'border-primary/30 bg-primary/8 text-primary' : 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground'}"
-							onclick={() => (useProjectContext = !useProjectContext)}
-						>
-							<span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border {useProjectContext ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}">
-								{#if useProjectContext}
-									<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-									</svg>
-								{/if}
-							</span>
-							<span class="flex-1 text-left font-medium">Usar contexto do projeto</span>
-							<Popover>
-								<PopoverTrigger>
-									<span
-										class="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground"
-										role="button"
-										tabindex="0"
-										onclick={(e) => e.stopPropagation()}
-										onkeydown={(e) => { if (e.key === "Enter") e.stopPropagation(); }}
-									>
-										<svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-										</svg>
-									</span>
-								</PopoverTrigger>
-								<PopoverContent class="w-60 border border-border bg-card p-3 text-xs text-muted-foreground" align="start">
-									Injeta as informações da marca (tom, cores, público, etc.) no prompt enviado ao modelo de imagem.
-								</PopoverContent>
-							</Popover>
-						</button>
-					{/if}
 				</div>
 
 				<div class="space-y-2">
@@ -1140,22 +1448,12 @@
 
 				<ImageTemplateSection bind:selectedPreset />
 
-				<div class="rounded-xl border border-border/80 bg-card/40 p-3">
-					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Posts</p>
-					<p class="mt-1 text-xs text-muted-foreground">
-						Monte legendas, carrosseis e agendamento no editor dedicado.
-					</p>
-					<Button variant="outline" class="mt-3 w-full" size="sm" onclick={() => goto("/posts/create")}>
-						Abrir editor de posts
-					</Button>
-				</div>
-
 				<div class="space-y-2">
 					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 						<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
 						</svg>
-						Modelos
+						Modelos de imagem
 					</p>
 					<ImageModelSelector
 						selected={selectedModels}
@@ -1165,6 +1463,24 @@
 						compact
 					/>
 				</div>
+
+				{#if creatorMode === "instagram"}
+					<div class="space-y-2">
+						<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							<svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+							</svg>
+							Modelos de legenda
+						</p>
+						<CaptionModelSelector
+							value={captionModel}
+							onchange={(v) => (captionModel = v)}
+							monthlyIncludedCredits={billingOverview?.usage?.monthlyIncluded ?? null}
+							usageIndicatorMode="percent"
+							compact
+						/>
+					</div>
+				{/if}
 
 				<div class="space-y-2">
 					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1254,12 +1570,12 @@
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						Gerando...
+						{generationLoaderLabel}
 					{:else}
 						<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
 						</svg>
-						Gerar
+						{generateButtonLabel}
 					{/if}
 				</Button>
 				<p class="text-center text-xs text-muted-foreground">
@@ -1328,6 +1644,7 @@
 										{galleryAssetFilter}
 										{postPlatformFilter}
 										{postSchedulingFilter}
+										{mediaLinkFilter}
 										gallerySearch={gallerySearch}
 										onprojectchange={(projectId) => {
 											filterProjectId = projectId as Id<"projects"> | null;
@@ -1350,6 +1667,9 @@
 										onpostschedulingchange={(value) => {
 											postSchedulingFilter = value;
 										}}
+										onmedialinkchange={(value) => {
+											mediaLinkFilter = value;
+										}}
 										ongallerysearchinput={(value) => {
 											gallerySearch = value;
 										}}
@@ -1363,6 +1683,31 @@
 									{#if pendingCount > 0}
 										<Badge variant="secondary" class="text-xs">{pendingCount} gerando</Badge>
 									{/if}
+									<Button
+										type="button"
+										variant={selectionMode ? "default" : "outline"}
+										size="sm"
+										class="h-9 gap-1.5 rounded-none"
+										onclick={() => {
+											if (selectionMode) {
+												exitSelectionMode();
+											} else {
+												enterSelectionMode();
+											}
+										}}
+									>
+										{#if selectionMode}
+											<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+											Sair da seleção
+										{:else}
+											<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											Selecionar
+										{/if}
+									</Button>
 								</div>
 							</div>
 						{:else}
@@ -1476,10 +1821,23 @@
 										{#each col as card (card.key)}
 										<div class="group relative">
 											{#if card.type === "item"}
+												{@const mediaSelected = isMediaSelected(card.item._id)}
 												<button
 													type="button"
-													class="w-full overflow-hidden rounded-xl border border-border/80 bg-card/80 text-left shadow-sm transition hover:border-border hover:bg-card"
-													onclick={() => openLightbox(card.item._id)}
+													class="w-full overflow-hidden rounded-xl border text-left shadow-sm transition {mediaSelected
+														? 'border-primary bg-card ring-2 ring-primary/40'
+														: 'border-border/80 bg-card/80 hover:border-border hover:bg-card'}"
+													onclick={() => {
+														if (selectionMode) {
+															toggleMediaSelection(card.item._id);
+														} else {
+															openLightbox(card.item._id);
+														}
+													}}
+													oncontextmenu={(event) => {
+														event.preventDefault();
+														enterSelectionMode(card.item._id);
+													}}
 												>
 													<div class="relative overflow-hidden bg-muted" style={`aspect-ratio: ${getMediaAspectRatio(card.item)};`}>
 														{#if card.item.url}
@@ -1498,13 +1856,59 @@
 															</div>
 														{/if}
 
-														{#if card.item.sourceType !== "generated"}
-															<div class="absolute left-3 top-3">
-																<Badge variant="secondary" class="bg-black/60 text-white backdrop-blur-sm">
-																	{getSourceLabel(card.item.sourceType)}
-																</Badge>
+														{#if selectionMode}
+															<div
+																class="pointer-events-none absolute left-3 top-3 z-[1] flex h-7 w-7 items-center justify-center rounded-full border-2 {mediaSelected
+																	? 'border-primary bg-primary text-primary-foreground shadow-[0_6px_20px_-6px_rgba(236,72,153,0.8)]'
+																	: 'border-white/70 bg-black/40 text-white/0 backdrop-blur-sm'}"
+															>
+																{#if mediaSelected}
+																	<span class="text-[11px] font-bold tabular-nums">
+																		{selectionIndex(card.item._id)}
+																	</span>
+																{:else}
+																	<svg class="h-3.5 w-3.5 opacity-0" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+																		<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+																	</svg>
+																{/if}
 															</div>
 														{/if}
+
+														<div class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 {selectionMode ? 'pl-10' : ''}">
+															<div class="flex flex-wrap items-start gap-1.5">
+																{#if card.item.sourceType !== "generated"}
+																	<Badge variant="secondary" class="bg-black/60 text-white backdrop-blur-sm">
+																		{getSourceLabel(card.item.sourceType)}
+																	</Badge>
+																{/if}
+															</div>
+															{#if (card.item.linkedPostCount ?? 0) > 0}
+																<span
+																	class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary backdrop-blur-sm"
+																	title="Essa imagem faz parte de {card.item.linkedPostCount} post{card.item.linkedPostCount === 1 ? '' : 's'}"
+																>
+																	<svg
+																		class="h-3 w-3"
+																		xmlns="http://www.w3.org/2000/svg"
+																		fill="none"
+																		viewBox="0 0 24 24"
+																		stroke-width="2"
+																		stroke="currentColor"
+																	>
+																		<path
+																			stroke-linecap="round"
+																			stroke-linejoin="round"
+																			d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"
+																		/>
+																	</svg>
+																	{#if card.item.linkedPostCount === 1}
+																		Em post
+																	{:else}
+																		{card.item.linkedPostCount} posts
+																	{/if}
+																</span>
+															{/if}
+														</div>
 													</div>
 
 													<div class="px-3 py-3">
@@ -1517,7 +1921,7 @@
 													</div>
 												</button>
 
-												<div class="pointer-events-none absolute inset-x-3 top-3 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+												<div class="pointer-events-none absolute inset-x-3 top-3 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 {selectionMode ? 'hidden' : ''}">
 													{#if card.item.url}
 														<button
 															type="button"
@@ -1618,7 +2022,7 @@
 														</div>
 														<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
 															<ImageGenerationPulseLoader
-																message="Gerando…"
+																message="Gerando Imagem..."
 																density="compact"
 															/>
 														</div>
@@ -1638,7 +2042,7 @@
 														<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]"></div>
 														<div class="relative z-[1] flex h-full w-full flex-col items-center justify-center p-2">
 															<ImageGenerationPulseLoader
-																message="Gerando…"
+																message="Gerando Imagem..."
 																density="compact"
 															/>
 														</div>
@@ -1735,6 +2139,88 @@
 	</div>
 </div>
 
+{#if selectionMode && selectedMediaIds.length > 0}
+	<div class="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+		<div
+			class="pointer-events-auto flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-2xl backdrop-blur-md"
+			role="region"
+			aria-label="Ações em seleção de mídia"
+		>
+			<div class="flex items-center gap-2.5">
+				<span class="flex h-8 w-8 items-center justify-center rounded-full {selectionOverLimit ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'} text-[13px] font-bold tabular-nums">
+					{selectedMediaIds.length}
+				</span>
+				<p class="text-sm font-medium text-foreground">
+					{selectedMediaIds.length === 1 ? "1 imagem selecionada" : `${selectedMediaIds.length} imagens selecionadas`}
+				</p>
+				{#if selectionOverLimit}
+					<Badge variant="secondary" class="border-destructive/40 bg-destructive/10 text-destructive">
+						Máx {INSTAGRAM_CAROUSEL_MAX} no Instagram
+					</Badge>
+				{/if}
+			</div>
+			<div class="ml-auto flex items-center gap-2">
+				<span
+					title={selectionOverLimit
+						? `Instagram permite no máximo ${INSTAGRAM_CAROUSEL_MAX} mídias por carrossel. Remova ${selectedMediaIds.length - INSTAGRAM_CAROUSEL_MAX} para continuar.`
+						: ""}
+				>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						class="h-9 gap-1.5"
+						onclick={createPostFromSelection}
+						disabled={isBulkSaving || selectedMediaIds.length === 0 || selectionOverLimit}
+					>
+						<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+						</svg>
+						Criar post
+					</Button>
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					class="h-9 gap-1.5"
+					onclick={() => (addToPostOpen = true)}
+					disabled={isBulkSaving || selectedMediaIds.length === 0}
+				>
+					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+					</svg>
+					Adicionar a post
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					class="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+					onclick={deleteSelection}
+					disabled={isBulkSaving}
+				>
+					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+					</svg>
+					Excluir
+				</Button>
+				<div class="mx-1 h-6 w-px bg-border"></div>
+				<Button type="button" variant="ghost" size="sm" class="h-9" onclick={exitSelectionMode} disabled={isBulkSaving}>
+					Cancelar
+				</Button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<AddToPostDialog
+	open={addToPostOpen}
+	mediaCount={selectedMediaIds.length}
+	onclose={() => (addToPostOpen = false)}
+	onselect={appendSelectionToPost}
+/>
+
 <ImageGenerationErrorModal error={errorState} onclose={clearErrorState} />
 
 {#if viewMode === "images" && lightboxOpen && lightboxMediaId && lightboxItems.length > 0}
@@ -1743,6 +2229,12 @@
 		currentMediaId={lightboxMediaId}
 		onclose={closeLightbox}
 		onnavigate={navigateLightbox}
+		onopenpost={openPostLightbox}
+		overrideCounterText={galleryCounterText}
+		overrideCanPrev={galleryCanPrev}
+		overrideCanNext={galleryCanNext}
+		onprevglobal={navigateGalleryPrev}
+		onnextglobal={navigateGalleryNext}
 	/>
 {/if}
 
@@ -1752,6 +2244,11 @@
 		currentPostId={lightboxPostId}
 		onclose={closePostLightbox}
 		onnavigate={navigatePostLightbox}
-		onedit={openPostEditor}
+		onopenmedia={openLightbox}
+		overrideCounterText={galleryCounterText}
+		overrideCanPrev={galleryCanPrev}
+		overrideCanNext={galleryCanNext}
+		onprevglobal={navigateGalleryPrev}
+		onnextglobal={navigateGalleryNext}
 	/>
 {/if}

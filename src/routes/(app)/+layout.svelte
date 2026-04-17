@@ -27,7 +27,7 @@
 		// ⌘⇧O — Criar post
 		if (meta && e.shiftKey && e.key.toLowerCase() === "o") {
 			e.preventDefault();
-			goto("/posts/create");
+			goto("/library");
 			return;
 		}
 	}

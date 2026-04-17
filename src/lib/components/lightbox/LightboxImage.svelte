@@ -1,52 +1,51 @@
 <script lang="ts">
-    interface Props {
-        imageUrl: string | null;
-        width?: number | undefined;
-        height?: number | undefined;
-        canPrev: boolean;
-        canNext: boolean;
-        onprev: () => void;
-        onnext: () => void;
-    }
+	import LightboxNavArrows from "./LightboxNavArrows.svelte";
 
-    let { imageUrl, width = undefined, height = undefined, canPrev, canNext, onprev, onnext }: Props = $props();
+	interface Props {
+		imageUrl: string | null;
+		width?: number | undefined;
+		height?: number | undefined;
+		canPrev: boolean;
+		canNext: boolean;
+		onprev: () => void;
+		onnext: () => void;
+		/** When false, parent is expected to render `LightboxNavArrows` (e.g. `StudioLightboxShell`). */
+		showNav?: boolean;
+	}
+
+	let {
+		imageUrl,
+		width = undefined,
+		height = undefined,
+		canPrev,
+		canNext,
+		onprev,
+		onnext,
+		showNav = true,
+	}: Props = $props();
 </script>
 
-<div class="relative flex flex-1 items-center justify-center p-8">
-    <!-- Previous button -->
-    {#if canPrev}
-        <button
-            type="button"
-            aria-label="Imagem anterior"
-            class="absolute left-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-            onclick={onprev}
-        >
-            <svg
-                class="h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="2"
-                stroke="currentColor"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M15.75 19.5L8.25 12l7.5-7.5"
-                />
-            </svg>
-        </button>
-    {/if}
+<div class="relative flex min-h-0 flex-1 items-center justify-center p-8">
+	{#if showNav}
+		<LightboxNavArrows
+			{canPrev}
+			{canNext}
+			{onprev}
+			{onnext}
+			prevAriaLabel="Imagem anterior"
+			nextAriaLabel="Próxima imagem"
+		/>
+	{/if}
 
-    <!-- Image -->
-    <div class="flex max-h-full max-w-full items-center justify-center">
-        {#if imageUrl}
-            <img
-                src={imageUrl}
-                alt=""
-                class="max-h-[calc(100vh-8rem)] max-w-full object-contain"
-                style={width && height ? `aspect-ratio: ${width} / ${height};` : ""}
-            />
+	<!-- Image -->
+	<div class="flex max-h-full max-w-full items-center justify-center">
+		{#if imageUrl}
+			<img
+				src={imageUrl}
+				alt=""
+				class="max-h-[calc(100dvh-8rem)] max-w-full object-contain"
+				style={width && height ? `aspect-ratio: ${width} / ${height};` : ""}
+			/>
         {:else}
             <div
                 class="flex aspect-square h-96 w-96 items-center justify-center bg-muted/20"
@@ -68,29 +67,4 @@
             </div>
         {/if}
     </div>
-
-    <!-- Next button -->
-    {#if canNext}
-        <button
-            type="button"
-            aria-label="Proxima imagem"
-            class="absolute right-4 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-            onclick={onnext}
-        >
-            <svg
-                class="h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="2"
-                stroke="currentColor"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                />
-            </svg>
-        </button>
-    {/if}
 </div>

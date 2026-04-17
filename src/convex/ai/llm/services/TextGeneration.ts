@@ -157,6 +157,52 @@ const CaptionSchema = z.object({
 });
 
 /**
+ * Best-effort recovery when a model returns JSON wrapped in markdown fences or prose.
+ * Extracts the first balanced `{...}` block and JSON-parses it.
+ */
+function tryExtractJsonObject(text: string): unknown | null {
+    if (!text) return null;
+    // Strip markdown fences
+    const fenceStripped = text
+        .replace(/```json\s*/gi, "")
+        .replace(/```\s*/g, "");
+    const start = fenceStripped.indexOf("{");
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < fenceStripped.length; i++) {
+        const ch = fenceStripped[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (ch === "\\") {
+            escape = true;
+            continue;
+        }
+        if (ch === "\"") {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+                const candidate = fenceStripped.slice(start, i + 1);
+                try {
+                    return JSON.parse(candidate);
+                } catch {
+                    return null;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * AI SDK 5 only fills `experimental_output` when the last step's `finishReason` is `"stop"`.
  * For `"length"`, `"content-filter"`, etc., `resolvedOutput` is never set and the getter throws
  * `NoOutputSpecifiedError` even though `text` contains a usable JSON blob. Parse manually in that case.
@@ -230,7 +276,32 @@ export const TextGenerationLive = Layer.effect(
                             }),
                         });
 
-                        return await parseStructuredFromGenerateTextResult(result, CaptionSchema);
+                        try {
+                            return await parseStructuredFromGenerateTextResult(result, CaptionSchema);
+                        } catch (parseError) {
+                            // Log raw response so we can debug non-conforming model output (Kimi sometimes
+                            // wraps JSON in markdown fences, adds prose, truncates, etc.)
+                            console.error("[TextGeneration.generateCaption] parse failed", {
+                                model,
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                finishReason: (result as any)?.finishReason,
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                rawTextSample: String((result as any)?.text ?? "").slice(0, 2000),
+                                parseError,
+                            });
+
+                            // Second attempt: try to recover by extracting the largest JSON object in `text`.
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const rawText = String((result as any)?.text ?? "");
+                            const recovered = tryExtractJsonObject(rawText);
+                            if (recovered) {
+                                const parsed = CaptionSchema.safeParse(recovered);
+                                if (parsed.success) {
+                                    return parsed.data;
+                                }
+                            }
+                            throw parseError;
+                        }
                     },
                     catch: mapAiSdkError,
                 }),

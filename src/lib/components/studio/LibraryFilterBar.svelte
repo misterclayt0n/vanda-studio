@@ -5,6 +5,7 @@
 		LibraryGalleryAssetFilter,
 		LibraryPostPlatformFilter,
 		LibraryPostSchedulingFilter,
+		LibraryMediaLinkFilter,
 	} from "$lib/studio/libraryPageFiltersState";
 
 	type ProjectOption = {
@@ -30,6 +31,7 @@
 		galleryAssetFilter: LibraryGalleryAssetFilter;
 		postPlatformFilter: LibraryPostPlatformFilter;
 		postSchedulingFilter: LibraryPostSchedulingFilter;
+		mediaLinkFilter: LibraryMediaLinkFilter;
 		gallerySearch: string;
 		onprojectchange: (projectId: string | null) => void;
 		onmodelchange: (model: string) => void;
@@ -38,6 +40,7 @@
 		ongalleryassetchange: (value: LibraryGalleryAssetFilter) => void;
 		onpostplatformchange: (value: LibraryPostPlatformFilter) => void;
 		onpostschedulingchange: (value: LibraryPostSchedulingFilter) => void;
+		onmedialinkchange: (value: LibraryMediaLinkFilter) => void;
 		ongallerysearchinput: (value: string) => void;
 	}
 
@@ -51,6 +54,7 @@
 		galleryAssetFilter,
 		postPlatformFilter,
 		postSchedulingFilter,
+		mediaLinkFilter,
 		gallerySearch,
 		onprojectchange,
 		onmodelchange,
@@ -59,6 +63,7 @@
 		ongalleryassetchange,
 		onpostplatformchange,
 		onpostschedulingchange,
+		onmedialinkchange,
 		ongallerysearchinput,
 	}: Props = $props();
 
@@ -83,6 +88,12 @@
 		{ value: "scheduled", label: "Agendado" },
 	];
 
+	const mediaLinkOptions: Array<{ value: LibraryMediaLinkFilter; label: string }> = [
+		{ value: "all", label: "Todas" },
+		{ value: "linked", label: "Só vinculadas a posts" },
+		{ value: "unlinked", label: "Só sem vínculo" },
+	];
+
 	const sourceOptions: Array<{ value: MediaSourceFilter; label: string }> = [
 		{ value: "all", label: "Todas" },
 		{ value: "generated_uploaded", label: "Geradas ou uploads" },
@@ -101,6 +112,7 @@
 		galleryAssetFilter !== "all" ||
 			postPlatformFilter !== "all" ||
 			postSchedulingFilter !== "all" ||
+			mediaLinkFilter !== "all" ||
 			selectedProjectId !== null ||
 			selectedModel !== "all" ||
 			sourceFilter !== "all" ||
@@ -111,6 +123,7 @@
 		ongalleryassetchange("all");
 		onpostplatformchange("all");
 		onpostschedulingchange("all");
+		onmedialinkchange("all");
 		onprojectchange(null);
 		onmodelchange("all");
 		onsourcechange("all");
@@ -279,6 +292,26 @@
 								>
 									<span class="min-w-0 flex-1 {option.value === 'all' ? 'text-muted-foreground' : ''}">{option.label}</span>
 									{#if sourceFilter === option.value}
+										<svg class="h-3.5 w-3.5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+										</svg>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="space-y-2">
+						<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Vínculo com posts</p>
+						<div class="space-y-1">
+							{#each mediaLinkOptions as option (option.value)}
+								<button
+									type="button"
+									class="{rowBase} {mediaLinkFilter === option.value ? rowOn : rowOff}"
+									onclick={() => onmedialinkchange(option.value)}
+								>
+									<span class="min-w-0 flex-1 {option.value === 'all' ? 'text-muted-foreground' : ''}">{option.label}</span>
+									{#if mediaLinkFilter === option.value}
 										<svg class="h-3.5 w-3.5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
 										</svg>

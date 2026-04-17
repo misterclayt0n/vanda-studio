@@ -35,7 +35,7 @@
 	};
 
 	let commands = $derived<Command[]>([
-		{ id: "create-post", label: "Criar post", group: "Navegação", icon: "sparkles", shortcut: [mod, "⇧", "O"], action: () => goto("/posts/create") },
+		{ id: "create-post", label: "Criar post", group: "Navegação", icon: "sparkles", shortcut: [mod, "⇧", "O"], action: () => goto("/library") },
 		{ id: "calendar", label: "Calendário", group: "Navegação", icon: "calendar", action: () => goto("/calendar") },
 		{ id: "gallery", label: "Galeria", group: "Navegação", icon: "gallery", action: () => goto("/gallery") },
 		{ id: "projects", label: "Projetos", group: "Navegação", icon: "projects", action: () => goto("/projects") },

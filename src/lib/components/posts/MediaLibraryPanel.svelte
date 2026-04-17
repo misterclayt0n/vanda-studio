@@ -11,6 +11,7 @@
 		type MediaSortOrder,
 		type MediaSourceFilter,
 	} from "$lib/studio/mediaBrowserFilters";
+	import { DEFAULT_POST_MEDIA_MAX } from "$lib/data/postLimits";
 
 	type MediaItem = {
 		_id: Id<"media_items">;
@@ -41,7 +42,7 @@
 		ondeselect: (id: Id<"media_items">) => void;
 	}
 
-	let { selectedIds, projectId, max = 10, onselect, ondeselect }: Props = $props();
+	let { selectedIds, projectId, max = DEFAULT_POST_MEDIA_MAX, onselect, ondeselect }: Props = $props();
 
 	const client = useConvexClient();
 	const mediaItemsQuery = useQuery(api.mediaItems.listAllCardsByUser, {});

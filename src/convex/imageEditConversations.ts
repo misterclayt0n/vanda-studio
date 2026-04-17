@@ -850,6 +850,113 @@ export const listRelatedToMedia = query({
     },
 });
 
+// Returns the post (if any) that uses this conversation's source image as one of
+// its slides. Used to render contextual post previews inside the conversation page
+// so users can see the full post while editing a single slide.
+export const getLinkedPost = query({
+    args: {
+        conversationId: v.id("image_edit_conversations"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return null;
+        }
+
+        const conversation = await ctx.db.get(args.conversationId);
+        if (!conversation) {
+            return null;
+        }
+
+        // Candidate media items to probe against `post_media_items`.
+        // Start with the conversation's source media (most common case: user opened
+        // a conversation from an existing post slide), then also probe the source
+        // output's persisted media items (if this conversation was itself spawned
+        // from an output that later became part of a post).
+        const candidateMediaIds = new Set<Id<"media_items">>();
+        if (conversation.sourceMediaId) {
+            candidateMediaIds.add(conversation.sourceMediaId);
+        }
+
+        let linkedPostId: Id<"generated_posts"> | null = null;
+        let matchingMediaItemId: Id<"media_items"> | null = null;
+
+        for (const mediaId of candidateMediaIds) {
+            const link = await ctx.db
+                .query("post_media_items")
+                .withIndex("by_media", (q) => q.eq("mediaItemId", mediaId))
+                .first();
+            if (link) {
+                linkedPostId = link.postId;
+                matchingMediaItemId = mediaId;
+                break;
+            }
+        }
+
+        if (!linkedPostId || !matchingMediaItemId) {
+            return null;
+        }
+
+        const post = await ctx.db.get(linkedPostId);
+        if (!post || post.deletedAt) {
+            return null;
+        }
+
+        const postMediaLinks = await ctx.db
+            .query("post_media_items")
+            .withIndex("by_post", (q) => q.eq("postId", linkedPostId))
+            .collect();
+        postMediaLinks.sort((a, b) => a.position - b.position);
+
+        const mediaItems = (
+            await Promise.all(
+                postMediaLinks.map(async (row) => {
+                    const item = await ctx.db.get(row.mediaItemId);
+                    if (!item) return null;
+                    const url = await ctx.storage.getUrl(item.storageId);
+                    const thumbnailUrl = item.thumbnailStorageId
+                        ? await ctx.storage.getUrl(item.thumbnailStorageId)
+                        : null;
+                    return {
+                        _id: item._id,
+                        url,
+                        thumbnailUrl,
+                        mimeType: item.mimeType,
+                        width: item.width,
+                        height: item.height,
+                        position: row.position,
+                        role: row.role,
+                    };
+                })
+            )
+        ).filter((row): row is NonNullable<typeof row> => !!row);
+
+        let projectName: string | undefined;
+        if (post.projectId) {
+            const project = await ctx.db.get(post.projectId);
+            if (project) {
+                projectName = project.name;
+            }
+        }
+
+        return {
+            post: {
+                _id: post._id,
+                title: post.title,
+                caption: post.caption,
+                platform: post.platform,
+                status: post.status,
+                updatedAt: post.updatedAt,
+                projectName,
+                scheduledFor: post.scheduledFor,
+                schedulingStatus: post.schedulingStatus,
+            },
+            currentMediaItemId: matchingMediaItemId,
+            mediaItems,
+        };
+    },
+});
+
 // Delete a conversation and all its turns/outputs (hard delete)
 export const remove = mutation({
     args: {

@@ -7,6 +7,10 @@
 	import { ImageGenerationPulseLoader } from "$lib/components/studio";
 	import LightboxImage from "./LightboxImage.svelte";
 	import LightboxConversationCard from "./LightboxConversationCard.svelte";
+	import StudioLightboxShell from "./StudioLightboxShell.svelte";
+	import LightboxSidebarHeader from "./LightboxSidebarHeader.svelte";
+	import LightboxInfoCard from "./LightboxInfoCard.svelte";
+	import LightboxIconButton from "./LightboxIconButton.svelte";
 
 	interface MediaItem {
 		_id: Id<"media_items">;
@@ -58,9 +62,26 @@
 		currentMediaId: string;
 		onclose: () => void;
 		onnavigate: (mediaId: string) => void;
+		onopenpost?: (postId: Id<"generated_posts">) => void;
+		overrideCounterText?: string;
+		overrideCanPrev?: boolean;
+		overrideCanNext?: boolean;
+		onprevglobal?: () => void;
+		onnextglobal?: () => void;
 	}
 
-	let { items, currentMediaId, onclose, onnavigate }: Props = $props();
+	let {
+		items,
+		currentMediaId,
+		onclose,
+		onnavigate,
+		onopenpost,
+		overrideCounterText,
+		overrideCanPrev,
+		overrideCanNext,
+		onprevglobal,
+		onnextglobal,
+	}: Props = $props();
 
 	const modelDisplayNames: Record<string, string> = {
 		"google/gemini-2.5-flash-image": "Nano Banana",
@@ -78,6 +99,13 @@
 	let currentItem = $derived(currentIndex >= 0 ? items[currentIndex] : undefined);
 	let canPrev = $derived(currentIndex > 0);
 	let canNext = $derived(currentIndex < items.length - 1);
+	let effectiveCanPrev = $derived(overrideCanPrev ?? canPrev);
+	let effectiveCanNext = $derived(overrideCanNext ?? canNext);
+	let counterText = $derived(
+		overrideCounterText && overrideCounterText.trim().length > 0
+			? overrideCounterText
+			: `${currentIndex + 1} / ${items.length}`
+	);
 
 	const batchQuery = useQuery(
 		api.mediaGenerationBatches.get,
@@ -103,12 +131,17 @@
 		api.imageEditConversations.listRelatedToMedia,
 		() => currentItem ? { mediaId: currentItem._id } : "skip"
 	);
+	const relatedPostsQuery = useQuery(
+		api.postMediaItems.listPostsForMediaWithPreview,
+		() => currentItem ? { mediaItemId: currentItem._id } : "skip"
+	);
 
 	let batchData = $derived(batchQuery.data);
 	let batchItems = $derived((batchItemsQuery.data ?? []) as MediaItem[]);
 	let turnData = $derived((turnQuery.data ?? null) as TurnData | null);
 	let turnMediaItems = $derived((turnMediaItemsQuery.data ?? []) as MediaItem[]);
 	let relatedConversations = $derived(relatedConversationsQuery.data ?? []);
+	let relatedPosts = $derived(relatedPostsQuery.data ?? []);
 	let userPromptText = $derived(
 		currentItem?.userPrompt?.trim() || turnData?.userMessage?.trim() || batchData?.prompt?.trim() || ""
 	);
@@ -290,6 +323,20 @@
 		});
 	}
 
+	function platformLabel(platform?: string): string {
+		if (platform === "instagram") return "Instagram";
+		if (platform === "twitter") return "X";
+		if (platform === "linkedin") return "LinkedIn";
+		return platform?.trim() ? platform : "Instagram";
+	}
+
+	function postStatusLabel(schedulingStatus?: string): string {
+		if (schedulingStatus === "scheduled") return "Agendado";
+		if (schedulingStatus === "posted") return "Publicado";
+		if (schedulingStatus === "missed") return "Perdido";
+		return "Rascunho";
+	}
+
 	function formatDuration(durationMs?: number): string | null {
 		if (!durationMs || durationMs <= 0) return null;
 		if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}s`;
@@ -301,6 +348,10 @@
 	}
 
 	function handlePrev() {
+	if (onprevglobal) {
+		onprevglobal();
+		return;
+	}
 		const prevItem = items[currentIndex - 1];
 		if (canPrev && prevItem) {
 			onnavigate(prevItem._id);
@@ -308,6 +359,10 @@
 	}
 
 	function handleNext() {
+	if (onnextglobal) {
+		onnextglobal();
+		return;
+	}
 		const nextItem = items[currentIndex + 1];
 		if (canNext && nextItem) {
 			onnavigate(nextItem._id);
@@ -337,7 +392,10 @@
 
 	function handleUseInPost() {
 		if (!currentItem) return;
-		goto(`/posts/create?mediaIds=${currentItem._id}`);
+		// TODO: replace with a proper "compose new post from this media" mutation
+		// that creates a draft post and opens it in the lightbox. For now this
+		// just drops the user into the library where they can wire it up.
+		goto(`/library`);
 	}
 
 	function handleRefine() {
@@ -352,147 +410,101 @@
 		if (event.key === "ArrowRight") handleNext();
 	}
 
-	function handleBackdropClick(event: MouseEvent) {
-		if (event.target === event.currentTarget) onclose();
-	}
-
-	$effect(() => {
-		document.body.style.overflow = "hidden";
-		return () => {
-			document.body.style.overflow = "";
-		};
-	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div
-	class="fixed inset-0 z-50 flex animate-in fade-in duration-150"
-	role="dialog"
-	aria-modal="true"
-	aria-label="Visualizador de imagem"
+<StudioLightboxShell
+	ariaLabel="Visualizador de imagem"
+	{counterText}
+	{onclose}
+	canPrev={effectiveCanPrev}
+	canNext={effectiveCanNext}
+	onprev={handlePrev}
+	onnext={handleNext}
+	prevAriaLabel="Imagem anterior"
+	nextAriaLabel="Próxima imagem"
+	hasSidebar={!!currentItem}
 >
-	<div
-		class="absolute inset-0 bg-black/90"
-		onclick={handleBackdropClick}
-		onkeydown={(event) => event.key === "Enter" && onclose()}
-		role="button"
-		tabindex="0"
-	></div>
-
-	<button
-		type="button"
-		aria-label="Fechar"
-		class="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/70 backdrop-blur-sm transition hover:text-white"
-		onclick={onclose}
-	>
-		<svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-			<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-		</svg>
-	</button>
-
-	<div class="absolute left-4 top-4 z-10 text-sm text-white/70">
-		<span>{currentIndex + 1} / {items.length}</span>
-	</div>
-
-	<div class="relative z-0 flex w-full">
+	{#snippet main()}
 		<LightboxImage
 			imageUrl={currentItem?.url ?? null}
 			width={currentItem?.width}
 			height={currentItem?.height}
-			{canPrev}
-			{canNext}
+			canPrev={effectiveCanPrev}
+			canNext={effectiveCanNext}
 			onprev={handlePrev}
 			onnext={handleNext}
+			showNav={false}
 		/>
+	{/snippet}
 
+	{#snippet sidebar()}
 		{#if currentItem}
-			<div class="flex w-[420px] shrink-0 flex-col border-l border-white/10 bg-background/95 backdrop-blur-md">
-				<div class="border-b border-border/80 px-5 py-5">
-					<div class="flex items-start justify-between gap-4">
-						<div class="min-w-0">
-							<h2 class="truncate text-2xl font-semibold text-foreground">
-								{currentItem.model ? getModelDisplayName(currentItem.model) : getSourceLabel(currentItem.sourceType)}
-							</h2>
-							<div class="mt-3 flex flex-wrap items-center gap-2">
-								<Badge variant="secondary">{getSourceLabel(currentItem.sourceType)}</Badge>
-								{#if formatDuration(currentItem.generationDurationMs)}
-									<Badge variant="secondary">{formatDuration(currentItem.generationDurationMs)}</Badge>
-								{/if}
-								{#if currentItem.aspectRatio}
-									<Badge variant="secondary">{currentItem.aspectRatio}</Badge>
-								{/if}
-								{#if currentItem.resolution}
-									<Badge variant="secondary">{currentItem.resolution}</Badge>
-								{/if}
-							</div>
-						</div>
+			<LightboxSidebarHeader
+				title={currentItem.model ? getModelDisplayName(currentItem.model) : getSourceLabel(currentItem.sourceType)}
+			>
+				{#snippet badges()}
+					<Badge variant="secondary">{getSourceLabel(currentItem.sourceType)}</Badge>
+					{#if formatDuration(currentItem.generationDurationMs)}
+						<Badge variant="secondary">{formatDuration(currentItem.generationDurationMs)}</Badge>
+					{/if}
+					{#if currentItem.aspectRatio}
+						<Badge variant="secondary">{currentItem.aspectRatio}</Badge>
+					{/if}
+					{#if currentItem.resolution}
+						<Badge variant="secondary">{currentItem.resolution}</Badge>
+					{/if}
+				{/snippet}
 
-						<div class="flex items-center gap-2">
-							<button
-								type="button"
-								aria-label="Nova conversa"
-								class="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted"
-								onclick={handleRefine}
-							>
+				{#snippet actions()}
+					<LightboxIconButton ariaLabel="Nova conversa" onclick={handleRefine}>
+						{#snippet icon()}
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8m-8 4h5m5-7.5a2.5 2.5 0 012.5 2.5v6.5a2.5 2.5 0 01-2.5 2.5H9l-4 3v-3H5A2.5 2.5 0 012.5 15.5V9A2.5 2.5 0 015 6.5h13z" />
+							</svg>
+						{/snippet}
+					</LightboxIconButton>
+
+					{#if currentItem.url}
+						<LightboxIconButton ariaLabel="Baixar" onclick={handleDownload}>
+							{#snippet icon()}
 								<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8m-8 4h5m5-7.5a2.5 2.5 0 012.5 2.5v6.5a2.5 2.5 0 01-2.5 2.5H9l-4 3v-3H5A2.5 2.5 0 012.5 15.5V9A2.5 2.5 0 015 6.5h13z" />
+									<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
 								</svg>
-							</button>
+							{/snippet}
+						</LightboxIconButton>
+					{/if}
 
-							{#if currentItem.url}
-								<button
-									type="button"
-									aria-label="Baixar"
-									class="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted"
-									onclick={handleDownload}
-								>
-									<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-									</svg>
-								</button>
-							{/if}
-
-							<button
-								type="button"
-								aria-label="Usar em post"
-								class="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted"
-								onclick={handleUseInPost}
-							>
-								<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-								</svg>
-							</button>
-						</div>
-					</div>
-				</div>
+					<LightboxIconButton ariaLabel="Usar em post" onclick={handleUseInPost}>
+						{#snippet icon()}
+							<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+							</svg>
+						{/snippet}
+					</LightboxIconButton>
+				{/snippet}
+			</LightboxSidebarHeader>
 
 				<div class="flex-1 overflow-y-auto">
 					<div class="space-y-5 p-5">
 						<div class="grid grid-cols-2 gap-3">
-							<div class="rounded-xl border border-border bg-card/60 p-3">
-								<p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Tempo</p>
-								<p class="mt-2 text-sm font-medium text-foreground">
-									{formatDuration(currentItem.generationDurationMs) ?? "Não disponível"}
-								</p>
-							</div>
-
-							<div class="rounded-xl border border-border bg-card/60 p-3">
-								<p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Proporção</p>
-								<p class="mt-2 text-sm font-medium text-foreground">
-									{getAspectRatioLabel(currentItem.aspectRatio, currentItem.width, currentItem.height)}
-								</p>
-							</div>
-
-							<div class="rounded-xl border border-border bg-card/60 p-3">
-								<p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Dimensões</p>
-								<p class="mt-2 text-sm font-medium text-foreground">{currentItem.width} × {currentItem.height}</p>
-							</div>
-
-							<div class="rounded-xl border border-border bg-card/60 p-3">
-								<p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Data</p>
-								<p class="mt-2 text-sm font-medium text-foreground">{formatDate(currentItem.createdAt)}</p>
-							</div>
+							<LightboxInfoCard
+								label="Tempo"
+								value={formatDuration(currentItem.generationDurationMs) ?? "Não disponível"}
+							/>
+							<LightboxInfoCard
+								label="Proporção"
+								value={getAspectRatioLabel(currentItem.aspectRatio, currentItem.width, currentItem.height)}
+							/>
+							<LightboxInfoCard
+								label="Dimensões"
+								value={`${currentItem.width} × ${currentItem.height}`}
+							/>
+							<LightboxInfoCard
+								label="Data"
+								value={formatDate(currentItem.createdAt)}
+							/>
 						</div>
 
 						{#if userPromptText}
@@ -590,6 +602,62 @@
 							</div>
 						{/if}
 
+						{#if relatedPosts.length > 0}
+							<div class="space-y-3 border-t border-border/80 pt-5">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm font-semibold text-foreground">Posts relacionados</p>
+										<p class="text-xs text-muted-foreground">Esta imagem faz parte dos posts abaixo. Clique para abrir.</p>
+									</div>
+									<Badge variant="secondary">{relatedPosts.length}</Badge>
+								</div>
+
+								<div class="space-y-2">
+									{#each relatedPosts as row (row.post._id)}
+										<button
+											type="button"
+											class="flex w-full items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5 text-left transition hover:border-primary/40 hover:bg-card"
+											onclick={() => onopenpost?.(row.post._id)}
+											aria-label={`Abrir post ${row.post.title?.trim() || row.post.projectName || "Sem título"}`}
+										>
+											<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+												{#if row.post.coverUrl}
+													<img
+														src={row.post.coverUrl}
+														alt=""
+														loading="lazy"
+														decoding="async"
+														class="h-full w-full object-cover"
+													/>
+												{:else}
+													<div class="flex h-full w-full items-center justify-center text-muted-foreground/50">
+														<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159" />
+														</svg>
+													</div>
+												{/if}
+											</div>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-semibold text-foreground">
+													{row.post.title?.trim() || row.post.projectName || "Sem título"}
+												</p>
+												<div class="mt-1 flex flex-wrap items-center gap-1.5">
+													<Badge variant="secondary" class="text-[10px]">{platformLabel(row.post.platform)}</Badge>
+													<Badge variant="secondary" class="text-[10px]">{postStatusLabel(row.post.schedulingStatus)}</Badge>
+													<Badge variant="secondary" class="text-[10px]">
+														{row.post.mediaCount} mídia{row.post.mediaCount === 1 ? "" : "s"}
+													</Badge>
+												</div>
+											</div>
+											<svg class="h-4 w-4 shrink-0 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+											</svg>
+										</button>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
 						{#if relatedConversations.length > 0}
 							<div class="space-y-3 border-t border-border/80 pt-5">
 								<div class="flex items-center justify-between">
@@ -609,7 +677,6 @@
 						{/if}
 					</div>
 				</div>
-			</div>
 		{/if}
-	</div>
-</div>
+	{/snippet}
+</StudioLightboxShell>

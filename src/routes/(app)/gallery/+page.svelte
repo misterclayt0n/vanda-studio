@@ -558,8 +558,8 @@ import type { Id } from "../../../convex/_generated/dataModel.js";
 						{#each conversationsQuery.data as conversation (conversation._id)}
 							<div
 								class="group relative flex flex-col overflow-hidden border border-border bg-card transition-shadow hover:shadow-lg cursor-pointer"
-								onclick={() => goto(`/posts/edit/${conversation._id}?from=gallery&tab=conversations`)}
-								onkeydown={(e) => e.key === 'Enter' && goto(`/posts/edit/${conversation._id}?from=gallery&tab=conversations`)}
+								onclick={() => goto(`/library/conversations/${conversation._id}`)}
+								onkeydown={(e) => e.key === 'Enter' && goto(`/library/conversations/${conversation._id}`)}
 								role="button"
 								tabindex="0"
 							>
@@ -638,12 +638,12 @@ import type { Id } from "../../../convex/_generated/dataModel.js";
 						{/if}
 					</p>
 					{#if !searchQuery.trim() && !filterProjectId}
-						<Button class="mt-6" onclick={() => goto('/posts/create')}>
+						<Button class="mt-6" onclick={() => goto('/library')}>
 							Criar Primeiro Post
 						</Button>
 					{:else if filterProjectId}
 						<div class="mt-6 flex gap-2">
-							<Button onclick={() => goto(`/posts/create?projectId=${filterProjectId}`)}>
+							<Button onclick={() => goto(`/library?projectId=${filterProjectId}`)}>
 								Criar Post
 							</Button>
 							<Button variant="outline" onclick={() => filterProjectId = null}>

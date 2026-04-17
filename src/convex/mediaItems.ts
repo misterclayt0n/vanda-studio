@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import {
@@ -32,6 +32,8 @@ type MediaCard = Pick<
     sourceConversationId?: Id<"image_edit_conversations">;
     sourceTurnId?: Id<"image_edit_turns">;
     sourceOutputId?: Id<"image_edit_outputs">;
+    /** Number of posts that include this media item (0 = not linked to any post). */
+    linkedPostCount?: number;
 };
 
 function toMediaCard(
@@ -91,6 +93,54 @@ async function resolveMediaCards(
             item.thumbnailStorageId ? (urlMap.get(item.thumbnailStorageId) ?? null) : null
         )
     );
+}
+
+/**
+ * For each media item, count how many non-deleted posts reference it via
+ * `post_media_items`. Used by the gallery to show a small "linked to N posts"
+ * indicator on image cards.
+ */
+async function countLinkedPostsByMedia(
+    ctx: QueryCtx,
+    mediaItemIds: Id<"media_items">[]
+): Promise<Map<Id<"media_items">, number>> {
+    const result = new Map<Id<"media_items">, number>();
+    await Promise.all(
+        mediaItemIds.map(async (mediaItemId) => {
+            const links = await ctx.db
+                .query("post_media_items")
+                .withIndex("by_media", (q) => q.eq("mediaItemId", mediaItemId))
+                .collect();
+            if (links.length === 0) {
+                result.set(mediaItemId, 0);
+                return;
+            }
+            // Filter out links pointing to deleted posts so the count stays accurate.
+            const posts = await Promise.all(links.map((link) => ctx.db.get(link.postId)));
+            const activeCount = posts.filter((post) => post && !post.deletedAt).length;
+            result.set(mediaItemId, activeCount);
+        })
+    );
+    return result;
+}
+
+async function resolveMediaCardsWithPostLinks(
+    ctx: QueryCtx,
+    items: Doc<"media_items">[]
+): Promise<MediaCard[]> {
+    const [cards, linkCounts] = await Promise.all([
+        resolveMediaCards(ctx, items),
+        countLinkedPostsByMedia(
+            ctx,
+            items.map((item) => item._id)
+        ),
+    ]);
+
+    return cards.map((card) => {
+        const count = linkCounts.get(card._id) ?? 0;
+        if (count === 0) return card;
+        return { ...card, linkedPostCount: count };
+    });
 }
 
 async function resolveMediaItems(
@@ -332,6 +382,41 @@ export const softDelete = mutation({
             deletedAt: Date.now(),
             updatedAt: Date.now(),
         });
+    },
+});
+
+export const softDeleteMany = mutation({
+    args: {
+        ids: v.array(v.id("media_items")),
+    },
+    handler: async (ctx, args): Promise<{ deleted: number }> => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+        if (args.ids.length === 0) return { deleted: 0 };
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        const now = Date.now();
+        let deleted = 0;
+        for (const id of args.ids) {
+            const item = await ctx.db.get(id);
+            if (!item || item.userId !== user._id || item.deletedAt) continue;
+            await ctx.db.patch(id, {
+                deletedAt: now,
+                updatedAt: now,
+            });
+            deleted += 1;
+        }
+        return { deleted };
     },
 });
 
@@ -577,7 +662,7 @@ export const listAllCardsByUser = query({
             .order("desc")
             .collect();
 
-        return resolveMediaCards(
+        return resolveMediaCardsWithPostLinks(
             ctx,
             items.filter((item) => !item.deletedAt)
         );
@@ -651,7 +736,7 @@ export const listCardsByProject = query({
             .order("desc")
             .collect();
 
-        return resolveMediaCards(
+        return resolveMediaCardsWithPostLinks(
             ctx,
             items.filter((item) => !item.deletedAt)
         );

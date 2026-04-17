@@ -89,25 +89,20 @@ import type { Id } from "../../../../../convex/_generated/dataModel.js";
 	};
 
 	let conversationId = $derived($page.params.conversationId as Id<"image_edit_conversations">);
-	let pendingTurnId = $derived($page.url.searchParams.get("turnId") as Id<"image_edit_turns"> | null);
-	let generationTriggered = $state(false);
 	let canvasMode = $state<CanvasMode>("canvas");
 	let staleCleanupStarted = $state(false);
 
+	// `startConversation` on the "new conversation" page already schedules the
+	// first turn's generation server-side. We used to also call `generateForTurn`
+	// here whenever `?turnId=…` was present, which meant the backend ran the same
+	// turn twice and produced duplicate outputs. Now we just clean up the URL
+	// param (if any) without triggering another action.
 	$effect(() => {
-		if (pendingTurnId && !generationTriggered) {
-			generationTriggered = true;
-			const url = new URL($page.url);
-			url.searchParams.delete("turnId");
-			goto(url.pathname, { replaceState: true, noScroll: true });
-
-			client.action(api.ai.imageEdit.generateForTurn, {
-				conversationId,
-				turnId: pendingTurnId,
-			}).catch((err) => {
-				console.error("Failed to generate images:", err);
-			});
-		}
+		const turnParam = $page.url.searchParams.get("turnId");
+		if (!turnParam) return;
+		const url = new URL($page.url);
+		url.searchParams.delete("turnId");
+		goto(url.pathname + url.search, { replaceState: true, noScroll: true });
 	});
 
 	$effect(() => {
@@ -333,6 +328,7 @@ import type { Id } from "../../../../../convex/_generated/dataModel.js";
 
 		return `${selectedSeedOutputIds.length} imagens selecionadas como base`;
 	}
+
 </script>
 
 <svelte:window onkeydown={handleComposerKeydown} />
@@ -705,6 +701,7 @@ import type { Id } from "../../../../../convex/_generated/dataModel.js";
 				</div>
 			{/if}
 		</main>
+
 	</div>
 </div>
 
