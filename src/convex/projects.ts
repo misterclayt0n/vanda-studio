@@ -440,6 +440,30 @@ export const remove = mutation({
             await ctx.db.delete(doc._id);
         }
 
+        const socialPosts = await ctx.db
+            .query("social_posts")
+            .withIndex("by_project_platform", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of socialPosts) {
+            await ctx.db.delete(doc._id);
+        }
+
+        const accountSnapshots = await ctx.db
+            .query("account_metric_snapshots")
+            .withIndex("by_project_captured", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of accountSnapshots) {
+            await ctx.db.delete(doc._id);
+        }
+
+        const postSnapshots = await ctx.db
+            .query("post_metric_snapshots")
+            .withIndex("by_project_captured", (q) => q.eq("projectId", args.projectId))
+            .collect();
+        for (const doc of postSnapshots) {
+            await ctx.db.delete(doc._id);
+        }
+
         const generatedPosts = await ctx.db
             .query("generated_posts")
             .withIndex("by_project_id", (q) => q.eq("projectId", args.projectId))

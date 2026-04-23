@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 export type InstagramConnectionPublic = Pick<
@@ -101,6 +101,50 @@ export const getForProject = query({
             .first();
 
         return connection ? publicConnection(connection) : null;
+    },
+});
+
+export const getProjectConnectionForImportInternal = internalQuery({
+    args: {
+        clerkId: v.string(),
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getUserByClerkId(ctx, args.clerkId);
+        if (!user) {
+            throw new Error("Usuário não encontrado");
+        }
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project || project.userId !== user._id) {
+            throw new Error("Projeto não encontrado");
+        }
+
+        const connection = await ctx.db
+            .query("social_connections")
+            .withIndex("by_project_platform", (q) =>
+                q.eq("projectId", args.projectId).eq("platform", "instagram")
+            )
+            .first();
+
+        if (!connection || connection.userId !== user._id || connection.status !== "connected") {
+            throw new Error("Conecte o Instagram oficial antes de sincronizar");
+        }
+        if (!connection.tokenCiphertext || !connection.tokenIv || !connection.tokenAuthTag) {
+            throw new Error("Token do Instagram ausente. Reconecte a conta.");
+        }
+
+        return {
+            userId: user._id,
+            projectId: project._id,
+            connectionId: connection._id,
+            externalAccountId: connection.externalAccountId,
+            provider: connection.provider,
+            tokenCiphertext: connection.tokenCiphertext,
+            tokenIv: connection.tokenIv,
+            tokenAuthTag: connection.tokenAuthTag,
+            ...(connection.handle ? { handle: connection.handle } : {}),
+        };
     },
 });
 

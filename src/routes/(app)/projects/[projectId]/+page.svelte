@@ -139,8 +139,8 @@ import type { Id } from "../../../../convex/_generated/dataModel.js";
 
 	function getLaunchPostsTitle(): string {
 		if (!project) return "Gerar 5 posts";
-		if (project.isFetching && !hasInstagramCapture) return "Aguardando captura do Instagram";
-		if (!hasInstagramCapture) return "Capture o Instagram para gerar 5 posts";
+		if (project.isFetching && !hasInstagramCapture) return "Aguardando sincronização do Instagram";
+		if (!hasInstagramCapture) return "Sincronize o Instagram para gerar 5 posts";
 		if (pendingLaunchPostIds.has(projectId) && !launchPostsState) return "Preparando 5 posts";
 		if (!launchPostsState) return "Gerar 5 posts";
 		if (launchPostsState.status === "generating") return "Gerando posts automáticos";
@@ -151,10 +151,10 @@ import type { Id } from "../../../../convex/_generated/dataModel.js";
 
 	function getLaunchPostsDescription(): string {
 		if (project?.isFetching && !hasInstagramCapture) {
-			return "Assim que a captura leve do Instagram terminar, a Vanda libera a demo automática de posts.";
+			return "Assim que a sincronização do Instagram terminar, a Vanda libera a demo automática de posts.";
 		}
 		if (!hasInstagramCapture) {
-			return "A demo exige uma captura do feed para evitar repetição de temas e montar os 5 posts com o contexto certo.";
+			return "A demo exige uma sincronização do feed para evitar repetição de temas e montar os 5 posts com o contexto certo.";
 		}
 		if (pendingLaunchPostIds.has(projectId) && !launchPostsState) {
 			return "Montando ideias e contexto antes de gerar imagens e agendar no calendário. Você pode sair desta página — a Vanda continua em segundo plano.";
@@ -375,7 +375,7 @@ import type { Id } from "../../../../convex/_generated/dataModel.js";
 											</p>
 										{:else if !hasInstagramCapture}
 											<Button variant="outline" class="w-full" size="sm" onclick={() => (showSettings = true)} disabled={project.isFetching}>
-												{project.isFetching ? "Capturando Instagram..." : "Abrir captura do Instagram"}
+												{project.isFetching ? "Sincronizando Instagram..." : "Abrir sincronização do Instagram"}
 											</Button>
 										{:else}
 											<Button variant="outline" class="w-full" size="sm" onclick={() => goto("/calendar")}>
@@ -394,7 +394,7 @@ import type { Id } from "../../../../convex/_generated/dataModel.js";
 					</div>
 				</section>
 
-				<!-- Memória do Instagram (digest + captura única) -->
+				<!-- Memória do Instagram (digest + sincronização oficial) -->
 				<section class="entrance-section mt-10" style="--entrance-delay: 100ms">
 					<InstagramIntelCard
 						digest={project.instagramContentDigest ?? null}

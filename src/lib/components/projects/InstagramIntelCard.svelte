@@ -40,8 +40,8 @@
     const modeLabel = $derived(
         lastInstagramSyncMode === "full"
             ? "Sincronização antiga (mídias na Vanda)"
-            : lastInstagramSyncAt
-              ? "Captura leve (até 30 posts)"
+        : lastInstagramSyncAt
+              ? "Sincronização oficial (até 30 posts)"
               : null
     );
 </script>
@@ -72,14 +72,14 @@
                     <Sparkles class="h-3 w-3 text-muted-foreground/40" strokeWidth={1.5} />
                 </div>
                 <p class="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground/80">
-                    O que a Vanda entende do seu feed público para não repetir temas e datas comemorativas nas
+                    O que a Vanda entende dos posts importados para não repetir temas e datas comemorativas nas
                     sugestões.
                 </p>
             </div>
         </div>
         {#if lastInstagramSyncAt}
             <div class="text-right text-[10px] uppercase tracking-wider text-muted-foreground/50">
-                <div>Última captura</div>
+                <div>Última sincronização</div>
                 <div class="mt-0.5 font-medium normal-case text-foreground/80">{formatSync(lastInstagramSyncAt)}</div>
                 {#if modeLabel}
                     <div class="mt-1 normal-case text-muted-foreground/60">{modeLabel}</div>
@@ -89,8 +89,8 @@
     </div>
 
     <p class="relative mt-4 border-l-2 border-muted-foreground/20 pl-3 text-[11px] leading-relaxed text-muted-foreground/70">
-        Baseado no que estava público no Instagram quando você rodou a captura — posts novos depois disso ainda não
-        entram automaticamente.
+        Baseado no que foi importado na última sincronização do Instagram — posts novos entram quando você sincronizar
+        novamente.
     </p>
 
     {#if digest}
@@ -138,7 +138,7 @@
     {:else}
         <div class="relative mt-6 border border-dashed border-border/60 bg-muted/20 px-4 py-5 text-center">
             <p class="text-sm text-muted-foreground">
-                Ainda não há memória do feed. Uma captura leve lê as últimas legendas e prepara a Vanda para sugestões
+                Ainda não há memória do feed. A sincronização lê as últimas legendas e prepara a Vanda para sugestões
                 mais inteligentes.
             </p>
             {#if onOpenSettings}
@@ -147,7 +147,7 @@
                     class="mt-4 text-xs font-medium text-primary underline-offset-4 hover:underline"
                     onclick={() => onOpenSettings()}
                 >
-                    Abrir configurações e capturar
+                    Abrir configurações e sincronizar
                 </button>
             {/if}
         </div>

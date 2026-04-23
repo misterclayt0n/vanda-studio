@@ -1,0 +1,217 @@
+import { v } from "convex/values";
+import { internalMutation, query } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+
+const socialPostInput = v.object({
+    externalPostId: v.string(),
+    caption: v.optional(v.string()),
+    mediaType: v.string(),
+    mediaProductType: v.optional(v.string()),
+    mediaUrl: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    permalink: v.string(),
+    publishedAt: v.number(),
+    likeCount: v.optional(v.number()),
+    commentsCount: v.optional(v.number()),
+    engagementScore: v.optional(v.float64()),
+    children: v.optional(v.array(v.object({
+        externalPostId: v.string(),
+        mediaType: v.string(),
+        mediaUrl: v.optional(v.string()),
+        thumbnailUrl: v.optional(v.string()),
+        permalink: v.optional(v.string()),
+    }))),
+});
+
+const accountMetricsInput = v.object({
+    followersCount: v.optional(v.number()),
+    followingCount: v.optional(v.number()),
+    postsCount: v.optional(v.number()),
+});
+
+export const importInstagramForProjectInternal = internalMutation({
+    args: {
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        externalAccountId: v.string(),
+        handle: v.optional(v.string()),
+        externalAccountName: v.optional(v.string()),
+        profilePictureUrl: v.optional(v.string()),
+        accountMetrics: accountMetricsInput,
+        posts: v.array(socialPostInput),
+        capturedAt: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const [project, connection] = await Promise.all([
+            ctx.db.get(args.projectId),
+            ctx.db.get(args.connectionId),
+        ]);
+
+        if (!project || project.userId !== args.userId) {
+            throw new Error("Projeto não encontrado");
+        }
+        if (!connection || connection.userId !== args.userId || connection.projectId !== args.projectId) {
+            throw new Error("Conexão do Instagram não encontrada para este projeto");
+        }
+
+        const now = Date.now();
+        const importedIds: Id<"social_posts">[] = [];
+
+        await ctx.db.insert("account_metric_snapshots", {
+            userId: args.userId,
+            projectId: args.projectId,
+            connectionId: args.connectionId,
+            platform: "instagram",
+            provider: connection.provider,
+            externalAccountId: args.externalAccountId,
+            capturedAt: args.capturedAt,
+            ...(args.accountMetrics.followersCount !== undefined
+                ? { followersCount: args.accountMetrics.followersCount }
+                : {}),
+            ...(args.accountMetrics.followingCount !== undefined
+                ? { followingCount: args.accountMetrics.followingCount }
+                : {}),
+            ...(args.accountMetrics.postsCount !== undefined
+                ? { postsCount: args.accountMetrics.postsCount }
+                : {}),
+        });
+
+        for (const post of args.posts) {
+            const existing = await ctx.db
+                .query("social_posts")
+                .withIndex("by_connection_external", (q) =>
+                    q.eq("connectionId", args.connectionId).eq("externalPostId", post.externalPostId)
+                )
+                .first();
+
+            const postPatch = {
+                userId: args.userId,
+                projectId: args.projectId,
+                connectionId: args.connectionId,
+                platform: "instagram",
+                provider: connection.provider,
+                externalAccountId: args.externalAccountId,
+                externalPostId: post.externalPostId,
+                mediaType: post.mediaType,
+                permalink: post.permalink,
+                publishedAt: post.publishedAt,
+                importedAt: now,
+                updatedAt: now,
+                ...(post.caption ? { caption: post.caption } : {}),
+                ...(post.mediaProductType ? { mediaProductType: post.mediaProductType } : {}),
+                ...(post.mediaUrl ? { mediaUrl: post.mediaUrl } : {}),
+                ...(post.thumbnailUrl ? { thumbnailUrl: post.thumbnailUrl } : {}),
+                ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
+                ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+                ...(post.engagementScore !== undefined ? { engagementScore: post.engagementScore } : {}),
+                ...(post.children?.length ? { children: post.children } : {}),
+            };
+
+            const socialPostId = existing?._id ?? (await ctx.db.insert("social_posts", postPatch));
+            if (existing) {
+                await ctx.db.patch(existing._id, postPatch);
+            }
+            importedIds.push(socialPostId);
+
+            await ctx.db.insert("post_metric_snapshots", {
+                userId: args.userId,
+                projectId: args.projectId,
+                connectionId: args.connectionId,
+                socialPostId,
+                platform: "instagram",
+                provider: connection.provider,
+                externalAccountId: args.externalAccountId,
+                externalPostId: post.externalPostId,
+                capturedAt: args.capturedAt,
+                ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
+                ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+                ...(post.engagementScore !== undefined ? { engagementScore: post.engagementScore } : {}),
+            });
+        }
+
+        const projectPatch: Partial<Doc<"projects">> = {
+            platform: "instagram",
+            isFetching: false,
+            lastInstagramSyncAt: args.capturedAt,
+            lastInstagramSyncMode: "intel_only",
+        };
+        if (args.handle) {
+            projectPatch.instagramHandle = args.handle;
+            projectPatch.instagramUrl = `https://www.instagram.com/${args.handle}/`;
+        }
+        if (args.profilePictureUrl) projectPatch.profilePictureUrl = args.profilePictureUrl;
+        if (args.accountMetrics.followersCount !== undefined) {
+            projectPatch.followersCount = args.accountMetrics.followersCount;
+        }
+        if (args.accountMetrics.followingCount !== undefined) {
+            projectPatch.followingCount = args.accountMetrics.followingCount;
+        }
+        if (args.accountMetrics.postsCount !== undefined) {
+            projectPatch.postsCount = args.accountMetrics.postsCount;
+        }
+
+        await ctx.db.patch(args.projectId, projectPatch);
+        await ctx.db.patch(args.connectionId, {
+            status: "connected",
+            lastSyncAt: args.capturedAt,
+            lastError: undefined,
+            updatedAt: now,
+            ...(args.handle ? { handle: args.handle } : {}),
+            ...(args.externalAccountName ? { externalAccountName: args.externalAccountName } : {}),
+        });
+
+        return {
+            importedCount: importedIds.length,
+            accountSnapshotCreated: true,
+            postSnapshotsCreated: args.posts.length,
+        };
+    },
+});
+
+export const markInstagramImportErrorInternal = internalMutation({
+    args: {
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        error: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const now = Date.now();
+        await Promise.all([
+            ctx.db.patch(args.projectId, { isFetching: false }),
+            ctx.db.patch(args.connectionId, {
+                lastError: args.error.slice(0, 1000),
+                updatedAt: now,
+            }),
+        ]);
+    },
+});
+
+export const listByProject = query({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) return [];
+
+        const project = await ctx.db.get(args.projectId);
+        if (!project) return [];
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+        if (!user || project.userId !== user._id) return [];
+
+        const limit = Math.min(100, Math.max(1, args.limit ?? 30));
+        const posts = await ctx.db
+            .query("social_posts")
+            .withIndex("by_project_published", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .take(limit);
+
+        return posts;
+    },
+});

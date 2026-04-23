@@ -1,9 +1,9 @@
 'use node';
 
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const GRAPH_VERSION = "v23.0";
@@ -30,7 +30,58 @@ type MetaInstagramProfileResponse = {
     name?: string;
     account_type?: string;
     media_count?: number;
+    followers_count?: number;
+    follows_count?: number;
+    profile_picture_url?: string;
     error?: MetaError;
+};
+
+type MetaPagingResponse<T> = {
+    data?: T[];
+    paging?: {
+        next?: string;
+    };
+    error?: MetaError;
+};
+
+type MetaMediaChild = {
+    id: string;
+    media_type?: string;
+    media_url?: string;
+    thumbnail_url?: string;
+    permalink?: string;
+    timestamp?: string;
+};
+
+type MetaMedia = MetaMediaChild & {
+    caption?: string;
+    media_product_type?: string;
+    like_count?: number;
+    comments_count?: number;
+    children?: {
+        data?: MetaMediaChild[];
+    };
+};
+
+type ImportedSocialPost = {
+    externalPostId: string;
+    caption?: string;
+    mediaType: string;
+    mediaProductType?: string;
+    mediaUrl?: string;
+    thumbnailUrl?: string;
+    permalink: string;
+    publishedAt: number;
+    likeCount?: number;
+    commentsCount?: number;
+    engagementScore?: number;
+    children?: {
+        externalPostId: string;
+        mediaType: string;
+        mediaUrl?: string;
+        thumbnailUrl?: string;
+        permalink?: string;
+    }[];
 };
 
 function requireEnv(name: string): string {
@@ -111,6 +162,21 @@ function encryptToken(token: string): {
         tokenIv: iv.toString("base64"),
         tokenAuthTag: cipher.getAuthTag().toString("base64"),
     };
+}
+
+function decryptToken(args: {
+    tokenCiphertext: string;
+    tokenIv: string;
+    tokenAuthTag: string;
+}): string {
+    const keyMaterial = requireEnv("INSTAGRAM_TOKEN_ENCRYPTION_KEY");
+    const key = createHash("sha256").update(keyMaterial).digest();
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(args.tokenIv, "base64"));
+    decipher.setAuthTag(Buffer.from(args.tokenAuthTag, "base64"));
+    return Buffer.concat([
+        decipher.update(Buffer.from(args.tokenCiphertext, "base64")),
+        decipher.final(),
+    ]).toString("utf8");
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -265,5 +331,236 @@ export const completeOAuth = action({
             ...(user.handle ? { handle: user.handle } : {}),
             ...(user.pageName ? { pageName: user.pageName } : {}),
         };
+    },
+});
+
+async function fetchInstagramProfile(accessToken: string): Promise<MetaInstagramProfileResponse> {
+    const baseParams = {
+        access_token: accessToken,
+    };
+
+    try {
+        return await fetchJson<MetaInstagramProfileResponse>(
+            `${INSTAGRAM_GRAPH_BASE}/me?` + new URLSearchParams({
+                fields: "id,username,name,account_type,media_count,followers_count,follows_count,profile_picture_url",
+                ...baseParams,
+            })
+        );
+    } catch (error) {
+        console.warn("[instagramGraph] profile extended fields failed; retrying basic profile", error);
+        return await fetchJson<MetaInstagramProfileResponse>(
+            `${INSTAGRAM_GRAPH_BASE}/me?` + new URLSearchParams({
+                fields: "id,username,name,account_type,media_count",
+                ...baseParams,
+            })
+        );
+    }
+}
+
+async function fetchInstagramMedia(accessToken: string, limit: number): Promise<MetaMedia[]> {
+    const params = new URLSearchParams({
+        fields: [
+            "id",
+            "caption",
+            "media_type",
+            "media_product_type",
+            "media_url",
+            "thumbnail_url",
+            "permalink",
+            "timestamp",
+            "like_count",
+            "comments_count",
+            "children{id,media_type,media_url,thumbnail_url,permalink,timestamp}",
+        ].join(","),
+        limit: String(limit),
+        access_token: accessToken,
+    });
+
+    try {
+        const response = await fetchJson<MetaPagingResponse<MetaMedia>>(
+            `${INSTAGRAM_GRAPH_BASE}/me/media?${params}`
+        );
+        return response.data ?? [];
+    } catch (error) {
+        console.warn("[instagramGraph] media child fields failed; retrying without children", error);
+        params.set("fields", [
+            "id",
+            "caption",
+            "media_type",
+            "media_product_type",
+            "media_url",
+            "thumbnail_url",
+            "permalink",
+            "timestamp",
+            "like_count",
+            "comments_count",
+        ].join(","));
+        const response = await fetchJson<MetaPagingResponse<MetaMedia>>(
+            `${INSTAGRAM_GRAPH_BASE}/me/media?${params}`
+        );
+        return response.data ?? [];
+    }
+}
+
+function parsePublishedAt(timestamp: string | undefined): number {
+    if (!timestamp) return Date.now();
+    const parsed = Date.parse(timestamp);
+    return Number.isNaN(parsed) ? Date.now() : parsed;
+}
+
+function sanitizeCount(value: number | undefined): number | undefined {
+    if (value === undefined || value === null || value < 0) return undefined;
+    return value;
+}
+
+function normalizeMediaPost(media: MetaMedia, followersCount?: number): ImportedSocialPost | null {
+    if (!media.id || !media.permalink) return null;
+
+    const likeCount = sanitizeCount(media.like_count);
+    const commentsCount = sanitizeCount(media.comments_count);
+    const engagementScore = followersCount && followersCount > 0
+        ? ((likeCount ?? 0) + (commentsCount ?? 0)) / followersCount
+        : undefined;
+    const children = media.children?.data
+        ?.filter((child) => child.id)
+        .map((child) => ({
+            externalPostId: child.id,
+            mediaType: child.media_type ?? "UNKNOWN",
+            ...(child.media_url ? { mediaUrl: child.media_url } : {}),
+            ...(child.thumbnail_url ? { thumbnailUrl: child.thumbnail_url } : {}),
+            ...(child.permalink ? { permalink: child.permalink } : {}),
+        }));
+
+    return {
+        externalPostId: media.id,
+        mediaType: media.media_type ?? "UNKNOWN",
+        permalink: media.permalink,
+        publishedAt: parsePublishedAt(media.timestamp),
+        ...(media.caption ? { caption: media.caption } : {}),
+        ...(media.media_product_type ? { mediaProductType: media.media_product_type } : {}),
+        ...(media.media_url ? { mediaUrl: media.media_url } : {}),
+        ...(media.thumbnail_url ? { thumbnailUrl: media.thumbnail_url } : {}),
+        ...(likeCount !== undefined ? { likeCount } : {}),
+        ...(commentsCount !== undefined ? { commentsCount } : {}),
+        ...(engagementScore !== undefined ? { engagementScore } : {}),
+        ...(children?.length ? { children } : {}),
+    };
+}
+
+function toLegacyInstagramPost(post: ImportedSocialPost) {
+    const firstChild = post.children?.find((child) => child.mediaUrl || child.thumbnailUrl);
+    const mediaUrl = post.mediaUrl ?? post.thumbnailUrl ?? firstChild?.mediaUrl ?? firstChild?.thumbnailUrl ?? post.permalink;
+    return {
+        instagramId: post.externalPostId,
+        mediaUrl,
+        mediaType: post.mediaType,
+        permalink: post.permalink,
+        timestamp: new Date(post.publishedAt).toISOString(),
+        ...(post.caption ? { caption: post.caption } : {}),
+        ...(post.thumbnailUrl ? { thumbnailUrl: post.thumbnailUrl } : {}),
+        ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
+        ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+        ...(post.children?.length
+            ? {
+                carouselImages: post.children
+                    .map((child) => child.mediaUrl ?? child.thumbnailUrl)
+                    .filter((url): url is string => Boolean(url))
+                    .map((url) => ({ url })),
+            }
+            : {}),
+    };
+}
+
+export const importProjectPosts = action({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<{
+        importedCount: number;
+        accountSnapshotCreated: boolean;
+        postSnapshotsCreated: number;
+    }> => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Não autenticado");
+        }
+
+        const importContext = await ctx.runQuery(
+            internal.instagramGraph.getProjectConnectionForImportInternal,
+            {
+                clerkId: identity.subject,
+                projectId: args.projectId,
+            }
+        );
+
+        await ctx.runMutation(api.projects.updateProfileData, {
+            projectId: args.projectId,
+            isFetching: true,
+        });
+
+        try {
+            const accessToken = decryptToken(importContext);
+            const limit = Math.min(50, Math.max(1, args.limit ?? 30));
+            const [profile, media] = await Promise.all([
+                fetchInstagramProfile(accessToken),
+                fetchInstagramMedia(accessToken, limit),
+            ]);
+
+            const followersCount = sanitizeCount(profile.followers_count);
+            const followingCount = sanitizeCount(profile.follows_count);
+            const posts = media
+                .map((item) => normalizeMediaPost(item, followersCount))
+                .filter((post): post is ImportedSocialPost => Boolean(post));
+            const capturedAt = Date.now();
+
+            const result = await ctx.runMutation(internal.socialPosts.importInstagramForProjectInternal, {
+                userId: importContext.userId,
+                projectId: args.projectId,
+                connectionId: importContext.connectionId,
+                externalAccountId: profile.id || importContext.externalAccountId,
+                accountMetrics: {
+                    ...(followersCount !== undefined ? { followersCount } : {}),
+                    ...(followingCount !== undefined ? { followingCount } : {}),
+                    ...(profile.media_count !== undefined ? { postsCount: profile.media_count } : {}),
+                },
+                posts,
+                capturedAt,
+                ...(profile.username ? { handle: profile.username } : importContext.handle ? { handle: importContext.handle } : {}),
+                ...(profile.name ? { externalAccountName: profile.name } : {}),
+                ...(profile.profile_picture_url ? { profilePictureUrl: profile.profile_picture_url } : {}),
+            });
+
+            await ctx.runMutation(api.instagramPosts.replaceForProject, {
+                projectId: args.projectId,
+                posts: posts.map(toLegacyInstagramPost),
+            });
+
+            if (profile.profile_picture_url) {
+                const profilePicStorageId = await ctx.runAction(
+                    api.files.downloadAndStoreFile,
+                    { url: profile.profile_picture_url }
+                );
+                if (profilePicStorageId) {
+                    await ctx.runMutation(api.projects.updateProfilePictureStorage, {
+                        projectId: args.projectId,
+                        storageId: profilePicStorageId,
+                    });
+                }
+            }
+
+            await ctx.runAction(internal.ai.instagramDigest.rebuildDigestInternal, {
+                projectId: args.projectId,
+            });
+
+            return result;
+        } catch (error) {
+            await ctx.runMutation(internal.socialPosts.markInstagramImportErrorInternal, {
+                projectId: args.projectId,
+                connectionId: importContext.connectionId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
+        }
     },
 });

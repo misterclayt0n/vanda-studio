@@ -244,22 +244,20 @@
         });
     }
 
-    async function handleInstagramCapture() {
-        const url = normalizeInstagramInput(instagramHandleInput);
-        if (!url) {
-            syncIgError = "Informe o @ do Instagram acima.";
+    async function handleInstagramImport() {
+        if (!officialInstagram) {
+            syncIgError = "Conecte o Instagram oficial antes de sincronizar.";
             return;
         }
         syncIgError = null;
         syncIgSuccess = null;
         igSyncBusy = true;
         try {
-            await client.action(api.instagram.fetchProfile, {
+            const result = await client.action(api.instagramGraphActions.importProjectPosts, {
                 projectId,
-                instagramUrl: url,
             });
             syncIgSuccess =
-                "Captura concluída (até 30 posts, sem baixar mídias dos posts). A memória do feed aparece na página do projeto.";
+                `Sincronização concluída: ${result.importedCount} posts importados e ${result.postSnapshotsCreated} snapshots de métricas salvos.`;
         } catch (e) {
             syncIgError = formatUserFacingMessage(e);
         } finally {
@@ -379,18 +377,17 @@
                         class="bg-background"
                         autocomplete="off"
                     />
-                    <p class="text-[11px] text-muted-foreground">Só o @ — não precisa colar o link completo.</p>
+                    <p class="text-[11px] text-muted-foreground">Usado como fallback visual. A sincronização oficial usa a conta conectada acima.</p>
                 </div>
 
                 <p class="text-xs leading-relaxed text-muted-foreground">
-                    Cada captura usa o Apify (custo por execução, frequentemente na faixa de <span class="text-foreground/80">~US$0,50</span> conforme seu plano). Lemos no máximo
-                    <strong class="font-medium text-foreground/90">30 posts</strong> (legendas e links; sem baixar mídia dos posts no armazenamento da Vanda). Por enquanto só é possível
-                    <strong class="font-medium text-foreground/90">uma captura por projeto</strong>.
+                    A sincronização oficial importa até <strong class="font-medium text-foreground/90">30 posts recentes</strong>,
+                    atualiza métricas da conta e salva snapshots de métricas por post para análise de crescimento.
                 </p>
 
                 {#if igCaptureDone && project?.lastInstagramSyncAt}
                     <div class="border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
-                        <span class="font-medium text-foreground/85">Captura já realizada</span>
+                        <span class="font-medium text-foreground/85">Última sincronização</span>
                         em {formatIgCapture(project.lastInstagramSyncAt)}
                     </div>
                 {/if}
@@ -406,13 +403,13 @@
                     type="button"
                     variant="default"
                     size="sm"
-                    disabled={igCaptureDone || igSyncBusy || !normalizeInstagramInput(instagramHandleInput) || project?.isFetching}
-                    onclick={handleInstagramCapture}
+                    disabled={!officialInstagram || igSyncBusy || project?.isFetching}
+                    onclick={handleInstagramImport}
                 >
                     {#if igSyncBusy}
-                        Capturando contexto…
+                        Sincronizando Instagram…
                     {:else}
-                        Capturar contexto do feed
+                        Sincronizar posts e métricas
                     {/if}
                 </Button>
             </div>

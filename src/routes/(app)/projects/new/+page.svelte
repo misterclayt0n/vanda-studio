@@ -285,14 +285,6 @@
 
             const id = await client.mutation(api.projects.create, createArgs);
 
-            if (path === "existing" && ig) {
-                createStatus = "Sincronizando Instagram e montando memória…";
-                await client.action(api.instagram.fetchProfile, {
-                    projectId: id,
-                    instagramUrl: ig,
-                });
-            }
-
             goto(`/projects/${id}`);
         } catch (e) {
             error = formatUserFacingMessage(e);
@@ -410,7 +402,7 @@
 
             {#if isSummaryStep}
                 {#if isCreating}
-                    <!-- Same pattern as first Apify pass (step 1 existing path) -->
+                    <!-- Same pattern as the existing-brand analysis step. -->
                     <div class="flex flex-col items-center gap-6 py-16">
                         <div class="pulse-glow flex h-12 w-12 items-center justify-center text-primary">
                             <Sparkles class="h-8 w-8" />

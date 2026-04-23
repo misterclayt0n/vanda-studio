@@ -62,6 +62,7 @@ import type * as projects from "../projects.js";
 import type * as referenceImages from "../referenceImages.js";
 import type * as scheduledPosts from "../scheduledPosts.js";
 import type * as search from "../search.js";
+import type * as socialPosts from "../socialPosts.js";
 import type * as urlSafety from "../urlSafety.js";
 import type * as users from "../users.js";
 
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   referenceImages: typeof referenceImages;
   scheduledPosts: typeof scheduledPosts;
   search: typeof search;
+  socialPosts: typeof socialPosts;
   urlSafety: typeof urlSafety;
   users: typeof users;
 }>;

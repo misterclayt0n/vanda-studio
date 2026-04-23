@@ -105,6 +105,68 @@ export default defineSchema({
         engagementScore: v.optional(v.float64()),
     }).index("by_project_id", ["projectId"]),
 
+    social_posts: defineTable({
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        platform: v.string(), // "instagram"
+        provider: v.string(), // "instagram_graph"
+        externalAccountId: v.string(),
+        externalPostId: v.string(),
+        caption: v.optional(v.string()),
+        mediaType: v.string(),
+        mediaProductType: v.optional(v.string()),
+        mediaUrl: v.optional(v.string()),
+        thumbnailUrl: v.optional(v.string()),
+        permalink: v.string(),
+        publishedAt: v.number(),
+        likeCount: v.optional(v.number()),
+        commentsCount: v.optional(v.number()),
+        engagementScore: v.optional(v.float64()),
+        children: v.optional(v.array(v.object({
+            externalPostId: v.string(),
+            mediaType: v.string(),
+            mediaUrl: v.optional(v.string()),
+            thumbnailUrl: v.optional(v.string()),
+            permalink: v.optional(v.string()),
+        }))),
+        importedAt: v.number(),
+        updatedAt: v.number(),
+    }).index("by_project_platform", ["projectId", "platform"])
+      .index("by_project_published", ["projectId", "publishedAt"])
+      .index("by_connection_external", ["connectionId", "externalPostId"]),
+
+    account_metric_snapshots: defineTable({
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        platform: v.string(),
+        provider: v.string(),
+        externalAccountId: v.string(),
+        capturedAt: v.number(),
+        followersCount: v.optional(v.number()),
+        followingCount: v.optional(v.number()),
+        postsCount: v.optional(v.number()),
+    }).index("by_project_captured", ["projectId", "capturedAt"])
+      .index("by_connection_captured", ["connectionId", "capturedAt"]),
+
+    post_metric_snapshots: defineTable({
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        socialPostId: v.id("social_posts"),
+        platform: v.string(),
+        provider: v.string(),
+        externalAccountId: v.string(),
+        externalPostId: v.string(),
+        capturedAt: v.number(),
+        likeCount: v.optional(v.number()),
+        commentsCount: v.optional(v.number()),
+        engagementScore: v.optional(v.float64()),
+    }).index("by_project_captured", ["projectId", "capturedAt"])
+      .index("by_post_captured", ["socialPostId", "capturedAt"])
+      .index("by_connection_captured", ["connectionId", "capturedAt"]),
+
     // AI-generated posts
     generated_posts: defineTable({
         projectId: v.optional(v.id("projects")), // Optional - can be null for standalone posts
