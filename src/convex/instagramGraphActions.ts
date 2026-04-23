@@ -6,7 +6,7 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 const GRAPH_VERSION = "v23.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
 
 type MetaError = {
     message?: string;
@@ -19,21 +19,7 @@ type MetaTokenResponse = {
     access_token?: string;
     token_type?: string;
     expires_in?: number;
-    error?: MetaError;
-};
-
-type MetaAccountsResponse = {
-    data?: Array<{
-        id: string;
-        name?: string;
-        access_token?: string;
-        tasks?: string[];
-        instagram_business_account?: {
-            id: string;
-            username?: string;
-            name?: string;
-        };
-    }>;
+    user_id?: number;
     error?: MetaError;
 };
 
@@ -41,6 +27,8 @@ type MetaInstagramProfileResponse = {
     id: string;
     username?: string;
     name?: string;
+    account_type?: string;
+    media_count?: number;
     error?: MetaError;
 };
 
@@ -127,18 +115,18 @@ export const getConnectUrl = action({
         const clientId = requireEnv("META_APP_ID");
         const state = buildStatePayload(identity.subject);
         const scope = [
-            "pages_show_list",
-            "pages_read_engagement",
-            "instagram_basic",
-            "instagram_content_publish",
+            "instagram_business_basic",
+            "instagram_business_content_publish",
         ].join(",");
 
-        const url = new URL(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`);
+        const url = new URL("https://www.instagram.com/oauth/authorize");
         url.searchParams.set("client_id", clientId);
         url.searchParams.set("redirect_uri", args.redirectUri);
         url.searchParams.set("state", state);
         url.searchParams.set("scope", scope);
         url.searchParams.set("response_type", "code");
+        url.searchParams.set("enable_fb_login", "0");
+        url.searchParams.set("force_authentication", "1");
 
         return { url: url.toString() };
     },
@@ -173,23 +161,31 @@ export const completeOAuth = action({
         const clientSecret = requireEnv("META_APP_SECRET");
 
         const shortToken = await fetchJson<MetaTokenResponse>(
-            `${GRAPH_BASE}/oauth/access_token?` + new URLSearchParams({
-                client_id: clientId,
-                client_secret: clientSecret,
-                redirect_uri: args.redirectUri,
-                code: args.code,
-            })
+            "https://api.instagram.com/oauth/access_token",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    grant_type: "authorization_code",
+                    redirect_uri: args.redirectUri,
+                    code: args.code,
+                }),
+            }
         );
-        if (!shortToken.access_token) {
-            throw new Error("Meta não retornou token de acesso");
+        if (!shortToken.access_token || !shortToken.user_id) {
+            throw new Error("Instagram não retornou token de acesso");
         }
 
         const longToken = await fetchJson<MetaTokenResponse>(
-            `${GRAPH_BASE}/oauth/access_token?` + new URLSearchParams({
-                grant_type: "fb_exchange_token",
+            "https://graph.instagram.com/access_token?" + new URLSearchParams({
+                grant_type: "ig_exchange_token",
                 client_id: clientId,
                 client_secret: clientSecret,
-                fb_exchange_token: shortToken.access_token,
+                access_token: shortToken.access_token,
             })
         );
         const userAccessToken = longToken.access_token ?? shortToken.access_token;
@@ -197,53 +193,32 @@ export const completeOAuth = action({
             ? Date.now() + longToken.expires_in * 1000
             : undefined;
 
-        const accounts = await fetchJson<MetaAccountsResponse>(
-            `${GRAPH_BASE}/me/accounts?` + new URLSearchParams({
-                fields: "id,name,access_token,tasks,instagram_business_account{id,username,name}",
+        const profile = await fetchJson<MetaInstagramProfileResponse>(
+            `${INSTAGRAM_GRAPH_BASE}/me?` + new URLSearchParams({
+                fields: "id,username,name,account_type,media_count",
                 access_token: userAccessToken,
             })
         );
 
-        const account = accounts.data?.find((item) => item.instagram_business_account?.id);
-        if (!account?.instagram_business_account?.id || !account.access_token) {
-            throw new Error("Nenhuma conta profissional do Instagram conectada a uma Página foi encontrada");
-        }
-
-        const igAccount = account.instagram_business_account;
-        let profile: MetaInstagramProfileResponse | null = null;
-        try {
-            profile = await fetchJson<MetaInstagramProfileResponse>(
-                `${GRAPH_BASE}/${igAccount.id}?` + new URLSearchParams({
-                    fields: "id,username,name",
-                    access_token: account.access_token,
-                })
-            );
-        } catch {
-            profile = null;
-        }
-
-        const encrypted = encryptToken(account.access_token);
+        const externalAccountId = profile.id || String(shortToken.user_id);
+        const encrypted = encryptToken(userAccessToken);
         const connectionArgs = {
             clerkId: identity.subject,
             platform: "instagram",
             provider: "instagram_graph",
             status: "connected",
-            externalAccountId: igAccount.id,
-            pageId: account.id,
+            externalAccountId,
             scopes: [
-                "pages_show_list",
-                "pages_read_engagement",
-                "instagram_basic",
-                "instagram_content_publish",
+                "instagram_business_basic",
+                "instagram_business_content_publish",
             ],
             ...encrypted,
-            ...((profile?.name ?? igAccount.name)
-                ? { externalAccountName: profile?.name ?? igAccount.name }
+            ...(profile.name
+                ? { externalAccountName: profile.name }
                 : {}),
-            ...((profile?.username ?? igAccount.username)
-                ? { handle: profile?.username ?? igAccount.username }
+            ...(profile.username
+                ? { handle: profile.username }
                 : {}),
-            ...(account.name ? { pageName: account.name } : {}),
             ...(tokenExpiresAt ? { tokenExpiresAt } : {}),
         };
         const user = await ctx.runMutation(internal.instagramGraph.upsertConnectionInternal, connectionArgs);
