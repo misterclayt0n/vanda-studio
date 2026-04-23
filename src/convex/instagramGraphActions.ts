@@ -2,7 +2,7 @@
 
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -63,6 +63,16 @@ type MetaMedia = MetaMediaChild & {
     };
 };
 
+type MetaCreateMediaResponse = {
+    id: string;
+    error?: MetaError;
+};
+
+type MetaPublishMediaResponse = {
+    id: string;
+    error?: MetaError;
+};
+
 type ImportedSocialPost = {
     externalPostId: string;
     caption?: string;
@@ -82,6 +92,19 @@ type ImportedSocialPost = {
         thumbnailUrl?: string;
         permalink?: string;
     }[];
+};
+
+type InstagramPublishJob = {
+    postId: Id<"generated_posts">;
+    userId: Id<"users">;
+    projectId: Id<"projects">;
+    connectionId: Id<"social_connections">;
+    externalAccountId: string;
+    caption: string;
+    imageUrl: string | null;
+    tokenCiphertext: string;
+    tokenIv: string;
+    tokenAuthTag: string;
 };
 
 function requireEnv(name: string): string {
@@ -562,5 +585,125 @@ export const importProjectPosts = action({
             });
             throw error;
         }
+    },
+});
+
+async function createImageContainer(args: {
+    accessToken: string;
+    imageUrl: string;
+    caption: string;
+}): Promise<string> {
+    const response = await fetchJson<MetaCreateMediaResponse>(
+        `${INSTAGRAM_GRAPH_BASE}/me/media`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                image_url: args.imageUrl,
+                caption: args.caption,
+                access_token: args.accessToken,
+            }),
+        }
+    );
+    if (!response.id) {
+        throw new Error("Instagram não retornou o container de publicação");
+    }
+    return response.id;
+}
+
+async function publishContainer(args: {
+    accessToken: string;
+    creationId: string;
+}): Promise<string> {
+    const response = await fetchJson<MetaPublishMediaResponse>(
+        `${INSTAGRAM_GRAPH_BASE}/me/media_publish`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                creation_id: args.creationId,
+                access_token: args.accessToken,
+            }),
+        }
+    );
+    if (!response.id) {
+        throw new Error("Instagram não retornou o ID da publicação");
+    }
+    return response.id;
+}
+
+export const publishDueScheduledPostsInternal = internalAction({
+    args: {
+        now: v.optional(v.number()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<{
+        scanned: number;
+        published: number;
+        failed: number;
+    }> => {
+        const now = args.now ?? Date.now();
+        const jobs = await ctx.runQuery(internal.scheduledPosts.listDueInstagramPublishJobsInternal, {
+            now,
+            limit: Math.min(10, Math.max(1, args.limit ?? 5)),
+        }) as InstagramPublishJob[];
+
+        let published = 0;
+        let failed = 0;
+
+        for (const job of jobs) {
+            await ctx.runMutation(internal.scheduledPosts.markPublishingInternal, {
+                postId: job.postId,
+            });
+
+            try {
+                if (!job.imageUrl) {
+                    throw new Error("Post agendado não tem imagem para publicar no Instagram");
+                }
+
+                const accessToken = decryptToken(job);
+                const containerId = await createImageContainer({
+                    accessToken,
+                    imageUrl: job.imageUrl,
+                    caption: job.caption,
+                });
+                const mediaId = await publishContainer({
+                    accessToken,
+                    creationId: containerId,
+                });
+                const publishedAt = Date.now();
+                const socialPostId = await ctx.runMutation(
+                    internal.socialPosts.createPublishedInstagramPostInternal,
+                    {
+                        userId: job.userId,
+                        projectId: job.projectId,
+                        connectionId: job.connectionId,
+                        externalAccountId: job.externalAccountId,
+                        externalPostId: mediaId,
+                        caption: job.caption,
+                        mediaUrl: job.imageUrl,
+                        permalink: `https://www.instagram.com/p/${mediaId}/`,
+                        publishedAt,
+                    }
+                );
+                await ctx.runMutation(internal.scheduledPosts.markPublishedInternal, {
+                    postId: job.postId,
+                    connectionId: job.connectionId,
+                    socialPostId,
+                    containerId,
+                    mediaId,
+                    publishedAt,
+                });
+                published += 1;
+            } catch (error) {
+                failed += 1;
+                await ctx.runMutation(internal.scheduledPosts.markPublishFailedInternal, {
+                    postId: job.postId,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+
+        return { scanned: jobs.length, published, failed };
     },
 });

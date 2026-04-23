@@ -22,9 +22,31 @@ type ProjectWithStorageUrl = Doc<"projects"> & {
     instagramConnection: InstagramConnectionPublic | null;
 };
 
-type ProjectSummary = ProjectWithStorageUrl & {
+type ProjectSummary = Omit<ProjectWithStorageUrl, "brandIntelligence"> & {
     postCount: number;
     mediaCount: number;
+    socialPostCount: number;
+    scheduledCount: number;
+    publishedCount: number;
+    metrics: {
+        followersCount: number | null;
+        followersDelta: number | null;
+        postsCount: number | null;
+        avgEngagement: number | null;
+    };
+    latestSocialPosts: Array<{
+        _id: Doc<"social_posts">["_id"];
+        caption?: string;
+        mediaType: string;
+        thumbnailUrl?: string;
+        permalink: string;
+        publishedAt: number;
+        likeCount?: number;
+        commentsCount?: number;
+        engagementScore?: number;
+        intelligence?: Doc<"social_posts">["intelligence"];
+    }>;
+    brandIntelligence: Doc<"projects">["brandIntelligence"] | null;
 };
 
 async function getCurrentUser(ctx: QueryCtx, clerkId: string) {
@@ -236,7 +258,7 @@ export const listSummaries = query({
         const projectsWithUrls = await resolveProjectsWithUrls(ctx, projects);
         const counts = await Promise.all(
             projects.map(async (project) => {
-                const [posts, mediaItems] = await Promise.all([
+                const [posts, mediaItems, socialPosts, accountSnapshots, postSnapshots] = await Promise.all([
                     ctx.db
                         .query("generated_posts")
                         .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
@@ -245,11 +267,61 @@ export const listSummaries = query({
                         .query("media_items")
                         .withIndex("by_project_id", (q) => q.eq("projectId", project._id))
                         .collect(),
+                    ctx.db
+                        .query("social_posts")
+                        .withIndex("by_project_published", (q) => q.eq("projectId", project._id))
+                        .order("desc")
+                        .take(12),
+                    ctx.db
+                        .query("account_metric_snapshots")
+                        .withIndex("by_project_captured", (q) => q.eq("projectId", project._id))
+                        .order("desc")
+                        .take(2),
+                    ctx.db
+                        .query("post_metric_snapshots")
+                        .withIndex("by_project_captured", (q) => q.eq("projectId", project._id))
+                        .order("desc")
+                        .take(50),
                 ]);
+                const visiblePosts = posts.filter((post) => !post.deletedAt);
+                const latestAccount = accountSnapshots[0] ?? null;
+                const previousAccount = accountSnapshots[1] ?? null;
+                const avgEngagement =
+                    postSnapshots.length > 0
+                        ? postSnapshots.reduce((sum, snap) => sum + (snap.engagementScore ?? 0), 0) /
+                          postSnapshots.length
+                        : null;
 
                 return {
-                    postCount: posts.filter((post) => !post.deletedAt).length,
+                    postCount: visiblePosts.length,
                     mediaCount: mediaItems.filter((item) => !item.deletedAt).length,
+                    socialPostCount: socialPosts.length,
+                    scheduledCount: visiblePosts.filter((post) => post.schedulingStatus === "scheduled").length,
+                    publishedCount: visiblePosts.filter((post) => post.schedulingStatus === "posted").length,
+                    metrics: {
+                        followersCount: latestAccount?.followersCount ?? project.followersCount ?? null,
+                        followersDelta:
+                            latestAccount?.followersCount !== undefined &&
+                            previousAccount?.followersCount !== undefined
+                                ? latestAccount.followersCount - previousAccount.followersCount
+                                : null,
+                        postsCount: latestAccount?.postsCount ?? project.postsCount ?? null,
+                        avgEngagement,
+                    },
+                    latestSocialPosts: socialPosts.map((post) => ({
+                        _id: post._id,
+                        ...(post.caption ? { caption: post.caption } : {}),
+                        mediaType: post.mediaType,
+                        ...(post.thumbnailUrl || post.mediaUrl
+                            ? { thumbnailUrl: post.thumbnailUrl ?? post.mediaUrl }
+                            : {}),
+                        permalink: post.permalink,
+                        publishedAt: post.publishedAt,
+                        ...(post.likeCount !== undefined ? { likeCount: post.likeCount } : {}),
+                        ...(post.commentsCount !== undefined ? { commentsCount: post.commentsCount } : {}),
+                        ...(post.engagementScore !== undefined ? { engagementScore: post.engagementScore } : {}),
+                        ...(post.intelligence ? { intelligence: post.intelligence } : {}),
+                    })),
                 };
             })
         );
@@ -258,6 +330,17 @@ export const listSummaries = query({
             ...project,
             postCount: counts[index]?.postCount ?? 0,
             mediaCount: counts[index]?.mediaCount ?? 0,
+            socialPostCount: counts[index]?.socialPostCount ?? 0,
+            scheduledCount: counts[index]?.scheduledCount ?? 0,
+            publishedCount: counts[index]?.publishedCount ?? 0,
+            metrics: counts[index]?.metrics ?? {
+                followersCount: project.followersCount ?? null,
+                followersDelta: null,
+                postsCount: project.postsCount ?? null,
+                avgEngagement: null,
+            },
+            latestSocialPosts: counts[index]?.latestSocialPosts ?? [],
+            brandIntelligence: project.brandIntelligence ?? null,
         }));
     },
 });
@@ -328,6 +411,26 @@ export const setInstagramContentDigestInternal = internalMutation({
         } else {
             await ctx.db.patch(args.projectId, { instagramContentDigest: args.digest });
         }
+    },
+});
+
+export const setBrandIntelligenceInternal = internalMutation({
+    args: {
+        projectId: v.id("projects"),
+        intelligence: v.object({
+            summary: v.string(),
+            contentPillars: v.array(v.string()),
+            audienceSignals: v.array(v.string()),
+            visualDirection: v.array(v.string()),
+            recommendationNotes: v.array(v.string()),
+            sourcePostCount: v.number(),
+            generatedAt: v.number(),
+        }),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.projectId, {
+            brandIntelligence: args.intelligence,
+        });
     },
 });
 

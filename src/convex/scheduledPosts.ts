@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 // ============================================================================
@@ -532,6 +532,7 @@ export const markMissedPosts = internalMutation({
     args: {},
     handler: async (ctx) => {
         const now = Date.now();
+        const missedGraceMs = 30 * 60 * 1000;
 
         // Find all scheduled posts that are past due
         const allPosts = await ctx.db.query("generated_posts").collect();
@@ -539,7 +540,7 @@ export const markMissedPosts = internalMutation({
         const missedPosts = allPosts.filter(
             (post) =>
                 post.scheduledFor &&
-                post.scheduledFor < now &&
+                post.scheduledFor < now - missedGraceMs &&
                 post.schedulingStatus === "scheduled" &&
                 !post.deletedAt
         );
@@ -568,5 +569,154 @@ export const markMissedPosts = internalMutation({
         }
 
         return { markedCount };
+    },
+});
+
+export const listDueInstagramPublishJobsInternal = internalQuery({
+    args: {
+        now: v.number(),
+        limit: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const posts = await ctx.db
+            .query("generated_posts")
+            .withIndex("by_scheduling_status", (q) => q.eq("schedulingStatus", "scheduled"))
+            .collect();
+
+        const due = posts
+            .filter((post) =>
+                post.platform === "instagram" &&
+                post.projectId &&
+                post.scheduledFor &&
+                post.scheduledFor <= args.now &&
+                !post.deletedAt
+            )
+            .sort((a, b) => (a.scheduledFor ?? 0) - (b.scheduledFor ?? 0))
+            .slice(0, Math.max(1, args.limit));
+
+        return await Promise.all(
+            due.map(async (post) => {
+                const project = post.projectId ? await ctx.db.get(post.projectId) : null;
+                if (!project) return null;
+
+                const connection = await ctx.db
+                    .query("social_connections")
+                    .withIndex("by_project_platform", (q) =>
+                        q.eq("projectId", project._id).eq("platform", "instagram")
+                    )
+                    .first();
+                if (
+                    !connection ||
+                    connection.status !== "connected" ||
+                    !connection.tokenCiphertext ||
+                    !connection.tokenIv ||
+                    !connection.tokenAuthTag
+                ) {
+                    return null;
+                }
+
+                const mediaRows = await ctx.db
+                    .query("post_media_items")
+                    .withIndex("by_post", (q) => q.eq("postId", post._id))
+                    .collect();
+                mediaRows.sort((a, b) => a.position - b.position);
+
+                const firstMediaId = mediaRows[0]?.mediaItemId;
+                const mediaItem = firstMediaId ? await ctx.db.get(firstMediaId) : null;
+                const imageUrl = mediaItem
+                    ? await ctx.storage.getUrl(mediaItem.storageId)
+                    : post.imageStorageId
+                      ? await ctx.storage.getUrl(post.imageStorageId)
+                      : null;
+
+                return {
+                    postId: post._id,
+                    userId: project.userId,
+                    projectId: project._id,
+                    connectionId: connection._id,
+                    externalAccountId: connection.externalAccountId,
+                    caption: post.caption,
+                    imageUrl,
+                    tokenCiphertext: connection.tokenCiphertext,
+                    tokenIv: connection.tokenIv,
+                    tokenAuthTag: connection.tokenAuthTag,
+                };
+            })
+        ).then((jobs) => jobs.filter((job): job is NonNullable<typeof job> => Boolean(job)));
+    },
+});
+
+export const markPublishingInternal = internalMutation({
+    args: {
+        postId: v.id("generated_posts"),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.postId, {
+            schedulingStatus: "publishing",
+            publishError: undefined,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+export const markPublishFailedInternal = internalMutation({
+    args: {
+        postId: v.id("generated_posts"),
+        error: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const now = Date.now();
+        await ctx.db.patch(args.postId, {
+            schedulingStatus: "publish_failed",
+            publishError: args.error.slice(0, 1000),
+            updatedAt: now,
+        });
+
+        const calendarEvent = await ctx.db
+            .query("calendar_events")
+            .withIndex("by_post_id", (q) => q.eq("postId", args.postId))
+            .first();
+        if (calendarEvent) {
+            await ctx.db.patch(calendarEvent._id, {
+                status: "sync_failed",
+                updatedAt: now,
+                lastErrorCode: "INSTAGRAM_PUBLISH_FAILED",
+            });
+        }
+    },
+});
+
+export const markPublishedInternal = internalMutation({
+    args: {
+        postId: v.id("generated_posts"),
+        connectionId: v.id("social_connections"),
+        socialPostId: v.id("social_posts"),
+        containerId: v.string(),
+        mediaId: v.string(),
+        publishedAt: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const now = Date.now();
+        await ctx.db.patch(args.postId, {
+            schedulingStatus: "posted",
+            publishedAt: args.publishedAt,
+            publishedConnectionId: args.connectionId,
+            publishedSocialPostId: args.socialPostId,
+            instagramContainerId: args.containerId,
+            instagramPublishedMediaId: args.mediaId,
+            publishError: undefined,
+            updatedAt: now,
+        });
+
+        const calendarEvent = await ctx.db
+            .query("calendar_events")
+            .withIndex("by_post_id", (q) => q.eq("postId", args.postId))
+            .first();
+        if (calendarEvent) {
+            await ctx.db.patch(calendarEvent._id, {
+                status: "completed",
+                updatedAt: now,
+            });
+        }
     },
 });

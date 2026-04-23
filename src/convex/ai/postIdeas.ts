@@ -32,6 +32,24 @@ type InstagramSnippet = {
     timestamp: string;
 };
 
+type RecommendationContextPost = {
+    caption?: string;
+    mediaType: string;
+    publishedAt: number;
+    likeCount?: number;
+    commentsCount?: number;
+    engagementScore?: number;
+    intelligence?: {
+        topic: string;
+        hook: string;
+        format: string;
+        visualSignals: string[];
+        performanceNotes: string[];
+        recommendationWeight: number;
+        analyzedAt: number;
+    };
+};
+
 const llmBoundedStr = (max: number) =>
     z.preprocess((val) => {
         if (val == null) return undefined;
@@ -91,6 +109,19 @@ function digestSection(d: NonNullable<Doc<"projects">["instagramContentDigest"]>
     return lines.join("\n");
 }
 
+function brandIntelligenceSection(
+    intelligence: NonNullable<Doc<"projects">["brandIntelligence"]>
+): string {
+    return [
+        "## Inteligência de marca gerada pela Vanda",
+        intelligence.summary,
+        `Pilares de conteúdo: ${intelligence.contentPillars.join(", ")}`,
+        `Sinais de audiência: ${intelligence.audienceSignals.join(", ") || "(nenhum)"}`,
+        `Direção visual: ${intelligence.visualDirection.join(", ") || "(nenhuma)"}`,
+        `Notas para recomendações: ${intelligence.recommendationNotes.join(" | ") || "(nenhuma)"}`,
+    ].join("\n");
+}
+
 function buildSnippetsPrompt(snippets: InstagramSnippet[]): string {
     if (snippets.length === 0) return "(Nenhuma legenda sincronizada — não invente posts passados.)";
     return snippets
@@ -98,9 +129,30 @@ function buildSnippetsPrompt(snippets: InstagramSnippet[]): string {
         .join("\n---\n");
 }
 
+function buildRecommendationContextPrompt(posts: RecommendationContextPost[]): string {
+    if (posts.length === 0) {
+        return "(Sem posts importados com métricas suficientes ainda.)";
+    }
+    return posts.map((post, index) => {
+        const intelligence = post.intelligence;
+        return [
+            `[${index}] ${new Date(post.publishedAt).toISOString()} ${post.mediaType}`,
+            `Métricas: likes=${post.likeCount ?? "?"}, comments=${post.commentsCount ?? "?"}, engagement=${post.engagementScore ?? "?"}`,
+            intelligence
+                ? `Análise: tema=${intelligence.topic}; gancho=${intelligence.hook}; formato=${intelligence.format}; peso=${intelligence.recommendationWeight}`
+                : null,
+            intelligence?.performanceNotes.length
+                ? `Aprendizados: ${intelligence.performanceNotes.join(" | ")}`
+                : null,
+            post.caption ? `Legenda: ${post.caption.slice(0, 700)}` : null,
+        ].filter(Boolean).join("\n");
+    }).join("\n---\n");
+}
+
 function buildIdeasUserPrompt(args: {
     project: Doc<"projects">;
     snippets: InstagramSnippet[];
+    recommendationPosts: RecommendationContextPost[];
     userIntent: string | undefined;
     avoidRecentThemes: boolean | undefined;
     extraExclusions: string | undefined;
@@ -118,7 +170,16 @@ function buildIdeasUserPrompt(args: {
             "## Instagram\nNão há digest ainda — sincronize o Instagram do projeto para a Vanda evitar repetir temas recentes.\n\n";
     }
 
+    if (args.project.brandIntelligence) {
+        user += `${brandIntelligenceSection(args.project.brandIntelligence)}\n\n`;
+    }
+
     user += `## Amostra de legendas (índice 0 = mais recente)\n${buildSnippetsPrompt(args.snippets)}\n\n`;
+
+    const recommendationContext = args.project.brandIntelligence
+        ? "Use a inteligência de marca acima como filtro principal das recomendações."
+        : "Use principalmente as legendas e métricas abaixo para inferir padrões.";
+    user += `## Posts com métricas e análises para aprender recomendações\n${recommendationContext}\n${buildRecommendationContextPrompt(args.recommendationPosts)}\n\n`;
 
     if (args.userIntent?.trim()) {
         user += `## Pedido do usuário\n${args.userIntent.trim()}\n\n`;
@@ -159,11 +220,16 @@ async function generateIdeasWithModel(
         projectId: args.projectId,
         limit: 30,
     });
+    const recommendationPosts = await ctx.runQuery(internal.socialPosts.listRecommendationContextInternal, {
+        projectId: args.projectId,
+        limit: 12,
+    }) as RecommendationContextPost[];
 
     const system = `You are Vanda, an editorial assistant. Output valid JSON only for the schema. Captions and titles in Brazilian Portuguese; imagePrompt in English.`;
     const user = buildIdeasUserPrompt({
         project,
         snippets,
+        recommendationPosts,
         userIntent: args.userIntent,
         avoidRecentThemes: args.avoidRecentThemes,
         extraExclusions: args.extraExclusions,

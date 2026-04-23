@@ -31,6 +31,7 @@ import type * as ai_postIdeas from "../ai/postIdeas.js";
 import type * as ai_postSlidePrompts from "../ai/postSlidePrompts.js";
 import type * as ai_profileAnalysis from "../ai/profileAnalysis.js";
 import type * as ai_projectContextValidator from "../ai/projectContextValidator.js";
+import type * as ai_socialIntelligence from "../ai/socialIntelligence.js";
 import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
 import type * as billing_autumnUsage from "../billing/autumnUsage.js";
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "ai/postSlidePrompts": typeof ai_postSlidePrompts;
   "ai/profileAnalysis": typeof ai_profileAnalysis;
   "ai/projectContextValidator": typeof ai_projectContextValidator;
+  "ai/socialIntelligence": typeof ai_socialIntelligence;
   autumn: typeof autumn;
   "billing/autumn": typeof billing_autumn;
   "billing/autumnUsage": typeof billing_autumnUsage;

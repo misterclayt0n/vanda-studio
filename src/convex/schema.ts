@@ -42,6 +42,15 @@ export default defineSchema({
         onboardingPath: v.optional(onboardingPathValidator),
         /** LLM summary of recent synced IG captions — avoids repeating recent themes in AI posts */
         instagramContentDigest: v.optional(instagramContentDigestValidator),
+        brandIntelligence: v.optional(v.object({
+            summary: v.string(),
+            contentPillars: v.array(v.string()),
+            audienceSignals: v.array(v.string()),
+            visualDirection: v.array(v.string()),
+            recommendationNotes: v.array(v.string()),
+            sourcePostCount: v.number(),
+            generatedAt: v.number(),
+        })),
         lastInstagramSyncAt: v.optional(v.number()),
         /** How the last Instagram sync ran: captions-only vs mirrored media to storage */
         lastInstagramSyncMode: v.optional(v.union(v.literal("intel_only"), v.literal("full"))),
@@ -123,6 +132,15 @@ export default defineSchema({
         likeCount: v.optional(v.number()),
         commentsCount: v.optional(v.number()),
         engagementScore: v.optional(v.float64()),
+        intelligence: v.optional(v.object({
+            topic: v.string(),
+            hook: v.string(),
+            format: v.string(),
+            visualSignals: v.array(v.string()),
+            performanceNotes: v.array(v.string()),
+            recommendationWeight: v.number(),
+            analyzedAt: v.number(),
+        })),
         children: v.optional(v.array(v.object({
             externalPostId: v.string(),
             mediaType: v.string(),
@@ -224,8 +242,14 @@ export default defineSchema({
         // Scheduling fields
         // ============================================================================
         scheduledFor: v.optional(v.number()), // Unix timestamp when the post should be published
-        schedulingStatus: v.optional(v.string()), // "scheduled" | "posted" | "missed"
+        schedulingStatus: v.optional(v.string()), // "scheduled" | "publishing" | "posted" | "missed" | "publish_failed"
         reminderMinutes: v.optional(v.number()), // Reminder before scheduled time (e.g., 30)
+        publishedAt: v.optional(v.number()),
+        publishedConnectionId: v.optional(v.id("social_connections")),
+        publishedSocialPostId: v.optional(v.id("social_posts")),
+        instagramContainerId: v.optional(v.string()),
+        instagramPublishedMediaId: v.optional(v.string()),
+        publishError: v.optional(v.string()),
     }).index("by_project_id", ["projectId"])
       .index("by_created_at", ["createdAt"])
       .index("by_user_id", ["userId"])

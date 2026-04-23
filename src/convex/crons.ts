@@ -10,4 +10,11 @@ crons.interval(
     internal.scheduledPosts.markMissedPosts
 );
 
+crons.interval(
+    "publish instagram posts",
+    { minutes: 5 },
+    internal.instagramGraphActions.publishDueScheduledPostsInternal,
+    {}
+);
+
 export default crons;

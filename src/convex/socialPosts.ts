@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 const socialPostInput = v.object({
@@ -213,5 +213,125 @@ export const listByProject = query({
             .take(limit);
 
         return posts;
+    },
+});
+
+export const getForAnalysisInternal = internalQuery({
+    args: {
+        clerkId: v.string(),
+        socialPostId: v.id("social_posts"),
+    },
+    handler: async (ctx, args) => {
+        const post = await ctx.db.get(args.socialPostId);
+        if (!post) {
+            throw new Error("Post importado não encontrado");
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+            .unique();
+        if (!user || post.userId !== user._id) {
+            throw new Error("Não autorizado");
+        }
+
+        return post;
+    },
+});
+
+export const setPostIntelligenceInternal = internalMutation({
+    args: {
+        socialPostId: v.id("social_posts"),
+        intelligence: v.object({
+            topic: v.string(),
+            hook: v.string(),
+            format: v.string(),
+            visualSignals: v.array(v.string()),
+            performanceNotes: v.array(v.string()),
+            recommendationWeight: v.number(),
+            analyzedAt: v.number(),
+        }),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.socialPostId, {
+            intelligence: args.intelligence,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+export const createPublishedInstagramPostInternal = internalMutation({
+    args: {
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        connectionId: v.id("social_connections"),
+        externalAccountId: v.string(),
+        externalPostId: v.string(),
+        caption: v.string(),
+        mediaUrl: v.string(),
+        permalink: v.string(),
+        publishedAt: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("social_posts")
+            .withIndex("by_connection_external", (q) =>
+                q.eq("connectionId", args.connectionId).eq("externalPostId", args.externalPostId)
+            )
+            .first();
+        const now = Date.now();
+        const patch = {
+            userId: args.userId,
+            projectId: args.projectId,
+            connectionId: args.connectionId,
+            platform: "instagram",
+            provider: "instagram_graph",
+            externalAccountId: args.externalAccountId,
+            externalPostId: args.externalPostId,
+            caption: args.caption,
+            mediaType: "IMAGE",
+            mediaUrl: args.mediaUrl,
+            permalink: args.permalink,
+            publishedAt: args.publishedAt,
+            importedAt: now,
+            updatedAt: now,
+        };
+        if (existing) {
+            await ctx.db.patch(existing._id, patch);
+            return existing._id;
+        }
+        return await ctx.db.insert("social_posts", patch);
+    },
+});
+
+export const listRecommendationContextInternal = internalQuery({
+    args: {
+        projectId: v.id("projects"),
+        limit: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const limit = Math.min(20, Math.max(1, args.limit));
+        const posts = await ctx.db
+            .query("social_posts")
+            .withIndex("by_project_published", (q) => q.eq("projectId", args.projectId))
+            .order("desc")
+            .take(Math.max(limit, 12));
+
+        return posts
+            .sort((a, b) => {
+                const scoreA = a.intelligence?.recommendationWeight ?? a.engagementScore ?? 0;
+                const scoreB = b.intelligence?.recommendationWeight ?? b.engagementScore ?? 0;
+                return scoreB - scoreA;
+            })
+            .slice(0, limit)
+            .map((post) => ({
+                caption: post.caption,
+                mediaType: post.mediaType,
+                publishedAt: post.publishedAt,
+                likeCount: post.likeCount,
+                commentsCount: post.commentsCount,
+                engagementScore: post.engagementScore,
+                intelligence: post.intelligence,
+            }));
     },
 });
