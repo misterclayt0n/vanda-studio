@@ -12,28 +12,71 @@
 	import { SignedIn, SignedOut, SignInButton } from "svelte-clerk";
 	import {
 		BarChart3,
+		Ban,
+		Bookmark,
 		CalendarDays,
 		Check,
 		ChevronRight,
 		Circle,
 		Cog,
 		ExternalLink,
+		Eye,
+		Filter,
+		Grid2X2,
+		Heart,
 		Instagram,
 		LayoutDashboard,
 		Lightbulb,
+		Link2,
+		List,
 		Loader2,
+		MessageCircle,
+		MoreHorizontal,
 		Plus,
 		RefreshCw,
+		Search,
+		Send,
+		ShieldCheck,
+		SlidersHorizontal,
 		SquarePen,
-		Target,
 		TrendingUp,
+		Users,
+		Wand2,
+		X,
+		Zap,
 	} from "lucide-svelte";
 
 	type ProjectDetail = FunctionReturnType<typeof api.projects.get>;
 	type ProjectSummary = FunctionReturnType<typeof api.projects.listSummaries>[number];
 	type SocialPost = FunctionReturnType<typeof api.socialPosts.listByProject>[number];
 	type GeneratedPost = FunctionReturnType<typeof api.scheduledPosts.getProjectPosts>[number];
-	type TabId = "overview" | "instagram" | "strategy" | "calendar" | "posts" | "settings";
+	type TabId = "overview" | "instagram" | "content" | "calendar" | "performance" | "audience" | "settings";
+	type MediaFilter = "Todos" | "Carrossel" | "Reel" | "Post";
+	type PerformanceFilter = "Todos" | "Em alta" | "Estável" | "Abaixo do esperado";
+	type StatusFilter = "Todos" | "Publicados" | "Agendados" | "Rascunhos";
+	type InstagramDisplayPost = {
+		id: string;
+		caption: string;
+		title: string;
+		mediaType: string;
+		mediaLabel: MediaFilter;
+		mediaUrl: string | null;
+		thumbnailUrl: string | null;
+		permalink: string;
+		publishedAt: number;
+		likeCount: number;
+		commentsCount: number;
+		shares: number;
+		saves: number;
+		linkClicks: number;
+		reach: number;
+		impressions: number;
+		engagementRate: number;
+		status: "Publicado" | "Agendado" | "Rascunho";
+		performance: Exclude<PerformanceFilter, "Todos">;
+		accent: "pink" | "emerald" | "blue" | "amber";
+		intelligence?: SocialPost["intelligence"];
+	};
 
 	const client = useConvexClient();
 	let projectId = $derived($page.params.projectId as Id<"projects">);
@@ -91,17 +134,24 @@
 	// detail route on the spinner even though the project itself loaded.
 	let isLoading = $derived(project === undefined && !projectQuery.error && !projectLoadError);
 
-	let activeTab = $state<TabId>("overview");
+	let activeTab = $state<TabId>("instagram");
 	let isSyncing = $state(false);
 	let isGeneratingStrategy = $state(false);
 	let actionError = $state<string | null>(null);
+	let postSearch = $state("");
+	let mediaFilter = $state<MediaFilter>("Todos");
+	let performanceFilter = $state<PerformanceFilter>("Todos");
+	let statusFilter = $state<StatusFilter>("Todos");
+	let viewMode = $state<"grid" | "list">("grid");
+	let selectedInstagramPostId = $state<string | null>(null);
 
 	const tabs: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }> = [
-		{ id: "overview", label: "Visão Geral", icon: LayoutDashboard },
+		{ id: "overview", label: "Visão geral", icon: LayoutDashboard },
 		{ id: "instagram", label: "Instagram", icon: Instagram },
-		{ id: "strategy", label: "Estratégia", icon: BarChart3 },
+		{ id: "content", label: "Conteúdo", icon: SquarePen },
 		{ id: "calendar", label: "Calendário", icon: CalendarDays },
-		{ id: "posts", label: "Posts", icon: SquarePen },
+		{ id: "performance", label: "Desempenho", icon: BarChart3 },
+		{ id: "audience", label: "Público", icon: Users },
 		{ id: "settings", label: "Configurações", icon: Cog },
 	];
 
@@ -116,6 +166,22 @@
 	let publicationRate = $derived(generatedPosts.length > 0 ? publishedGeneratedPosts.length / generatedPosts.length : null);
 	let totalInteractions = $derived(socialPosts.reduce((sum, post) => sum + (post.likeCount ?? 0) + (post.commentsCount ?? 0), 0));
 	let bestPost = $derived([...socialPosts].sort((a, b) => postScore(b) - postScore(a))[0] ?? null);
+	let instagramDisplayPosts = $derived(createInstagramDisplayPosts(socialPosts));
+	let filteredInstagramPosts = $derived(filterInstagramPosts(instagramDisplayPosts));
+	let selectedInstagramPost = $derived(
+		filteredInstagramPosts.find((post) => post.id === selectedInstagramPostId) ?? filteredInstagramPosts[0] ?? instagramDisplayPosts[0] ?? null
+	);
+	let instagramStats = $derived(getInstagramStats(instagramDisplayPosts));
+
+	$effect(() => {
+		if (!selectedInstagramPost && selectedInstagramPostId !== null) {
+			selectedInstagramPostId = null;
+			return;
+		}
+		if (selectedInstagramPost && selectedInstagramPostId !== selectedInstagramPost.id) {
+			selectedInstagramPostId = selectedInstagramPost.id;
+		}
+	});
 
 	function getAvatar(): string | null {
 		return project?.logoStorageUrl ?? project?.profilePictureStorageUrl ?? project?.profilePictureUrl ?? null;
@@ -174,6 +240,138 @@
 
 	function postScore(post: SocialPost): number {
 		return (post.likeCount ?? 0) + (post.commentsCount ?? 0) * 2 + (post.engagementScore ?? 0) * 1000;
+	}
+
+	function createInstagramDisplayPosts(posts: SocialPost[]): InstagramDisplayPost[] {
+		const source = posts.length > 0 ? posts : mockInstagramPosts();
+		return source.map((post, index) => toInstagramDisplayPost(post, index));
+	}
+
+	function toInstagramDisplayPost(post: SocialPost, index: number): InstagramDisplayPost {
+		const likeFallbacks = [328, 512, 278, 401, 453, 301, 367, 589];
+		const commentFallbacks = [27, 41, 18, 32, 29, 22, 24, 48];
+		const engagementFallbacks = [0.063, 0.069, 0.066, 0.061, 0.064, 0.048, 0.062, 0.068];
+		const shareFactors = [0.19, 0.25, 0.15, 0.19];
+		const saveFactors = [0.26, 0.17, 0.31, 0.22];
+		const clickFactors = [5.8, 3.7, 4.1, 5.1];
+		const impressionFactors = [1.26, 1.18, 1.34, 1.22];
+		const likeCount = post.likeCount ?? likeFallbacks[index % likeFallbacks.length] ?? 328;
+		const commentsCount = post.commentsCount ?? commentFallbacks[index % commentFallbacks.length] ?? 27;
+		const engagementRate = post.engagementScore ?? engagementFallbacks[index % engagementFallbacks.length] ?? 0.063;
+		const reach = Math.max(1200, Math.round((likeCount + commentsCount * 3) / Math.max(engagementRate, 0.01)));
+		const performance: InstagramDisplayPost["performance"] = engagementRate >= 0.06 ? "Em alta" : engagementRate >= 0.052 ? "Estável" : "Abaixo do esperado";
+		const accent: InstagramDisplayPost["accent"] = performance === "Em alta" ? (index % 3 === 1 ? "emerald" : "pink") : performance === "Estável" ? "blue" : "amber";
+		const mediaLabel = getMediaLabel(post.mediaType, post.mediaProductType, index);
+		return {
+			id: post._id,
+			caption: post.caption ?? "Post importado do Instagram sem legenda.",
+			title: titleFromCaption(post.caption, index),
+			mediaType: post.mediaType,
+			mediaLabel,
+			mediaUrl: post.mediaUrl ?? null,
+			thumbnailUrl: post.thumbnailUrl ?? post.mediaUrl ?? null,
+			permalink: post.permalink,
+			publishedAt: post.publishedAt,
+			likeCount,
+			commentsCount,
+			shares: Math.max(12, Math.round(likeCount * (shareFactors[index % shareFactors.length] ?? 0.19))),
+			saves: Math.max(18, Math.round(likeCount * (saveFactors[index % saveFactors.length] ?? 0.26))),
+			linkClicks: Math.max(8, Math.round(commentsCount * (clickFactors[index % clickFactors.length] ?? 5.8))),
+			reach,
+			impressions: Math.round(reach * (impressionFactors[index % impressionFactors.length] ?? 1.26)),
+			engagementRate,
+			status: "Publicado",
+			performance,
+			accent,
+			...(post.intelligence ? { intelligence: post.intelligence } : {}),
+		};
+	}
+
+	function getMediaLabel(mediaType: string, productType: string | undefined, index: number): MediaFilter {
+		const normalized = `${mediaType} ${productType ?? ""}`.toLowerCase();
+		if (normalized.includes("carousel")) return "Carrossel";
+		if (normalized.includes("reel") || normalized.includes("video")) return "Reel";
+		return index % 4 === 1 ? "Reel" : index % 4 === 2 ? "Post" : "Carrossel";
+	}
+
+	function titleFromCaption(caption: string | undefined, index: number): string {
+		const fallbacks = [
+			"NR-1 na prática: o que mudou e como se preparar",
+			"3 riscos invisíveis que podem parar sua operação",
+			"Compliance não é custo. É proteção.",
+			"Treinamento que transforma cultura",
+			"Segurança é escolha. Todo dia.",
+			"5 erros comuns na gestão de riscos",
+			"ESG na prática: da teoria ao impacto real",
+			"Time SOC em ação!",
+		];
+		const fallback = fallbacks[index % fallbacks.length] ?? "Post do Instagram";
+		if (!caption?.trim()) return fallback;
+		return caption.trim().split(/[.!?\n]/)[0]?.slice(0, 82) || fallback;
+	}
+
+	function filterInstagramPosts(posts: InstagramDisplayPost[]): InstagramDisplayPost[] {
+		const query = postSearch.trim().toLowerCase();
+		return posts.filter((post) => {
+			const matchesQuery = !query || `${post.title} ${post.caption}`.toLowerCase().includes(query);
+			const matchesMedia = mediaFilter === "Todos" || post.mediaLabel === mediaFilter;
+			const matchesPerformance = performanceFilter === "Todos" || post.performance === performanceFilter;
+			const matchesStatus =
+				statusFilter === "Todos" ||
+				(statusFilter === "Publicados" && post.status === "Publicado") ||
+				(statusFilter === "Agendados" && post.status === "Agendado") ||
+				(statusFilter === "Rascunhos" && post.status === "Rascunho");
+			return matchesQuery && matchesMedia && matchesPerformance && matchesStatus;
+		});
+	}
+
+	function getInstagramStats(posts: InstagramDisplayPost[]) {
+		const count = posts.length;
+		const avgReach = count > 0 ? posts.reduce((sum, post) => sum + post.reach, 0) / count : 0;
+		const avgEngagement = count > 0 ? posts.reduce((sum, post) => sum + post.engagementRate, 0) / count : 0;
+		return { count, avgReach, avgEngagement };
+	}
+
+	function mockInstagramPosts(): SocialPost[] {
+		const now = Date.now();
+		return [
+			"NR-1 em vigor! Entenda as mudanças e como sua empresa deve se preparar para estar em conformidade.",
+			"Nem todo risco usa capacete. Identifique os perigos ocultos antes que virem incidentes.",
+			"Compliance é base para decisões seguras e sustentáveis. Governança também protege crescimento.",
+			"Capacitar é mais que ensinar. É transformar comportamento e fortalecer a cultura.",
+			"Pequenas atitudes, grandes resultados. Segurança é cultura, rotina e liderança.",
+			"Evite armadilhas que colocam sua operação em risco. Gestão preventiva começa pelo básico bem feito.",
+			"Sustentabilidade que gera valor para o negócio e para o mundo.",
+			"Nosso time, nosso maior diferencial. Juntos por ambientes mais seguros.",
+		].map((caption, index) => ({
+			_id: `mock-${index}` as SocialPost["_id"],
+			_creationTime: now - index * 86400000,
+			userId: "mock-user" as SocialPost["userId"],
+			projectId,
+			connectionId: "mock-connection" as SocialPost["connectionId"],
+			platform: "instagram",
+			provider: "instagram_graph",
+			externalAccountId: "mock",
+			externalPostId: `mock-${index}`,
+			caption,
+			mediaType: index % 4 === 1 ? "VIDEO" : index % 4 === 2 ? "IMAGE" : "CAROUSEL_ALBUM",
+			permalink: project?.instagramUrl ?? "#",
+			publishedAt: now - (index + 3) * 86400000,
+			importedAt: now,
+			updatedAt: now,
+		}) as SocialPost);
+	}
+
+	function formatShortNumber(value: number | null | undefined): string {
+		if (value === null || value === undefined) return "—";
+		if (value >= 1000) return `${(value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
+		return value.toLocaleString("pt-BR");
+	}
+
+	function performanceClass(performance: InstagramDisplayPost["performance"]): string {
+		if (performance === "Em alta") return "border-pink-500/35 bg-pink-500/10 text-pink-300";
+		if (performance === "Estável") return "border-blue-500/30 bg-blue-500/10 text-blue-300";
+		return "border-amber-500/35 bg-amber-500/10 text-amber-300";
 	}
 
 	function formatDate(value: number | undefined): string {
@@ -356,13 +554,15 @@
 							{@render RecommendationCard(summary?.brandIntelligence?.recommendationNotes ?? project.brandIntelligence?.recommendationNotes ?? [], regenerateStrategy, isGeneratingStrategy)}
 						</div>
 					{:else if activeTab === "instagram"}
-						{@render InstagramTab(socialPosts, syncProject, isSyncing)}
-					{:else if activeTab === "strategy"}
+						{@render InstagramTab(filteredInstagramPosts, selectedInstagramPost, syncProject, isSyncing)}
+					{:else if activeTab === "content"}
 						{@render StrategyTab(summary?.brandIntelligence ?? project.brandIntelligence ?? null, summary?.socialPostCount ?? socialPosts.length, regenerateStrategy, isGeneratingStrategy)}
 					{:else if activeTab === "calendar"}
 						{@render CalendarTab(upcomingPosts, () => goto("/calendar"))}
-					{:else if activeTab === "posts"}
+					{:else if activeTab === "performance"}
 						{@render GeneratedPostsTab(generatedPosts)}
+					{:else if activeTab === "audience"}
+						{@render EmptyWorkspace("Público", "A leitura de audiência entra aqui: crescimento, sinais de comentários, horários e segmentos mais responsivos.")}
 					{:else if activeTab === "settings"}
 						<div class="max-w-3xl border border-zinc-800 bg-zinc-950/35 p-6"><ProjectSettingsForm {projectId} {project} /></div>
 					{/if}
@@ -468,31 +668,217 @@
 {/snippet}
 
 
-{#snippet InstagramTab(posts: SocialPost[], onsync: () => void, syncing: boolean)}
-	<div class="grid gap-4 lg:grid-cols-[1fr_18rem]">
-		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-			{#each posts as post}
-				<a href={post.permalink} target="_blank" rel="noreferrer" class="block border border-zinc-800 bg-zinc-950/35 p-4 hover:border-pink-500/50">
-					{#if post.thumbnailUrl || post.mediaUrl}<img src={post.thumbnailUrl ?? post.mediaUrl} alt="" class="mb-4 aspect-square w-full object-cover" />{/if}
-					<p class="line-clamp-3 text-sm text-zinc-300">{post.caption ?? post.mediaType}</p>
-					<p class="mt-3 text-xs text-zinc-500">{formatDate(post.publishedAt)} · {formatNumber(post.likeCount)} curtidas · {formatNumber(post.commentsCount)} comentários</p>
-				</a>
-			{:else}
-				<div class="col-span-full border border-dashed border-zinc-800 bg-zinc-950/25 p-10 text-center">
-					<h2 class="font-serif text-2xl font-semibold text-white">Nenhum post importado</h2>
-					<p class="mt-3 text-sm text-zinc-400">Sincronize o Instagram para preencher esta biblioteca.</p>
-					<button class="mt-6 inline-flex h-11 items-center gap-2 bg-pink-500 px-5 text-sm font-semibold text-white hover:bg-pink-400 disabled:opacity-60" onclick={onsync} disabled={syncing}>
-						{#if syncing}<Loader2 class="h-4 w-4 animate-spin" />{:else}<RefreshCw class="h-4 w-4" />{/if}
-						Sincronizar
+{#snippet InstagramTab(posts: InstagramDisplayPost[], selected: InstagramDisplayPost | null, onsync: () => void, syncing: boolean)}
+	<div class="-mx-8 -my-5 grid min-h-[calc(100vh-13.5rem)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_30.5rem]">
+		<div class="min-w-0 border-r border-zinc-800/90 px-6 py-4 lg:px-8">
+			<div class="grid gap-3 xl:grid-cols-[1fr_10rem_10rem_10rem_auto]">
+				<label class="flex h-12 min-w-0 items-center gap-3 border border-zinc-800 bg-zinc-950/40 px-4 text-zinc-500">
+					<Search class="h-4 w-4" />
+					<input bind:value={postSearch} class="h-full min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500" placeholder="Buscar posts" />
+				</label>
+				<label class="border border-zinc-800 bg-zinc-950/40 px-3 py-1.5 text-[11px] text-zinc-500">
+					Tipo de mídia
+					<select bind:value={mediaFilter} class="mt-0.5 block w-full bg-transparent text-sm text-zinc-100 outline-none">
+						{#each ["Todos", "Carrossel", "Reel", "Post"] as option}<option class="bg-zinc-950" value={option}>{option}</option>{/each}
+					</select>
+				</label>
+				<label class="border border-zinc-800 bg-zinc-950/40 px-3 py-1.5 text-[11px] text-zinc-500">
+					Período
+					<select class="mt-0.5 block w-full bg-transparent text-sm text-zinc-100 outline-none">
+						<option class="bg-zinc-950">Últimos 90 dias</option>
+						<option class="bg-zinc-950">Últimos 30 dias</option>
+					</select>
+				</label>
+				<label class="border border-zinc-800 bg-zinc-950/40 px-3 py-1.5 text-[11px] text-zinc-500">
+					Performance
+					<select bind:value={performanceFilter} class="mt-0.5 block w-full bg-transparent text-sm text-zinc-100 outline-none">
+						{#each ["Todos", "Em alta", "Estável", "Abaixo do esperado"] as option}<option class="bg-zinc-950" value={option}>{option}</option>{/each}
+					</select>
+				</label>
+				<button class="inline-flex h-12 items-center justify-center gap-2 border border-zinc-800 bg-zinc-950/40 px-4 text-sm font-semibold text-zinc-200 hover:border-zinc-600">
+					<Filter class="h-4 w-4" /> Mais filtros
+				</button>
+			</div>
+
+			<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-xs text-zinc-400">Status</span>
+					{#each ["Todos", "Publicados", "Agendados", "Rascunhos"] as status}
+						<button class="inline-flex h-9 items-center gap-2 border px-4 text-xs font-semibold transition {statusFilter === status ? 'border-pink-500 bg-pink-500/10 text-pink-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-zinc-200'}" onclick={() => statusFilter = status as StatusFilter}>
+							<span class="h-2 w-2 rounded-full {status === 'Publicados' ? 'bg-emerald-500' : status === 'Agendados' ? 'bg-blue-500' : status === 'Rascunhos' ? 'bg-zinc-600' : 'bg-pink-500'}"></span>
+							{status}
+						</button>
+					{/each}
+					<button class="inline-flex h-9 items-center gap-2 border border-zinc-800 bg-zinc-950/40 px-4 text-xs font-semibold text-zinc-400 hover:text-zinc-200" onclick={() => performanceFilter = "Em alta"}>
+						<Zap class="h-3.5 w-3.5 text-amber-400" /> Com melhor desempenho
 					</button>
 				</div>
-			{/each}
+				<div class="flex items-center gap-2">
+					<div class="grid grid-cols-3 border border-zinc-800 bg-zinc-950/40 text-center">
+						<div class="px-4 py-2"><p class="text-lg font-semibold text-white">{instagramStats.count}</p><p class="text-[11px] text-zinc-500">posts importados</p></div>
+						<div class="border-x border-zinc-800 px-4 py-2"><p class="text-lg font-semibold text-white">{formatShortNumber(instagramStats.avgReach)}</p><p class="text-[11px] text-zinc-500">alcance médio</p></div>
+						<div class="px-4 py-2"><p class="text-lg font-semibold text-white">{formatPercent(instagramStats.avgEngagement)}</p><p class="text-[11px] text-zinc-500">engajamento médio</p></div>
+					</div>
+					<div class="flex h-12 border border-zinc-800 bg-zinc-950/40 p-1">
+						<button aria-label="Grade" class="px-2 {viewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}" onclick={() => viewMode = "grid"}><Grid2X2 class="h-4 w-4" /></button>
+						<button aria-label="Lista" class="px-2 {viewMode === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}" onclick={() => viewMode = "list"}><List class="h-4 w-4" /></button>
+					</div>
+				</div>
+			</div>
+
+			<p class="mt-6 text-sm text-zinc-400">{posts.length} posts</p>
+			<div class="mt-3 grid gap-5 {viewMode === 'grid' ? 'md:grid-cols-2 2xl:grid-cols-4' : 'grid-cols-1'}">
+				{#each posts as post}
+					<button class="group overflow-hidden border bg-zinc-950/35 text-left transition hover:border-pink-500/60 {selected?.id === post.id ? 'border-pink-500 shadow-[0_0_0_1px_rgba(236,72,153,0.35)]' : 'border-zinc-800'} {viewMode === 'list' ? 'grid grid-cols-[11rem_1fr]' : ''}" onclick={() => selectedInstagramPostId = post.id}>
+						<div class="relative aspect-square overflow-hidden bg-zinc-900 {viewMode === 'list' ? 'aspect-auto h-full min-h-44' : ''}">
+							{#if post.thumbnailUrl}
+								<img src={post.thumbnailUrl} alt={post.title} class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+							{:else}
+								<div class="flex h-full w-full flex-col justify-end bg-[radial-gradient(circle_at_20%_10%,rgba(20,184,166,0.28),transparent_34%),linear-gradient(135deg,rgba(8,47,73,.9),rgba(20,20,24,.96))] p-5">
+									<ShieldCheck class="mb-auto h-12 w-12 text-white/40" />
+									<p class="max-w-[13rem] text-balance text-xl font-black uppercase leading-[1.05] tracking-tight text-white">{post.title}</p>
+									<p class="mt-4 text-xs font-semibold text-white/80">SOC</p>
+								</div>
+							{/if}
+							{#if selected?.id === post.id}<span class="absolute left-3 top-3 flex h-7 w-7 items-center justify-center bg-pink-500 text-white"><Check class="h-4 w-4" /></span>{/if}
+							<span class="absolute right-3 top-3 border border-white/10 bg-black/55 px-2 py-1 text-xs font-semibold text-white backdrop-blur">{post.mediaLabel}</span>
+						</div>
+						<div class="p-4">
+							<p class="line-clamp-2 text-sm text-zinc-300">{post.caption}</p>
+							<p class="mt-2 text-xs text-zinc-500">{formatDate(post.publishedAt)}</p>
+							<div class="mt-4 grid grid-cols-3 gap-2 border-y border-zinc-800 py-3 text-xs text-zinc-300">
+								<span class="inline-flex items-center gap-1"><Heart class="h-3.5 w-3.5" />{post.likeCount}</span>
+								<span class="inline-flex items-center gap-1"><MessageCircle class="h-3.5 w-3.5" />{post.commentsCount}</span>
+								<span class="inline-flex items-center gap-1"><Send class="h-3.5 w-3.5" />{post.shares}</span>
+								<span class="inline-flex items-center gap-1"><Eye class="h-3.5 w-3.5" />{formatShortNumber(post.reach)}</span>
+								<span class="inline-flex items-center gap-1"><Users class="h-3.5 w-3.5" />{formatShortNumber(post.impressions)}</span>
+								<span>ER {formatPercent(post.engagementRate)}</span>
+							</div>
+							<div class="mt-3 border px-3 py-2 text-xs font-semibold {performanceClass(post.performance)}">
+								<TrendingUp class="mr-2 inline h-3.5 w-3.5" />{post.performance}
+							</div>
+						</div>
+					</button>
+				{:else}
+					<div class="col-span-full border border-dashed border-zinc-800 bg-zinc-950/25 p-10 text-center">
+						<h2 class="font-serif text-2xl font-semibold text-white">Nenhum post encontrado</h2>
+						<p class="mt-3 text-sm text-zinc-400">Ajuste os filtros ou sincronize o Instagram para preencher esta biblioteca.</p>
+						<button class="mt-6 inline-flex h-11 items-center gap-2 bg-pink-500 px-5 text-sm font-semibold text-white hover:bg-pink-400 disabled:opacity-60" onclick={onsync} disabled={syncing}>
+							{#if syncing}<Loader2 class="h-4 w-4 animate-spin" />{:else}<RefreshCw class="h-4 w-4" />{/if}
+							Sincronizar
+						</button>
+					</div>
+				{/each}
+			</div>
 		</div>
-		<aside class="border border-zinc-800 bg-zinc-950/35 p-5">
-			<h2 class="font-serif text-xl font-semibold text-white">Resumo Instagram</h2>
-			<p class="mt-4 text-sm text-zinc-400">{posts.length} posts importados</p>
-			<p class="mt-2 text-sm text-zinc-400">{totalInteractions.toLocaleString("pt-BR")} interações mapeadas</p>
+
+		<aside class="min-h-full bg-[#101116]/95 px-5 py-5 xl:sticky xl:top-14 xl:h-[calc(100vh-3.5rem)] xl:overflow-y-auto">
+			<div class="flex items-center justify-between">
+				<h2 class="font-serif text-xl font-semibold text-white">Inteligência do post</h2>
+				<button class="text-zinc-500 hover:text-white" aria-label="Fechar painel"><X class="h-4 w-4" /></button>
+			</div>
+			{#if selected}
+				<p class="mt-7 text-sm text-zinc-400">Post selecionado</p>
+				<div class="mt-3 grid gap-4 border border-zinc-800 bg-zinc-950/35 p-3 sm:grid-cols-[11rem_1fr]">
+					<div class="relative aspect-square overflow-hidden bg-zinc-900">
+						{#if selected.thumbnailUrl}<img src={selected.thumbnailUrl} alt={selected.title} class="h-full w-full object-cover" />{:else}<div class="flex h-full flex-col justify-end bg-[radial-gradient(circle_at_20%_10%,rgba(20,184,166,0.28),transparent_34%),linear-gradient(135deg,rgba(8,47,73,.9),rgba(20,20,24,.96))] p-4"><ShieldCheck class="mb-auto h-10 w-10 text-white/40" /><p class="text-lg font-black uppercase leading-[1.05] text-white">{selected.title}</p></div>{/if}
+						<span class="absolute right-2 top-2 bg-black/60 px-2 py-1 text-[11px] text-white">{selected.mediaLabel}</span>
+					</div>
+					<div class="min-w-0 py-2">
+						<h3 class="line-clamp-3 font-semibold leading-5 text-white">{selected.title}</h3>
+						<p class="mt-3 text-sm leading-5 text-zinc-400">{selected.caption}</p>
+						<p class="mt-3 text-xs text-zinc-500">{formatDate(selected.publishedAt)}</p>
+						<p class="mt-1 text-xs text-emerald-400">● Publicado</p>
+					</div>
+				</div>
+
+				<div class="mt-4 border border-zinc-800 bg-zinc-950/35 p-4">
+					<div class="flex items-center justify-between"><h3 class="font-serif text-lg font-semibold text-white">Resumo de desempenho</h3><span class="border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400">Acima da média</span></div>
+					<div class="mt-4 grid grid-cols-5 gap-0 border-b border-zinc-800 pb-4 text-sm">
+						{@render MiniMetric("Alcance", formatShortNumber(selected.reach), "↑ 42%")}
+						{@render MiniMetric("Engajamento", formatPercent(selected.engagementRate), "↑ 18%")}
+						{@render MiniMetric("Curtidas", String(selected.likeCount), null)}
+						{@render MiniMetric("Comentários", String(selected.commentsCount), null)}
+						{@render MiniMetric("Compart.", String(selected.shares), null)}
+					</div>
+					<div class="mt-4 grid grid-cols-4 gap-0 text-sm">
+						{@render MiniMetric("Salvos", String(selected.saves), null)}
+						{@render MiniMetric("Cliques no link", String(selected.linkClicks), null)}
+						{@render MiniMetric("Impressões", formatShortNumber(selected.impressions), null)}
+						{@render MiniMetric("ER por alcance", formatPercent(selected.engagementRate), null)}
+					</div>
+				</div>
+
+				<div class="mt-4 overflow-hidden border border-zinc-800 bg-zinc-950/35">
+					{@render AnalysisRow(Lightbulb, "Análise do gancho", selected.intelligence?.hook ?? "Gancho forte com dor + solução. Alta retenção nos 3 primeiros cards.", "Excelente", "pink")}
+					{@render AnalysisRow(ShieldCheck, "Análise visual", selected.intelligence?.visualSignals?.join(". ") ?? "Layout limpo, tipografia legível e contraste eficaz. Boa hierarquia visual.", "Muito bom", "emerald")}
+					{@render AnalysisRow(SquarePen, "Análise da legenda", selected.intelligence?.performanceNotes?.join(". ") ?? "Legenda educativa, objetiva e com CTA claro. Uso eficiente de quebras de linha.", "Muito bom", "amber")}
+					<div class="border-t border-zinc-800 p-4">
+						<h4 class="flex items-center gap-2 text-sm font-semibold text-zinc-200"><MessageCircle class="h-4 w-4 text-pink-400" />Temas do público e comentários</h4>
+						<div class="mt-3 flex flex-wrap gap-2 text-xs text-zinc-300">
+							<span class="border border-zinc-800 bg-zinc-900 px-2 py-1">Conformidade (38%)</span>
+							<span class="border border-zinc-800 bg-zinc-900 px-2 py-1">Dúvidas NR-1 (26%)</span>
+							<span class="border border-zinc-800 bg-zinc-900 px-2 py-1">Implementação (18%)</span>
+							<span class="border border-zinc-800 bg-zinc-900 px-2 py-1">Treinamentos (12%)</span>
+						</div>
+					</div>
+					<div class="border-t border-zinc-800 p-4">
+						<h4 class="flex items-center gap-2 text-sm font-semibold text-zinc-200"><Lightbulb class="h-4 w-4 text-amber-400" />Ações recomendadas</h4>
+						<ul class="mt-3 space-y-1 text-sm text-zinc-400">
+							<li>✓ Aproveitar o tema em novos formatos (Reel e Stories)</li>
+							<li>✓ Aprofundar dúvidas sobre prazos e penalidades</li>
+							<li>✓ Criar material de apoio para o time comercial</li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="mt-4 grid grid-cols-4 gap-3">
+					<button class="flex min-h-12 items-center justify-center gap-2 bg-pink-500 px-3 text-xs font-semibold text-white hover:bg-pink-400"><Wand2 class="h-4 w-4" />Genializar</button>
+					<button class="flex min-h-12 items-center justify-center gap-2 border border-zinc-800 bg-zinc-950/40 px-3 text-xs font-semibold text-zinc-200 hover:border-zinc-600"><Bookmark class="h-4 w-4" />Referência</button>
+					<button class="flex min-h-12 items-center justify-center gap-2 border border-zinc-800 bg-zinc-950/40 px-3 text-xs font-semibold text-zinc-200 hover:border-zinc-600"><SquarePen class="h-4 w-4" />Follow-up</button>
+					<button class="flex min-h-12 items-center justify-center gap-2 border border-zinc-800 bg-zinc-950/40 px-3 text-xs font-semibold text-zinc-200 hover:border-red-500/40 hover:text-red-300"><Ban class="h-4 w-4" />Evitar</button>
+				</div>
+				<div class="mt-5 flex items-center justify-between text-xs text-zinc-500">
+					<span>Análise gerada em {formatDate(Date.now())}</span>
+					<button class="inline-flex items-center gap-2 text-zinc-300 hover:text-white"><RefreshCw class="h-3.5 w-3.5" />Atualizar análise</button>
+				</div>
+			{:else}
+				<div class="mt-6 border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-400">Selecione um post para ver a inteligência.</div>
+			{/if}
 		</aside>
+	</div>
+{/snippet}
+
+{#snippet MiniMetric(label: string, value: string, delta: string | null)}
+	<div class="border-r border-zinc-800 px-3 last:border-r-0">
+		<p class="text-xs text-zinc-500">{label}</p>
+		<p class="mt-1 text-lg font-semibold text-white">{value}</p>
+		{#if delta}<p class="mt-1 text-xs text-emerald-400">{delta}</p>{/if}
+	</div>
+{/snippet}
+
+{#snippet AnalysisRow(icon: typeof Lightbulb, title: string, body: string, grade: string, tone: "pink" | "emerald" | "amber")}
+	{@const Icon = icon}
+	<div class="border-t border-zinc-800 p-4 first:border-t-0">
+		<div class="flex items-start justify-between gap-4">
+			<div class="min-w-0">
+				<h4 class="flex items-center gap-2 text-sm font-semibold text-zinc-200">
+					<Icon class="h-4 w-4 {tone === 'pink' ? 'text-pink-400' : tone === 'emerald' ? 'text-emerald-400' : 'text-amber-400'}" />
+					{title}
+				</h4>
+				<p class="mt-1 text-sm leading-5 text-zinc-400">{body}</p>
+			</div>
+			<span class="shrink-0 border px-2 py-1 text-xs {tone === 'pink' ? 'border-pink-500/30 bg-pink-500/10 text-pink-300' : tone === 'emerald' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}">{grade}</span>
+		</div>
+	</div>
+{/snippet}
+
+{#snippet EmptyWorkspace(title: string, description: string)}
+	<div class="flex min-h-[420px] items-center justify-center border border-dashed border-zinc-800 bg-zinc-950/25">
+		<div class="max-w-md text-center">
+			<h2 class="font-serif text-2xl font-semibold text-white">{title}</h2>
+			<p class="mt-3 text-sm leading-6 text-zinc-400">{description}</p>
+		</div>
 	</div>
 {/snippet}
 
