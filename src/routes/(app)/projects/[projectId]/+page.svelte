@@ -2,7 +2,7 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import Navbar from "$lib/components/Navbar.svelte";
-	import { PostIntelligencePanel, ProjectSettingsForm } from "$lib/components/projects";
+	import { PostIntelligencePanel } from "$lib/components/projects";
 	import { Badge, Button } from "$lib/components/ui";
 	import { formatUserFacingMessage } from "$lib/errors";
 	import { api } from "../../../../convex/_generated/api.js";
@@ -16,7 +16,6 @@
 		Check,
 		ChevronRight,
 		Circle,
-		Cog,
 		ExternalLink,
 		Eye,
 		Filter,
@@ -49,7 +48,7 @@
 	type ProjectSummary = FunctionReturnType<typeof api.projects.listSummaries>[number];
 	type SocialPost = FunctionReturnType<typeof api.socialPosts.listByProject>[number];
 	type GeneratedPost = FunctionReturnType<typeof api.scheduledPosts.getProjectPosts>[number];
-	type TabId = "overview" | "content" | "strategy" | "settings";
+	type TabId = "overview" | "content" | "strategy";
 	type MediaFilter = "Todos" | "Post";
 	type PerformanceFilter = "Todos" | "Em alta" | "Estável" | "Abaixo do esperado";
 	type StatusFilter = "Todos" | "Publicados" | "Agendados" | "Rascunhos";
@@ -145,7 +144,6 @@
 		{ id: "overview", label: "Visão geral", icon: LayoutDashboard },
 		{ id: "content", label: "Conteúdo", icon: SquarePen },
 		{ id: "strategy", label: "Estratégia", icon: SlidersHorizontal },
-		{ id: "settings", label: "Configurações", icon: Cog },
 	];
 
 	let upcomingPosts = $derived(
@@ -502,8 +500,6 @@
 						{@render ContentLibraryTab(filteredInstagramPosts, selectedInstagramPost, syncProject, isSyncing)}
 					{:else if activeTab === "strategy"}
 						{@render StrategyTab(summary?.brandIntelligence ?? project.brandIntelligence ?? null, summary?.socialPostCount ?? socialPosts.length, regenerateStrategy, isGeneratingStrategy)}
-					{:else if activeTab === "settings"}
-						<div class="max-w-3xl border border-border bg-card/70 p-6"><ProjectSettingsForm {projectId} {project} /></div>
 					{/if}
 				</section>
 			</main>
