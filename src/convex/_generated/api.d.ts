@@ -57,6 +57,7 @@ import type * as mediaItems from "../mediaItems.js";
 import type * as mediaProcessing from "../mediaProcessing.js";
 import type * as migrations_backfillMediaItems from "../migrations/backfillMediaItems.js";
 import type * as postMediaItems from "../postMediaItems.js";
+import type * as projectAnalytics from "../projectAnalytics.js";
 import type * as projects from "../projects.js";
 import type * as referenceImages from "../referenceImages.js";
 import type * as scheduledPosts from "../scheduledPosts.js";
@@ -121,6 +122,7 @@ declare const fullApi: ApiFromModules<{
   mediaProcessing: typeof mediaProcessing;
   "migrations/backfillMediaItems": typeof migrations_backfillMediaItems;
   postMediaItems: typeof postMediaItems;
+  projectAnalytics: typeof projectAnalytics;
   projects: typeof projects;
   referenceImages: typeof referenceImages;
   scheduledPosts: typeof scheduledPosts;

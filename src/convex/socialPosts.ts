@@ -263,6 +263,21 @@ export const getForAnalysisInternal = internalQuery({
     },
 });
 
+export const setPostIntelligenceStatusInternal = internalMutation({
+    args: {
+        socialPostId: v.id("social_posts"),
+        status: v.union(v.literal("idle"), v.literal("running"), v.literal("ready"), v.literal("failed")),
+        error: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.socialPostId, {
+            intelligenceStatus: args.status,
+            ...(args.error !== undefined ? { intelligenceError: args.error.slice(0, 1000) } : {}),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
 export const setPostIntelligenceInternal = internalMutation({
     args: {
         socialPostId: v.id("social_posts"),
@@ -279,6 +294,8 @@ export const setPostIntelligenceInternal = internalMutation({
     handler: async (ctx, args) => {
         await ctx.db.patch(args.socialPostId, {
             intelligence: args.intelligence,
+            intelligenceStatus: "ready",
+            intelligenceError: undefined,
             updatedAt: Date.now(),
         });
     },

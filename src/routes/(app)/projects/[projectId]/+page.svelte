@@ -120,6 +120,9 @@
 	// not start until the project exists; otherwise one slow subscription can make
 	// the first paint feel like the whole route is stuck.
 	const summariesQuery = useQuery(api.projects.listSummaries, () => (project ? {} : "skip"));
+	const overviewQuery = useQuery(api.projectAnalytics.overview, () => (project ? { projectId } : "skip"));
+	const contentQuery = useQuery(api.projectAnalytics.contentLibrary, () => (project ? { projectId, search: postSearch, limit: 50 } : "skip"));
+	const strategyQuery = useQuery(api.projectAnalytics.strategy, () => (project ? { projectId } : "skip"));
 	const socialPostsQuery = useQuery(api.socialPosts.listByProject, () => (project ? { projectId, limit: 24 } : "skip"));
 	const generatedPostsQuery = useQuery(api.scheduledPosts.getProjectPosts, () => (project ? { projectId, limit: 50 } : "skip"));
 
@@ -135,6 +138,8 @@
 	let isSyncing = $state(false);
 	let isGeneratingStrategy = $state(false);
 	let actionError = $state<string | null>(null);
+	let analysisError = $state<string | null>(null);
+	let analyzingPostId = $state<string | null>(null);
 	let postSearch = $state("");
 	let viewMode = $state<"grid" | "list">("list");
 	let selectedInstagramPostId = $state<string | null>(null);
@@ -351,6 +356,19 @@
 		}
 	}
 
+	async function analyzeSelectedPost() {
+		if (!selectedInstagramPost) return;
+		analysisError = null;
+		analyzingPostId = selectedInstagramPost.id;
+		try {
+			await client.action(api.ai.socialIntelligence.analyzePost, { socialPostId: selectedInstagramPost.id as Id<"social_posts"> });
+		} catch (err) {
+			analysisError = formatUserFacingMessage(err);
+		} finally {
+			analyzingPostId = null;
+		}
+	}
+
 	async function regenerateStrategy() {
 		if (socialPosts.length === 0) {
 			actionError = "Sincronize posts do Instagram antes de gerar estratégia.";
@@ -359,6 +377,10 @@
 		isGeneratingStrategy = true;
 		actionError = null;
 		try {
+			await client.action(api.ai.socialIntelligence.regenerateStrategySnapshot, {
+				projectId,
+				limit: 40,
+			});
 			await client.action(api.ai.socialIntelligence.regenerateBrandIntelligence, {
 				projectId,
 				limit: 30,
@@ -477,6 +499,13 @@
 
 				<section class="relative px-8 py-5 lg:px-10">
 					{#if activeTab === "overview"}
+						{@const overview = overviewQuery.data}
+						{#if overview}
+							<div class="mb-4 border border-primary/25 bg-primary/10 p-4">
+								<p class="text-sm font-semibold text-primary">Insight da Vanda</p>
+								<p class="mt-1 text-sm text-foreground/85">{overview.stats.analyzedCount} posts analisados, {formatShortNumber(overview.stats.totalReach)} de alcance importado e engajamento mediano de {formatPercent(overview.stats.medianEngagement)}.</p>
+							</div>
+						{/if}
 						<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 							{@render MetricCard("Posts este mês", String(postsThisMonth), `${summary?.publishedCount ?? 0} publicados pela Vanda`)}
 							{@render MetricCard("Próximos agendamentos", String(upcomingPosts.length), "Nos próximos dias")}
@@ -497,9 +526,9 @@
 							{@render RecommendationCard(summary?.brandIntelligence?.recommendationNotes ?? project.brandIntelligence?.recommendationNotes ?? [], regenerateStrategy, isGeneratingStrategy)}
 						</div>
 					{:else if activeTab === "content"}
-						{@render ContentLibraryTab(filteredInstagramPosts, selectedInstagramPost, syncProject, isSyncing)}
+						{@render ContentLibraryTab(filteredInstagramPosts, selectedInstagramPost, syncProject, isSyncing, analyzeSelectedPost)}
 					{:else if activeTab === "strategy"}
-						{@render StrategyTab(summary?.brandIntelligence ?? project.brandIntelligence ?? null, summary?.socialPostCount ?? socialPosts.length, regenerateStrategy, isGeneratingStrategy)}
+						{@render StrategyTab(strategyQuery.data?.latest ?? null, strategyQuery.data?.importedPostCount ?? socialPosts.length, regenerateStrategy, isGeneratingStrategy)}
 					{/if}
 				</section>
 			</main>
@@ -602,7 +631,7 @@
 	</div>
 {/snippet}
 
-{#snippet ContentLibraryTab(posts: InstagramDisplayPost[], selected: InstagramDisplayPost | null, onsync: () => void, syncing: boolean)}
+{#snippet ContentLibraryTab(posts: InstagramDisplayPost[], selected: InstagramDisplayPost | null, onsync: () => void, syncing: boolean, onanalyze: () => void)}
 	<div class="-mx-8 -my-5 grid min-h-[calc(100vh-13.5rem)] grid-cols-1 {postIntelligenceOpen ? 'xl:grid-cols-[minmax(0,1fr)_27rem]' : ''}">
 		<div class="min-w-0 border-r border-border px-6 py-4 lg:px-8">
 			<div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -695,7 +724,18 @@
 		</div>
 
 		{#if postIntelligenceOpen}
-			<PostIntelligencePanel post={selected} onclose={() => postIntelligenceOpen = false} />
+			<div>
+				<PostIntelligencePanel post={selected} onclose={() => postIntelligenceOpen = false} />
+				{#if selected && !selected.intelligence}
+					<div class="border-l border-border bg-card/95 px-5 pb-5">
+						<Button class="w-full" onclick={onanalyze} disabled={analyzingPostId === selected.id}>
+							{#if analyzingPostId === selected.id}<Loader2 class="h-4 w-4 animate-spin" />{/if}
+							Analisar com Vanda
+						</Button>
+						{#if analysisError}<p class="mt-2 text-xs text-red-300">{analysisError}</p>{/if}
+					</div>
+				{/if}
+			</div>
 		{/if}
 	</div>
 {/snippet}
@@ -733,37 +773,40 @@
 	</div>
 {/snippet}
 
-{#snippet StrategyTab(intelligence: ProjectSummary["brandIntelligence"] | null, postCount: number, onregenerate: () => void, loading: boolean)}
+{#snippet StrategyTab(strategy: any | null, postCount: number, onregenerate: () => void, loading: boolean)}
 	<div class="grid gap-4 xl:grid-cols-[1fr_22rem]">
 		<div class="border border-border bg-card/70 p-6">
 			<div class="flex items-start justify-between gap-4">
 				<div>
-					<h2 class="font-serif text-2xl font-semibold text-foreground">Estratégia de marca</h2>
-					<p class="mt-2 text-sm text-muted-foreground">Aprendida a partir de {postCount} posts importados.</p>
+					<h2 class="font-serif text-2xl font-semibold text-foreground">Memória estratégica</h2>
+					<p class="mt-2 text-sm text-muted-foreground">Baseada em {strategy?.postCount ?? postCount} posts importados.</p>
 				</div>
 				<button class="inline-flex h-10 items-center gap-2 border border-border px-4 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-60" onclick={onregenerate} disabled={loading || postCount === 0}>
 					{#if loading}<Loader2 class="h-4 w-4 animate-spin" />{:else}<RefreshCw class="h-4 w-4" />{/if}
-					Regenerar
+					Regenerar estratégia
 				</button>
 			</div>
-			{#if intelligence}
-				<p class="mt-8 leading-7 text-foreground/85">{intelligence.summary}</p>
-				{@render StrategySection("Pilares de conteúdo", intelligence.contentPillars)}
-				{@render StrategySection("Sinais de audiência", intelligence.audienceSignals)}
-				{@render StrategySection("Direção visual", intelligence.visualDirection)}
+			{#if strategy}
+				<p class="mt-8 leading-7 text-foreground/85">{strategy.summary}</p>
+				<div class="mt-6 grid gap-4 md:grid-cols-2">
+					{@render StrategySection("Pilares de conteúdo", strategy.contentPillars)}
+					{@render StrategySection("Sinais da audiência", strategy.audienceSignals)}
+					{@render StrategySection("Direção visual", strategy.visualDirection)}
+					{@render StrategySection("O que evitar", strategy.avoidList)}
+				</div>
 			{:else}
 				<div class="mt-8 border border-dashed border-border p-8 text-center">
-					<p class="text-sm text-muted-foreground">Ainda não há estratégia gerada para este projeto.</p>
+					<p class="text-sm text-muted-foreground">Gere a estratégia com a Vanda depois de sincronizar posts reais do Instagram.</p>
 				</div>
 			{/if}
 		</div>
 		<aside class="border border-border bg-card/70 p-5">
-			<h3 class="font-serif text-xl font-semibold text-foreground">Recomendações</h3>
+			<h3 class="font-serif text-xl font-semibold text-foreground">Vanda em ação</h3>
 			<div class="mt-4 space-y-3">
-				{#each intelligence?.recommendationNotes ?? [] as note}
-					<p class="border border-primary/20 bg-primary/[0.04] p-3 text-sm leading-5 text-foreground/85">{note}</p>
+				{#each strategy?.suggestedExperiments ?? [] as item}
+					<p class="border border-primary/20 bg-primary/[0.04] p-3 text-sm leading-5 text-foreground/85"><span class="font-semibold text-foreground">{item.title}</span><br />{item.expectedImpact}</p>
 				{:else}
-					<p class="text-sm text-muted-foreground">Sem recomendações ainda.</p>
+					<p class="text-sm text-muted-foreground">Sem experimentos ainda.</p>
 				{/each}
 			</div>
 		</aside>

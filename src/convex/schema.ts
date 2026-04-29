@@ -116,6 +116,8 @@ export default defineSchema({
         totalInteractions: v.optional(v.number()),
         engagementScore: v.optional(v.float64()),
         insightsCapturedAt: v.optional(v.number()),
+        intelligenceStatus: v.optional(v.union(v.literal("idle"), v.literal("running"), v.literal("ready"), v.literal("failed"))),
+        intelligenceError: v.optional(v.string()),
         intelligence: v.optional(v.object({
             topic: v.string(),
             hook: v.string(),
@@ -153,6 +155,25 @@ export default defineSchema({
         profileViews: v.optional(v.number()),
     }).index("by_project_captured", ["projectId", "capturedAt"])
       .index("by_connection_captured", ["connectionId", "capturedAt"]),
+
+    project_strategy_snapshots: defineTable({
+        userId: v.id("users"),
+        projectId: v.id("projects"),
+        sourcePostIds: v.array(v.id("social_posts")),
+        analyzedFrom: v.optional(v.number()),
+        analyzedTo: v.optional(v.number()),
+        postCount: v.number(),
+        summary: v.string(),
+        confidence: v.string(),
+        audienceSignals: v.array(v.string()),
+        contentPillars: v.array(v.string()),
+        workingThemes: v.array(v.object({ label: v.string(), evidence: v.string(), engagementRate: v.optional(v.number()) })),
+        visualDirection: v.array(v.string()),
+        avoidList: v.array(v.string()),
+        suggestedExperiments: v.array(v.object({ title: v.string(), expectedImpact: v.string() })),
+        next7DaysPlan: v.array(v.object({ dateLabel: v.string(), idea: v.string(), format: v.string() })),
+        createdAt: v.number(),
+    }).index("by_project_created", ["projectId", "createdAt"]),
 
     post_metric_snapshots: defineTable({
         userId: v.id("users"),
