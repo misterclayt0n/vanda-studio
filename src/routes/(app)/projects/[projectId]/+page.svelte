@@ -670,48 +670,36 @@
 
 {#snippet ContentLibraryTab(posts: InstagramDisplayPost[], selected: InstagramDisplayPost | null, onsync: () => void, syncing: boolean)}
 	<div class="-mx-8 -my-5 grid min-h-[calc(100vh-13.5rem)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_27rem]">
-		<div class="min-w-0 border-r border-border px-6 py-7 lg:px-8">
-			<div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-				<div>
-					<h2 class="font-serif text-3xl font-semibold tracking-[-0.03em] text-foreground">Biblioteca de posts</h2>
-					<p class="mt-2 text-sm text-muted-foreground">Gerencie, acompanhe e analise todos os posts do projeto {project?.name}.</p>
-				</div>
-				<div class="grid grid-cols-4 border border-border bg-card/70 text-center">
-					<div class="px-5 py-3 text-left"><p class="text-xl font-semibold text-foreground">{Math.max(128, instagramDisplayPosts.length)}</p><p class="text-xs text-muted-foreground/70">Total de posts</p></div>
-					<div class="border-l border-border px-5 py-3 text-left"><p class="text-xl font-semibold text-foreground">{Math.max(56, posts.length)}</p><p class="text-xs text-muted-foreground/70">Publicados</p></div>
-					<div class="border-l border-border px-5 py-3 text-left"><p class="text-xl font-semibold text-foreground">34,7K</p><p class="text-xs text-muted-foreground/70">Alcance total</p></div>
-					<div class="border-l border-border px-5 py-3 text-left"><p class="text-xl font-semibold text-foreground">2,1K</p><p class="text-xs text-muted-foreground/70">Interações totais</p></div>
+		<div class="min-w-0 border-r border-border px-6 py-4 lg:px-8">
+			<div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+				<label class="flex h-10 min-w-0 flex-1 items-center gap-2 border border-border bg-card/70 px-3 text-muted-foreground/70 xl:max-w-xl">
+					<Search class="h-4 w-4" />
+					<input bind:value={postSearch} class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70" placeholder="Buscar por título, legenda ou ID do IG..." />
+				</label>
+				<div class="flex flex-wrap items-stretch gap-2">
+					<div class="flex flex-wrap border border-border bg-card/60">
+						<div class="min-w-24 px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{Math.max(128, instagramDisplayPosts.length)}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Total</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">{Math.max(56, posts.length)}</p><p class="mt-1 text-[11px] text-muted-foreground/70">Publicados</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">34,7K</p><p class="mt-1 text-[11px] text-muted-foreground/70">Alcance</p></div>
+						<div class="min-w-24 border-l border-border px-3 py-2"><p class="text-lg font-semibold leading-none text-foreground">2,1K</p><p class="mt-1 text-[11px] text-muted-foreground/70">Interações</p></div>
+					</div>
+					<div class="flex border border-border bg-card/70 p-1">
+						<button aria-label="Grade" class="px-3 {viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "grid"}><Grid2X2 class="h-4 w-4" /></button>
+						<button aria-label="Lista" class="px-3 {viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "list"}><List class="h-4 w-4" /></button>
+					</div>
 				</div>
 			</div>
 
-			<div class="mt-6 flex flex-wrap gap-3">
+			<div class="mt-4 flex flex-wrap gap-2">
 				{#each [{ label: "Todos", count: 128 }, { label: "Rascunhos", count: 18 }, { label: "Agendados", count: 24 }, { label: "Publicados", count: 56 }, { label: "Importados do Instagram", count: 22 }, { label: "Falhos", count: 3 }] as chip}
-					<button class="inline-flex h-10 items-center gap-3 border px-4 text-sm font-semibold transition {statusFilter === chip.label || (chip.label === 'Importados do Instagram' && statusFilter === 'Todos') ? 'border-primary/35 bg-primary/15 text-primary' : chip.label === 'Publicados' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:border-emerald-500/50' : 'border-border bg-card/70 text-foreground/85 hover:border-primary/50'}" onclick={() => statusFilter = (chip.label === "Importados do Instagram" || chip.label === "Falhos" ? "Todos" : chip.label) as StatusFilter}>
+					<button class="inline-flex h-8 items-center gap-2 border px-3 text-xs font-semibold transition {statusFilter === chip.label || (chip.label === 'Importados do Instagram' && statusFilter === 'Todos') ? 'border-primary/35 bg-primary/15 text-primary' : chip.label === 'Publicados' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:border-emerald-500/50' : 'border-border bg-card/70 text-foreground/85 hover:border-primary/50'}" onclick={() => statusFilter = (chip.label === "Importados do Instagram" || chip.label === "Falhos" ? "Todos" : chip.label) as StatusFilter}>
 						{#if chip.label === "Todos"}<Grid2X2 class="h-4 w-4" />{:else if chip.label === "Rascunhos"}<SquarePen class="h-4 w-4" />{:else if chip.label === "Agendados"}<CalendarDays class="h-4 w-4" />{:else if chip.label === "Publicados"}<Check class="h-4 w-4" />{:else if chip.label === "Falhos"}<Ban class="h-4 w-4" />{:else}<Instagram class="h-4 w-4" />{/if}
 						{chip.label}
-						<span class="rounded bg-zinc-700/70 px-2 py-0.5 text-xs text-foreground">{chip.count}</span>
+						<span class="rounded bg-zinc-700/70 px-1.5 py-0.5 text-[11px] text-foreground">{chip.count}</span>
 					</button>
 				{/each}
 			</div>
 
-			<div class="mt-5 grid gap-3 xl:grid-cols-[1fr_7rem_7rem_7rem_auto_auto]">
-				<label class="flex h-12 min-w-0 items-center gap-3 border border-border bg-card/70 px-4 text-muted-foreground/70">
-					<Search class="h-4 w-4" />
-					<input bind:value={postSearch} class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70" placeholder="Buscar por título, legenda ou ID do IG..." />
-				</label>
-				<select bind:value={mediaFilter} class="h-12 border border-border bg-card/70 px-3 text-sm text-foreground outline-none"><option class="bg-card">Todos</option><option class="bg-card">Carrossel</option><option class="bg-card">Reel</option><option class="bg-card">Post</option></select>
-				<select class="h-12 border border-border bg-card/70 px-3 text-sm text-foreground outline-none"><option class="bg-card">Data</option></select>
-				<select class="h-12 border border-border bg-card/70 px-3 text-sm text-foreground outline-none"><option class="bg-card">Origem</option></select>
-				<button class="inline-flex h-12 items-center gap-2 border border-border bg-card/70 px-4 text-sm font-semibold text-foreground hover:border-primary/50"><Filter class="h-4 w-4" />Mais filtros</button>
-				<button class="inline-flex h-12 items-center gap-2 px-3 text-sm text-muted-foreground/70 hover:text-foreground"><X class="h-4 w-4" />Limpar filtros</button>
-			</div>
-
-			<div class="mt-5 flex justify-end">
-				<div class="flex h-11 border border-border bg-card/70 p-1">
-					<button aria-label="Grade" class="px-3 {viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "grid"}><Grid2X2 class="h-4 w-4" /></button>
-					<button aria-label="Lista" class="px-3 {viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground/70'}" onclick={() => viewMode = "list"}><List class="h-4 w-4" /></button>
-				</div>
-			</div>
 
 			{#if viewMode === "list"}
 				<div class="mt-3 overflow-hidden border border-border bg-card/55">
