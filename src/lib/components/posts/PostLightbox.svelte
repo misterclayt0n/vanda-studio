@@ -3,6 +3,7 @@
 	import InstagramPreview from "./InstagramPreview.svelte";
 	import CarouselStrip from "./CarouselStrip.svelte";
 	import MediaLibrarySheet from "./MediaLibrarySheet.svelte";
+	import ScheduleModal from "$lib/components/calendar/ScheduleModal.svelte";
 	import {
 		StudioLightboxShell,
 		LightboxSidebarHeader,
@@ -94,6 +95,7 @@
 	let draftTitle = $state("");
 	let draftMediaItemIds = $state<Id<"media_items">[]>([]);
 	let libraryOpen = $state(false);
+	let scheduleOpen = $state(false);
 	let isSaving = $state(false);
 	/**
 	 * Hydration is decoupled from post switches because `api.postMediaItems.listByPost`
@@ -140,6 +142,7 @@
 			.filter((item): item is MediaItem => !!item);
 	});
 
+	let schedulePreviewUrl = $derived(draftMediaItems[previewIndex]?.url ?? draftMediaItems[0]?.url ?? null);
 	let isCaptionDirty = $derived(draftCaption !== (currentPost?.caption ?? ""));
 	let isTitleDirty = $derived(draftTitle !== (currentPost?.title ?? ""));
 	let isMediaDirty = $derived.by(() => {
@@ -512,6 +515,21 @@
 						/>
 					</div>
 
+					<Button
+						type="button"
+						class="h-10 w-full gap-2"
+						onclick={async () => {
+							await persistDraft();
+							scheduleOpen = true;
+						}}
+						disabled={isSaving || draftMediaItemIds.length === 0 || currentPost.schedulingStatus === "posted"}
+					>
+						<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5m-15 12h13.5A1.5 1.5 0 0020.25 19.5V6.75a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5V19.5A1.5 1.5 0 005.25 21z" />
+						</svg>
+						{currentPost.scheduledFor ? "Reagendar post" : "Agendar post"}
+					</Button>
+
 					<!-- Editable caption -->
 					<div class="rounded-xl border border-primary/20 bg-primary/[0.07] px-4 py-3">
 						<div class="flex items-start justify-between gap-3">
@@ -630,3 +648,14 @@
 	ondeselect={handleLibraryDeselect}
 	onclose={() => (libraryOpen = false)}
 />
+
+{#if currentPost}
+	<ScheduleModal
+		open={scheduleOpen}
+		onclose={() => (scheduleOpen = false)}
+		postId={currentPost._id}
+		caption={draftCaption}
+		imageUrl={schedulePreviewUrl}
+		projectName={currentPost.projectName}
+	/>
+{/if}
