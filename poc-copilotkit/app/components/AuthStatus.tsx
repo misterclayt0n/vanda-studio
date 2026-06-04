@@ -6,16 +6,17 @@ export function AuthStatus() {
   const { isLoaded, isSignedIn, user } = useUser();
 
   return (
-    <section className="auth-panel">
-      <div>
-        <span className="eyebrow">Authentication</span>
+    <section className="auth-panel" aria-label="Authentication status">
+      <span className={`session-dot ${isSignedIn ? "live" : "demo"}`} />
+      <div className="auth-copy">
+        <span className="auth-label">{isSignedIn ? "Convex live" : "Demo fallback"}</span>
         {!isLoaded ? <p>Checking Clerk session...</p> : null}
         {isLoaded && isSignedIn ? (
           <p>
-            Signed in as <strong>{user?.primaryEmailAddress?.emailAddress ?? user?.username ?? user?.id}</strong>
+            <strong>{user?.primaryEmailAddress?.emailAddress ?? user?.username ?? user?.id}</strong>
           </p>
         ) : null}
-        {isLoaded && !isSignedIn ? <p>Sign in to let Vanda read your existing Instagram projects and posts from Convex.</p> : null}
+        {isLoaded && !isSignedIn ? <p>Sign in for synced Instagram data</p> : null}
       </div>
 
       {isLoaded && isSignedIn ? (

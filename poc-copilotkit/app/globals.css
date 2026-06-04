@@ -1,13 +1,15 @@
 :root {
-  --ink: #181512;
-  --muted: #6f675f;
-  --line: #ded8cf;
-  --paper: #fbfaf7;
-  --panel: #ffffff;
-  --accent: #0f7a6b;
-  --accent-strong: #0b574d;
-  --gold: #b7791f;
-  --rose: #b64e66;
+  --bg: #080807;
+  --panel: #10100f;
+  --panel-2: #171614;
+  --ink: #f6f0e7;
+  --muted: #9d968d;
+  --line: rgba(246, 240, 231, 0.13);
+  --line-strong: rgba(246, 240, 231, 0.2);
+  --accent: #19c7a5;
+  --accent-dim: rgba(25, 199, 165, 0.14);
+  --gold: #f0b35a;
+  --rose: #e76f8f;
 }
 
 * {
@@ -16,423 +18,445 @@
 
 html,
 body {
-  margin: 0;
   min-height: 100%;
+  margin: 0;
   color: var(--ink);
-  background: var(--paper);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
 }
 
 body {
   min-width: 320px;
 }
 
-main {
+.operator-workbench {
+  width: 100vw;
   min-height: 100vh;
-  padding: 32px;
-  width: calc(100vw - 390px);
-}
-
-.hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  gap: 24px;
-  align-items: end;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 48px 0 28px;
-}
-
-.eyebrow {
-  display: block;
-  margin-bottom: 16px;
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.hero h1,
-.hero h2,
-.panel h2,
-.prompt-box h2,
-p {
-  margin: 0;
-}
-
-.hero h1 {
-  max-width: 780px;
-  font-size: clamp(42px, 7vw, 92px);
-  line-height: 0.95;
-  letter-spacing: 0;
-}
-
-.hero p {
-  max-width: 680px;
-  margin-top: 22px;
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1.55;
-}
-
-.prompt-box,
-.panel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-}
-
-.prompt-box {
-  padding: 20px;
-}
-
-.prompt-box h2,
-.panel h2 {
-  font-size: 14px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.prompt-box ul {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.prompt-box li {
-  border-left: 3px solid var(--accent);
-  padding: 8px 0 8px 12px;
-  line-height: 1.35;
-}
-
-.dashboard {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 24px 0 64px;
-}
-
-.auth-panel {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 16px 20px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-}
-
-.auth-panel .eyebrow {
-  margin-bottom: 6px;
-}
-
-.auth-panel p {
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.auth-button {
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--accent);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.status-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 16px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.mode-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  color: #fff;
-  background: var(--gold);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.mode-pill.live {
-  background: var(--accent);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.panel {
-  padding: 20px;
-}
-
-.panel.wide {
-  grid-column: 1 / -1;
-}
-
-.large {
-  margin-top: 14px;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-dl {
-  display: grid;
-  gap: 10px;
-  margin: 18px 0 0;
-}
-
-dl div,
-.metric-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-dt,
-.metric-row span,
-.post small {
-  color: var(--muted);
-}
-
-dd {
-  margin: 0;
-  text-align: right;
-  font-weight: 700;
-}
-
-.metric-row {
-  align-items: baseline;
-  margin-top: 14px;
-}
-
-.metric-row strong {
-  font-size: 30px;
-}
-
-.post-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.post {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 8px 16px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.post span {
-  color: var(--rose);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.post strong,
-.post small {
-  min-width: 0;
-}
-
-.post small {
-  grid-column: 2;
-}
-
-@media (max-width: 980px) {
-  main {
-    width: auto;
-    padding: 20px;
-  }
-
-  .hero,
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  h1 {
-    font-size: 42px;
-  }
-
-  .status-row,
-  .auth-panel,
-  dl div,
-  .metric-row,
-  .post {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  dd,
-  .post small {
-    grid-column: 1;
-    text-align: left;
-  }
-}
-
-/* Presentation-mode POC: the product is the CopilotKit sidebar, not a fake dashboard. */
-body {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 22px;
+  padding: 28px;
   background:
-    radial-gradient(circle at 20% 15%, rgba(15, 122, 107, 0.14), transparent 28%),
-    radial-gradient(circle at 70% 80%, rgba(183, 121, 31, 0.12), transparent 30%),
-    linear-gradient(135deg, #fbfaf7 0%, #f2eee6 100%);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 82% 13%, rgba(25, 199, 165, 0.18), transparent 25%),
+    radial-gradient(circle at 16% 82%, rgba(240, 179, 90, 0.13), transparent 25%),
+    var(--bg);
+  background-size: 42px 42px, 42px 42px, auto, auto, auto;
 }
 
-.presentation-shell {
-  width: calc(100vw - 430px);
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 40px;
-}
-
-.mini-stage {
-  width: min(720px, 100%);
-  padding: 34px;
-  border: 1px solid rgba(24, 21, 18, 0.12);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 28px 80px rgba(24, 21, 18, 0.12);
+.operator-topbar {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(16, 16, 15, 0.76);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
   backdrop-filter: blur(18px);
 }
 
-.mini-stage h1 {
-  margin: 0;
-  font-size: clamp(46px, 8vw, 96px);
-  line-height: 0.88;
-  letter-spacing: -0.07em;
-}
-
-.mini-stage > p {
-  max-width: 560px;
-  margin: 18px 0 22px;
-  color: var(--muted);
-  font-size: 17px;
-  line-height: 1.55;
-}
-
-.mini-stage .auth-panel {
-  max-width: none;
-  margin: 0;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.prompt-strip {
+.brand-lockup {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
-  margin-top: 18px;
-  color: var(--muted);
+  gap: 15px;
+  min-width: 0;
 }
 
-.prompt-strip code {
-  padding: 8px 10px;
-  border: 1px solid rgba(15, 122, 107, 0.2);
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  color: #080807;
+  background: var(--ink);
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.eyebrow,
+.auth-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.operator-topbar h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 42px);
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.auth-panel {
+  min-width: min(380px, 44vw);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.session-dot {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 8px rgba(240, 179, 90, 0.12);
+}
+
+.session-dot.live {
+  background: #2bd576;
+  box-shadow: 0 0 0 8px rgba(43, 213, 118, 0.12);
+}
+
+.auth-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.auth-copy p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-copy strong {
+  color: var(--ink);
+}
+
+.auth-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 13px;
+  color: #07100e;
+  background: var(--accent);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.vanda-console {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 70% 6%, rgba(25, 199, 165, 0.1), transparent 26%),
+    linear-gradient(180deg, rgba(23, 22, 20, 0.94), rgba(9, 9, 8, 0.97));
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.5);
+}
+
+.console-header {
+  min-height: 116px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 34px;
+  border-bottom: 1px solid var(--line);
+}
+
+.console-header h2 {
+  max-width: 980px;
+  margin: 0;
+  font-size: clamp(34px, 4.8vw, 76px);
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.console-live-dot,
+.vanda-tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 999px;
-  color: var(--accent-strong);
-  background: rgba(15, 122, 107, 0.08);
-  font-family: inherit;
+  color: var(--accent);
+  background: var(--accent-dim);
   font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.console-live-dot span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 7px rgba(25, 199, 165, 0.12);
+}
+
+.vanda-tool-badge.demo {
+  color: var(--gold);
+  background: rgba(240, 179, 90, 0.14);
+}
+
+.vanda-console [data-copilotkit] {
+  --background: #0b0b0a;
+  --foreground: #f6f0e7;
+  --card: #11110f;
+  --card-foreground: #f6f0e7;
+  --popover: #141310;
+  --popover-foreground: #f6f0e7;
+  --primary: #19c7a5;
+  --primary-foreground: #06100d;
+  --secondary: #191816;
+  --secondary-foreground: #f6f0e7;
+  --muted: #191816;
+  --muted-foreground: #9d968d;
+  --accent: #1f2c28;
+  --accent-foreground: #f6f0e7;
+  --border: rgba(246, 240, 231, 0.14);
+  --input: rgba(246, 240, 231, 0.16);
+  --ring: #19c7a5;
+  height: 100%;
+  color: var(--ink) !important;
+  font-size: 18px !important;
+}
+
+.vanda-console [data-copilotkit] > div,
+.vanda-console [data-chat],
+.vanda-console [data-sidebar-chat] {
+  height: 100% !important;
+  background: transparent !important;
+}
+
+.vanda-console [data-copilotkit],
+.vanda-console [data-copilotkit] * {
+  border-color: var(--line) !important;
+}
+
+.vanda-console [data-copilotkit] div,
+.vanda-console [data-copilotkit] section,
+.vanda-console [data-copilotkit] article,
+.vanda-console [data-copilotkit] main,
+.vanda-console [data-copilotkit] form {
+  background-color: transparent !important;
+}
+
+.vanda-console [data-copilotkit] [class*="chat"],
+.vanda-console [data-copilotkit] [class*="Chat"],
+.vanda-console [data-copilotkit] [class*="message"],
+.vanda-console [data-copilotkit] [class*="Message"] {
+  background: transparent !important;
+}
+
+.vanda-console [data-copilotkit] textarea {
+  min-height: 64px !important;
+  color: var(--ink) !important;
+  background: transparent !important;
+  caret-color: var(--accent) !important;
+}
+
+.vanda-console [data-copilotkit] textarea::placeholder {
+  color: rgba(246, 240, 231, 0.46) !important;
+}
+
+.vanda-console [data-copilotkit] button {
+  color: inherit;
+}
+
+.vanda-console [data-copilotkit] button:not(:disabled) {
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+.vanda-console [data-copilotkit] button:disabled {
+  color: rgba(246, 240, 231, 0.28) !important;
+}
+
+.vanda-console [data-copilotkit] p,
+.vanda-console [data-copilotkit] span,
+.vanda-console [data-copilotkit] h1,
+.vanda-console [data-copilotkit] h2,
+.vanda-console [data-copilotkit] h3,
+.vanda-console [data-copilotkit] li {
+  color: var(--ink) !important;
+}
+
+.vanda-console [data-copilotkit] a {
+  color: inherit;
+}
+
+.vanda-console .cpk\:bg-background,
+.vanda-console .cpk\:bg-background\/95,
+.vanda-console .cpk\:bg-white,
+.vanda-console .cpk\:bg-white\/70,
+.vanda-console .cpk\:bg-zinc-50,
+.vanda-console .cpk\:bg-zinc-100,
+.vanda-console .cpk\:bg-gray-50\/50 {
+  background-color: transparent !important;
+}
+
+.vanda-console .cpk\:bg-muted,
+.vanda-console .cpk\:bg-secondary,
+.vanda-console .cpk\:bg-popover {
+  background-color: rgba(255, 255, 255, 0.055) !important;
+}
+
+.vanda-console .cpk\:text-foreground,
+.vanda-console .cpk\:text-black,
+.vanda-console .cpk\:text-zinc-900,
+.vanda-console .cpk\:text-gray-900 {
+  color: var(--ink) !important;
+}
+
+.vanda-console .cpk\:text-muted-foreground,
+.vanda-console .cpk\:text-zinc-500,
+.vanda-console .cpk\:text-gray-500 {
+  color: var(--muted) !important;
 }
 
 .vanda-tool-card {
   position: relative;
   overflow: hidden;
   display: grid;
-  gap: 14px;
-  margin: 10px 0;
-  padding: 16px;
-  border: 1px solid rgba(24, 21, 18, 0.12);
-  border-radius: 22px;
+  gap: 18px;
+  margin: 12px 0;
+  padding: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
   color: var(--ink);
-  background: linear-gradient(145deg, #fffefb, #f4efe6);
-  box-shadow: 0 18px 46px rgba(24, 21, 18, 0.1);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(25, 199, 165, 0.14), transparent 34%),
+    linear-gradient(145deg, rgba(31, 30, 27, 0.98), rgba(13, 13, 12, 0.98));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.32);
+}
+
+.vanda-tool-card.stats {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(25, 199, 165, 0.2), transparent 36%),
+    linear-gradient(145deg, rgba(24, 28, 25, 0.98), rgba(10, 11, 10, 0.98));
 }
 
 .vanda-tool-card.loading {
-  min-height: 110px;
-  justify-content: center;
+  min-height: 148px;
+  align-content: center;
+}
+
+.vanda-tool-card.loading strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.vanda-tool-card.loading span {
+  color: var(--muted);
 }
 
 .scanline {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(15, 122, 107, 0.14), transparent);
-  animation: scan 1.35s infinite;
+  background: linear-gradient(90deg, transparent, rgba(25, 199, 165, 0.16), transparent);
+  animation: scan 1.3s infinite;
 }
 
 @keyframes scan {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .tool-head {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  align-items: center;
+  gap: 14px;
+  align-items: flex-start;
 }
 
 .tool-head strong {
-  font-size: 14px;
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
-.vanda-tool-badge {
-  padding: 6px 9px;
-  border-radius: 999px;
-  color: #fff;
-  background: var(--gold);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.vanda-tool-badge.live {
-  background: var(--accent);
+.tool-head p,
+.tool-project,
+.post-preview small,
+.empty-note {
+  margin: 0;
+  color: var(--muted);
 }
 
 .tool-project {
+  font-size: 15px;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-strip div {
+  min-height: 86px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.metric-strip span,
+.stat-stack span,
+.mini-bar-row {
   color: var(--muted);
-  font-size: 14px;
+}
+
+.metric-strip b {
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
 }
 
 .stats-visual {
   display: flex;
-  gap: 14px;
+  gap: 20px;
   align-items: center;
 }
 
 .radial {
-  width: 98px;
-  height: 98px;
+  width: 126px;
+  height: 126px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -440,408 +464,114 @@ body {
 }
 
 .radial > div {
-  width: 72px;
-  height: 72px;
+  width: 92px;
+  height: 92px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #fffefb;
-  font-weight: 900;
+  color: var(--ink);
+  background: var(--panel);
+  font-size: 18px;
+  font-weight: 950;
 }
 
 .stat-stack {
   display: grid;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--muted);
+  gap: 10px;
+  font-size: 15px;
 }
 
 .stat-stack b {
   color: var(--ink);
-  font-size: 18px;
+  font-size: 24px;
 }
 
 .mini-bars {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .mini-bar-row {
   display: grid;
-  grid-template-columns: minmax(92px, 1fr) 1fr auto;
-  gap: 8px;
+  grid-template-columns: minmax(160px, 1.15fr) minmax(120px, 1fr) 72px;
+  gap: 12px;
   align-items: center;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 13px;
 }
 
 .mini-bar-track {
-  height: 9px;
+  height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8e0d4;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .mini-bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), #74b6a8);
+  background: linear-gradient(90deg, var(--accent), #82f2d5);
 }
 
 .post-preview {
   display: grid;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
   color: inherit;
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .post-preview span {
   color: var(--rose);
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.post-preview b {
-  line-height: 1.25;
-}
-
-.post-preview small,
-.empty-note {
-  color: var(--muted);
-}
-
-@media (max-width: 980px) {
-  .presentation-shell {
-    width: auto;
-    place-items: start;
-    padding: 20px;
-  }
-}
-
-/* Make the CopilotKit sidebar presentation-readable. */
-:root {
-  --sidebar-width: min(760px, 52vw);
-}
-
-.presentation-shell {
-  width: calc(100vw - var(--sidebar-width));
-}
-
-[data-copilot-sidebar] {
-  --sidebar-width: min(760px, 52vw);
-  border-left: 1px solid rgba(24, 21, 18, 0.14) !important;
-  box-shadow: -24px 0 70px rgba(24, 21, 18, 0.14) !important;
-}
-
-[data-copilotkit] {
-  font-size: 17px !important;
-  color: #181512 !important;
-}
-
-[data-copilotkit] [data-sidebar-chat] {
-  background: #fffdf8 !important;
-}
-
-[data-copilotkit] button,
-[data-copilotkit] input,
-[data-copilotkit] textarea {
-  font-size: 16px !important;
-}
-
-.vanda-tool-card {
-  gap: 18px;
-  padding: 22px;
-  border-radius: 26px;
-}
-
-.tool-head strong {
-  font-size: 16px;
-}
-
-.tool-project {
-  font-size: 16px;
-}
-
-.stats-visual {
-  gap: 20px;
-}
-
-.radial {
-  width: 132px;
-  height: 132px;
-}
-
-.radial > div {
-  width: 96px;
-  height: 96px;
-  font-size: 18px;
-}
-
-.stat-stack {
-  gap: 10px;
-  font-size: 16px;
-}
-
-.stat-stack b {
-  font-size: 24px;
-}
-
-.mini-bars {
-  gap: 13px;
-}
-
-.mini-bar-row {
-  grid-template-columns: minmax(180px, 1.2fr) 1fr 64px;
-  gap: 12px;
-  font-size: 14px;
-}
-
-.mini-bar-track {
-  height: 14px;
-}
-
-.post-preview {
-  padding: 18px;
-  border-radius: 20px;
-}
-
-.post-preview span {
-  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .post-preview b {
   font-size: 18px;
+  line-height: 1.3;
 }
 
-.post-preview small,
-.empty-note {
-  font-size: 15px;
-}
-
-@media (max-width: 1100px) {
-  :root,
-  [data-copilot-sidebar] {
-    --sidebar-width: 100vw;
-  }
-
-  .presentation-shell {
-    display: none;
-  }
-}
-
-/* Override earlier sidebar experiment: this POC is now an embedded CopilotKit workbench. */
-.operator-workbench {
-  width: 100vw;
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(360px, 0.82fr) minmax(620px, 1.18fr);
-  gap: 28px;
-  padding: 28px;
-  background:
-    linear-gradient(90deg, rgba(24,21,18,0.055) 1px, transparent 1px),
-    linear-gradient(rgba(24,21,18,0.045) 1px, transparent 1px),
-    radial-gradient(circle at 8% 15%, rgba(15,122,107,.22), transparent 26%),
-    radial-gradient(circle at 92% 84%, rgba(183,121,31,.18), transparent 28%),
-    #f7f1e8;
-  background-size: 34px 34px, 34px 34px, auto, auto, auto;
-}
-
-.briefing-panel,
-.vanda-console {
-  min-height: calc(100vh - 56px);
-  border: 1px solid rgba(24,21,18,.13);
-  border-radius: 34px;
-  box-shadow: 0 30px 90px rgba(24,21,18,.14);
-}
-
-.briefing-panel {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 34px;
-  background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(244,235,220,.84));
-  backdrop-filter: blur(18px);
-}
-
-.briefing-panel:after {
-  content: "";
-  position: absolute;
-  width: 360px;
-  height: 360px;
-  right: -130px;
-  top: -120px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(15,122,107,.2), transparent 66%);
-}
-
-.brand-mark {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 30px;
-  border-radius: 17px;
-  color: #fffdf8;
-  background: #181512;
-  font-size: 28px;
-  font-weight: 950;
-  letter-spacing: -0.08em;
-}
-
-.briefing-panel h1 {
-  max-width: 740px;
-  margin: 0;
-  font-size: clamp(54px, 7.4vw, 118px);
-  line-height: .83;
-  letter-spacing: -0.085em;
-}
-
-.briefing-panel > p {
-  max-width: 620px;
-  margin: 24px 0 26px;
-  color: #655d54;
-  font-size: 19px;
-  line-height: 1.45;
-}
-
-.capability-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 22px;
-}
-
-.capability-grid article {
-  min-height: 132px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 16px;
-  border: 1px solid rgba(24,21,18,.12);
-  border-radius: 22px;
-  background: rgba(255,255,255,.58);
-}
-
-.capability-grid b {
-  color: var(--accent);
-  font-size: 13px;
-}
-
-.capability-grid span {
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.vanda-console {
-  overflow: hidden;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  background: #fffdf8;
-}
-
-.console-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 24px 28px;
-  border-bottom: 1px solid rgba(24,21,18,.11);
-  background: linear-gradient(180deg, #fffaf1, #fffdf8);
-}
-
-.console-header .eyebrow {
-  margin-bottom: 5px;
-}
-
-.console-header h2 {
-  margin: 0;
-  font-size: 34px;
-  letter-spacing: -0.05em;
-}
-
-.console-live-dot {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 999px;
-  color: var(--accent-strong);
-  background: rgba(15,122,107,.09);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.console-live-dot span {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 0 6px rgba(22,163,74,.12);
-}
-
-.vanda-console [data-copilotkit] {
-  height: 100%;
-  font-size: 18px !important;
-}
-
-.vanda-console [data-copilotkit] > div {
-  height: 100%;
-}
-
-.vanda-console [data-copilotkit] [data-sidebar-chat],
-.vanda-console [data-copilotkit] [data-chat] {
-  height: 100% !important;
-  background: #fffdf8 !important;
-}
-
-.vanda-console [data-copilotkit] textarea {
-  min-height: 58px !important;
-}
-
-/* More legible generative UI cards. */
-.vanda-tool-card {
-  border: 1px solid rgba(15,122,107,.2);
-  background:
-    radial-gradient(circle at 10% 0%, rgba(15,122,107,.11), transparent 32%),
-    linear-gradient(145deg, #fffdf8, #f0e7d8);
-}
-
-.tool-head strong {
-  letter-spacing: .1em;
-}
-
-@media (max-width: 1120px) {
+@media (max-width: 900px) {
   .operator-workbench {
+    padding: 14px;
+  }
+
+  .operator-topbar,
+  .console-header,
+  .tool-head,
+  .stats-visual {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .auth-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .metric-strip,
+  .mini-bar-row {
     grid-template-columns: 1fr;
   }
-
-  .briefing-panel,
-  .vanda-console {
-    min-height: auto;
-  }
-
-  .vanda-console {
-    min-height: 760px;
-  }
 }
 
-@media (max-width: 720px) {
-  .operator-workbench {
-    padding: 12px;
-  }
-
-  .briefing-panel,
+@media (max-width: 620px) {
+  .operator-topbar,
   .vanda-console {
-    border-radius: 24px;
+    border-radius: 22px;
   }
 
-  .capability-grid {
-    grid-template-columns: 1fr;
+  .console-header {
+    padding: 22px;
+  }
+
+  .brand-mark {
+    width: 44px;
+    height: 44px;
   }
 }

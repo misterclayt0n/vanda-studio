@@ -6,6 +6,7 @@ type ToolCardProps = {
   status: "inProgress" | "executing" | "complete" | string;
   result?: string;
   title: string;
+  tone?: "post" | "stats" | "summary";
 };
 
 function parseResult(result?: string): any | null {
@@ -25,6 +26,11 @@ function formatNumber(value: unknown) {
 function formatPct(value: unknown) {
   if (typeof value !== "number") return "n/a";
   return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatDate(value: unknown) {
+  if (typeof value !== "number" || !value) return "unsynced date";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(value);
 }
 
 function ModeBadge({ mode }: { mode?: string }) {
@@ -67,26 +73,57 @@ function StatsRadial({ stats }: { stats: any }) {
   );
 }
 
-export function VandaToolCard({ status, result, title }: ToolCardProps) {
+function MetricStrip({ post, stats }: { post: any; stats: any }) {
+  const metrics = stats
+    ? [
+        ["Followers", formatNumber(stats.followersCount)],
+        ["Reach", formatNumber(stats.reach)],
+        ["Posts", formatNumber(stats.postsCount)],
+      ]
+    : [
+        ["Likes", formatNumber(post?.likeCount)],
+        ["Comments", formatNumber(post?.commentsCount)],
+        ["Reach", formatNumber(post?.reach)],
+      ];
+
+  return (
+    <div className="metric-strip">
+      {metrics.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <b>{value}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function VandaToolCard({ status, result, title, tone = "post" }: ToolCardProps) {
   const data = parseResult(result);
 
   if (!data || status !== "complete") {
     return (
-      <div className="vanda-tool-card loading">
+      <div className={`vanda-tool-card loading ${tone}`}>
         <div className="scanline" />
-        <strong>{title}</strong>
-        <span>Vanda is reading Convex…</span>
+        <div>
+          <strong>{title}</strong>
+          <span>Reading Convex and shaping a response...</span>
+        </div>
       </div>
     );
   }
 
   const post = data.latestPost ?? data.topPost ?? data.posts?.[0] ?? null;
   const posts = Array.isArray(data.posts) ? data.posts : data.topPost ? [data.topPost] : [];
+  const modeText = data.mode === "live" ? "live Convex data" : "demo fallback data";
 
   return (
-    <div className="vanda-tool-card">
+    <div className={`vanda-tool-card ${tone}`}>
       <div className="tool-head">
-        <strong>{title}</strong>
+        <div>
+          <strong>{title}</strong>
+          <p>{modeText}</p>
+        </div>
         <ModeBadge mode={data.mode} />
       </div>
 
@@ -94,11 +131,13 @@ export function VandaToolCard({ status, result, title }: ToolCardProps) {
 
       {data.stats ? <StatsRadial stats={data.stats} /> : null}
 
+      <MetricStrip post={post} stats={data.stats} />
+
       {posts.length > 0 ? <MiniBars posts={posts} /> : null}
 
       {post ? (
         <a className="post-preview" href={post.permalink} target="_blank" rel="noreferrer">
-          <span>{post.mediaType}</span>
+          <span>{post.mediaType} · {formatDate(post.publishedAt)}</span>
           <b>{post.caption ?? "Imported Instagram post"}</b>
           <small>{formatNumber(post.likeCount)} likes · {formatNumber(post.commentsCount)} comments · {formatPct(post.engagementScore)}</small>
         </a>
@@ -115,21 +154,21 @@ export const vandaToolRenderers = [
   {
     name: "fetchLatestInstagramPost",
     args: optionalProjectArgs,
-    render: (props: any) => <VandaToolCard {...props} title="Latest post" />,
+    render: (props: any) => <VandaToolCard {...props} title="Latest post" tone="post" />,
   },
   {
     name: "fetchBestPerformingInstagramPosts",
     args: optionalProjectArgs.extend({ limit: z.number().optional() }),
-    render: (props: any) => <VandaToolCard {...props} title="Top posts" />,
+    render: (props: any) => <VandaToolCard {...props} title="Top posts" tone="post" />,
   },
   {
     name: "fetchCurrentInstagramStats",
     args: optionalProjectArgs,
-    render: (props: any) => <VandaToolCard {...props} title="Account stats" />,
+    render: (props: any) => <VandaToolCard {...props} title="Account stats" tone="stats" />,
   },
   {
     name: "summarizeRecentInstagramPerformance",
     args: optionalProjectArgs,
-    render: (props: any) => <VandaToolCard {...props} title="Performance summary" />,
+    render: (props: any) => <VandaToolCard {...props} title="Performance summary" tone="summary" />,
   },
 ];
