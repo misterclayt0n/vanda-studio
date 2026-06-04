@@ -17,12 +17,21 @@ export type ClerkConvexAuth =
     };
 
 export async function getClerkConvexAuth(req: NextRequest): Promise<ClerkConvexAuth> {
+  const bearerToken = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (bearerToken) {
+    return {
+      status: "signed-in",
+      userId: "provided-by-client-header",
+      convexAuthToken: bearerToken,
+    };
+  }
+
   const auth = getAuth(req);
   if (!auth.userId) {
     return {
       status: "signed-out",
       userId: null,
-      reason: "No Clerk user is signed in for this POC request.",
+      reason: "No Clerk user is signed in for this POC request. If the UI shows signed in, the client request did not include Clerk cookies or a forwarded Convex JWT.",
     };
   }
 

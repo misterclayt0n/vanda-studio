@@ -1,39 +1,24 @@
 import { AuthStatus } from "./components/AuthStatus";
-import { Dashboard } from "./components/Dashboard";
 import { VandaCopilotSidebar } from "./components/VandaCopilotSidebar";
-
-const prompts = [
-  "Vanda, fetch my latest Instagram post",
-  "Vanda, what post hit hardest this month?",
-  "Vanda, what are my current account stats?",
-  "Vanda, summarize my Instagram performance",
-  "Vanda, what should I post next based on what worked recently?",
-];
 
 export default function Page() {
   return (
-    <main>
-      <section className="hero">
-        <div className="hero-copy">
-          <span className="eyebrow">Throwaway CopilotKit POC</span>
-          <h1>Vanda is becoming an agentic social media operator.</h1>
-          <p>
-            This sidecar app demonstrates natural language prompts flowing into read-only project, account, and
-            Instagram post data, then back into a dynamic operator response.
-          </p>
-        </div>
-        <div className="prompt-box">
-          <h2>Try these prompts</h2>
-          <ul>
-            {prompts.map((prompt) => (
-              <li key={prompt}>{prompt}</li>
-            ))}
-          </ul>
+    <main className="operator-workbench">
+      <section className="briefing-panel">
+        <div className="brand-mark">V</div>
+        <span className="eyebrow">Vanda operator POC</span>
+        <h1>Social media management as a conversation.</h1>
+        <p>
+          This is the rewrite thesis in one screen: natural language becomes live Convex reads, Instagram performance
+          context, and dynamic UI the agent renders on demand.
+        </p>
+        <AuthStatus />
+        <div className="capability-grid">
+          <article><b>01</b><span>Fetch latest synced Instagram posts</span></article>
+          <article><b>02</b><span>Rank posts by engagement signals</span></article>
+          <article><b>03</b><span>Render stat cards and quick charts in chat</span></article>
         </div>
       </section>
-
-      <AuthStatus />
-      <Dashboard />
       <VandaCopilotSidebar />
     </main>
   );

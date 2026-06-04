@@ -1,6 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
-import { demoPosts, demoSnapshot } from "./demoData";
+import { demoSnapshot } from "./demoData";
 import { loadRootEnv } from "./loadRootEnv";
 import type { AccountStats, ProjectSummary, SocialPost, VandaDataSnapshot } from "./types";
 
@@ -127,7 +127,19 @@ function selectProject(projects: ProjectSummary[], requestedProjectId?: string) 
     const match = projects.find((project) => project.id === projectId);
     if (match) return match;
   }
-  return projects[0] ?? null;
+
+  // For this POC, prefer the project that can actually demonstrate the Instagram operator loop.
+  // Convex returns projects in insertion order; the first project may be a blank workspace.
+  return (
+    [...projects].sort((a, b) => {
+      const score = (project: ProjectSummary) =>
+        (project.socialPostCount ?? 0) * 100 +
+        (project.instagramConnectionStatus === "connected" ? 50 : 0) +
+        (project.instagramHandle ? 25 : 0) +
+        (project.stats.followersCount ? 10 : 0);
+      return score(b) - score(a);
+    })[0] ?? null
+  );
 }
 
 function rankPosts(posts: SocialPost[]) {
@@ -202,7 +214,8 @@ export async function latestInstagramPost(projectId?: string, options?: VandaDat
     mode: snapshot.mode,
     reason: snapshot.reason,
     project: snapshot.selectedProject,
-    latestPost: snapshot.latestPost ?? demoPosts[0],
+    latestPost: snapshot.latestPost,
+    availablePostCount: snapshot.topPosts.length,
   };
 }
 

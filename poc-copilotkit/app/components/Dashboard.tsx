@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import type { VandaDataSnapshot } from "../../lib/types";
 
@@ -22,14 +23,32 @@ function formatDate(value: number | null | undefined) {
 }
 
 export function Dashboard() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
 
   useEffect(() => {
-    fetch("/api/vanda")
-      .then((response) => response.json())
-      .then(setSnapshot)
-      .catch(() => setSnapshot(null));
-  }, []);
+    if (!isLoaded) return;
+
+    let cancelled = false;
+
+    async function loadSnapshot() {
+      try {
+        const token = isSignedIn ? await getToken({ template: "convex" }) : null;
+        const response = await fetch("/api/vanda", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await response.json();
+        if (!cancelled) setSnapshot(data);
+      } catch {
+        if (!cancelled) setSnapshot(null);
+      }
+    }
+
+    void loadSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, isSignedIn]);
 
   const project = snapshot?.selectedProject;
   const stats = snapshot?.stats;
