@@ -1,75 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vanda Studio
 
-## Getting Started
+TanStack Start app backed by Clerk, Convex, Autumn, OpenRouter, Vercel, and the Instagram Graph API.
 
-First, run the development server:
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+corepack pnpm install
+corepack pnpm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set local app variables in `.env.local`:
 
-## Environment variables
+- `VITE_CONVEX_URL` or `PUBLIC_CONVEX_URL`: Convex deployment URL.
+- `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`: Clerk auth.
+- `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: Instagram app credentials.
+- `INSTAGRAM_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt stored Instagram tokens.
+- `VITE_INSTAGRAM_REDIRECT_URI`: Optional exact OAuth redirect URI to send to Meta.
 
-Set the following variables before running Convex/Next.js locally:
+Convex-side secrets should also be configured in the Convex deployment when needed.
 
-- `NEXT_PUBLIC_CONVEX_URL` – Provided by Convex.
-- `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` – Clerk auth.
-- `APIFY_TOKEN` – Apify API token used to fetch Instagram data. You may optionally override the Instagram actor with `APIFY_INSTAGRAM_ACTOR_ID`.
+## Instagram OAuth
 
-Add them to `.env.local` and `.env` (for Convex) as needed.
+Meta validates `redirect_uri` by exact match against the Instagram app's configured OAuth redirect URIs. The app defaults to:
 
-## Learn More
+```text
+<current-origin>/api/integrations/instagram/callback
+```
 
-To learn more about Next.js, take a look at the following resources:
+That path is intentionally compatible with the currently configured production URI:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+https://vandastudio.app/api/integrations/instagram/callback
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For local OAuth testing, use a stable public HTTPS URL that is listed in Meta, then set:
 
-## Deploy on Vercel
+```bash
+VITE_INSTAGRAM_REDIRECT_URI=https://your-stable-dev-url.example.com/api/integrations/instagram/callback
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Random tunnel URLs work only until the hostname changes. Prefer a named Cloudflare tunnel or a stable preview/dev URL.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Checks
 
-## Current architecture / Things to remember
-We currently rely on the following providers
-- Vercel: Hosting + Domain
-- Clerk: Auth
-- Apify: Instagram web scrap (get this shit out)
-- Openrouter: Gpt 4.1 + Gemini 2.5 flash + Gemini 3 nano banana pro
-
-In the future we need payments, so either:
-- Abacatepay
-- Clerk with stripe
-
-## TODO
-- [ ] Users must be logged in order to trigger the LP generation.
-- [ ] Be able to analyze other profiles as context.
-- [ ] Thinking about it, it's maybe a good idea to provide the entire profile as context (reasonable I mean, since we're already fetching the entire profile anyways so fuck it).
-- [ ] We need a section to provide custom context to the AI about the product (pictures, profile images, custom text, whatever).
-
-## Insights
-- [ ] Promoção, Conteúdo profissional e Posts de engajamento. 
-- [ ] Header presetado com marca dagua da logo do cara.
-- [ ] Clicar em dashboard e ver oq a gente vai fazer por ele - Antes dele criar a conta.
-- [ ] 2 dolares por user recorrente.
-- [ ] Melhor UX do onboarding.
-- [ ] Scheduling de post. Integrar com API do google calendar.
-- [ ] Trocar o hero text por algo mais descritivo sobre o que fazemos: "Automatize o seu instagram com um click"
-- [ ] Adicionar mais metadados sobre conteúdo dos projetos.
-- [ ] After scraping -> Tool call pra db.
-# Trigger rebuild
+```bash
+corepack pnpm run check
+corepack pnpm run build
+```

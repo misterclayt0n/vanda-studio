@@ -1,0 +1,245 @@
+:root {
+	color-scheme: light;
+	font-family:
+		"IBM Plex Sans",
+		"DM Sans",
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+	background: #f6f3ed;
+	color: #191714;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100vh;
+	background:
+		linear-gradient(90deg, rgba(25, 23, 20, 0.045) 1px, transparent 1px),
+		linear-gradient(rgba(25, 23, 20, 0.045) 1px, transparent 1px),
+		#f6f3ed;
+	background-size: 28px 28px;
+}
+
+button,
+a {
+	font: inherit;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.shell {
+	min-height: 100vh;
+	padding: 24px;
+}
+
+.topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	border: 1px solid #28231c;
+	background: #fffaf1;
+	padding: 14px 16px;
+	box-shadow: 4px 4px 0 #28231c;
+}
+
+.brand {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+.mark {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	background: #191714;
+	color: #f8d84a;
+	font-weight: 900;
+}
+
+.nav {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.btn {
+	display: inline-flex;
+	min-height: 38px;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	border: 1px solid #28231c;
+	background: #191714;
+	color: #fffaf1;
+	padding: 0 13px;
+	cursor: pointer;
+	box-shadow: 2px 2px 0 #28231c;
+}
+
+.btn.secondary {
+	background: #fffaf1;
+	color: #191714;
+}
+
+.btn.instagram {
+	background: #e94d2f;
+	color: #fffaf1;
+}
+
+.main {
+	width: min(1120px, 100%);
+	margin: 64px auto 0;
+}
+
+.hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+	gap: 28px;
+	align-items: stretch;
+}
+
+.panel {
+	border: 1px solid #28231c;
+	background: #fffaf1;
+	padding: 24px;
+	box-shadow: 5px 5px 0 #28231c;
+}
+
+.panel.dark {
+	background: #191714;
+	color: #fffaf1;
+}
+
+.eyebrow {
+	margin: 0 0 14px;
+	font-size: 12px;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.18em;
+	color: #786d5b;
+}
+
+.panel.dark .eyebrow {
+	color: #f8d84a;
+}
+
+h1 {
+	max-width: 760px;
+	margin: 0;
+	font-size: clamp(42px, 7vw, 82px);
+	line-height: 0.92;
+	letter-spacing: 0;
+}
+
+h2 {
+	margin: 0 0 10px;
+	font-size: 24px;
+	line-height: 1.05;
+}
+
+p {
+	margin: 0;
+	line-height: 1.6;
+}
+
+.lede {
+	max-width: 720px;
+	margin-top: 22px;
+	font-size: 18px;
+	color: #4f4638;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 26px;
+}
+
+.stack {
+	display: grid;
+	gap: 12px;
+}
+
+.check {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	border-bottom: 1px solid rgba(255, 250, 241, 0.18);
+	padding: 12px 0;
+}
+
+.check:last-child {
+	border-bottom: 0;
+}
+
+.status {
+	font-weight: 800;
+	color: #f8d84a;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 14px;
+	margin-top: 28px;
+}
+
+.card {
+	min-height: 144px;
+	border: 1px solid #28231c;
+	background: #fffaf1;
+	padding: 18px;
+	box-shadow: 3px 3px 0 #28231c;
+}
+
+.muted {
+	color: #6f6454;
+}
+
+.route-panel {
+	max-width: 760px;
+	margin: 56px auto 0;
+}
+
+.error {
+	color: #b42318;
+}
+
+@media (max-width: 820px) {
+	.shell {
+		padding: 14px;
+	}
+
+	.topbar,
+	.hero,
+	.grid {
+		grid-template-columns: 1fr;
+	}
+
+	.topbar {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.main {
+		margin-top: 32px;
+	}
+}

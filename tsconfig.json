@@ -1,21 +1,22 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
-		"allowJs": true,
-		"checkJs": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
+		"target": "ES2022",
+		"useDefineForClassFields": true,
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"allowJs": false,
 		"skipLibCheck": true,
-		"sourceMap": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
 		"strict": true,
-		"exactOptionalPropertyTypes": true,
-		"noUncheckedIndexedAccess": true,
-		"moduleResolution": "bundler",
-		"plugins": [
-			{
-				"name": "@effect/language-service"
-			}
-		]
-	}
+		"forceConsistentCasingInFileNames": true,
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"jsx": "react-jsx",
+		"types": ["vite/client", "node"]
+	},
+	"include": ["src", "convex/convex.config.ts", "vite.config.ts"],
+	"exclude": ["node_modules", "poc-copilotkit"]
 }
