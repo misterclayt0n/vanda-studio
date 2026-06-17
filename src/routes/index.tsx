@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Instagram, ShieldCheck, Sparkles } from "lucide-react";
+import { getAppUrl } from "../appUrl";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -18,12 +19,12 @@ function Home() {
 						Instagram Graph OAuth.
 					</p>
 					<div className="actions">
-						<Link to="/app" className="btn">
+						<a href={getAppUrl("/app")} className="btn">
 							<ShieldCheck size={18} /> Check auth
-						</Link>
-						<Link to="/instagram" className="btn instagram">
+						</a>
+						<a href={getAppUrl("/instagram")} className="btn instagram">
 							<Instagram size={18} /> Connect Instagram
-						</Link>
+						</a>
 					</div>
 				</div>
 				<div className="panel dark">

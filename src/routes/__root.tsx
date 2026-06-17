@@ -8,6 +8,7 @@ import {
 } from "@clerk/tanstack-react-start";
 import { Link, Outlet, Scripts, createRootRoute, HeadContent } from "@tanstack/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { getAppUrl } from "../appUrl";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
 
@@ -42,15 +43,15 @@ function RootDocument({ children }: { children: ReactNode }) {
 									<span>Vanda Studio</span>
 								</Link>
 								<nav className="nav" aria-label="Primary">
-									<Link to="/app" className="btn secondary">
+									<a href={getAppUrl("/app")} className="btn secondary">
 										App
-									</Link>
-									<Link to="/billing" className="btn secondary">
+									</a>
+									<a href={getAppUrl("/billing")} className="btn secondary">
 										Billing
-									</Link>
-									<Link to="/instagram" className="btn secondary">
+									</a>
+									<a href={getAppUrl("/instagram")} className="btn secondary">
 										Instagram
-									</Link>
+									</a>
 									<Show when="signed-out">
 										<SignInButton mode="modal">
 											<button className="btn" type="button">

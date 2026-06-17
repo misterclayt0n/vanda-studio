@@ -19,6 +19,7 @@ Set local app variables in `.env.local`:
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`: Clerk auth.
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: Instagram app credentials.
 - `INSTAGRAM_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt stored Instagram tokens.
+- `VITE_APP_ORIGIN`: Public app origin. Production uses `https://app.vandastudio.app`.
 - `VITE_INSTAGRAM_REDIRECT_URI`: Optional exact OAuth redirect URI to send to Meta.
 
 Convex-side secrets should also be configured in the Convex deployment when needed.
@@ -31,10 +32,10 @@ Meta validates `redirect_uri` by exact match against the Instagram app's configu
 <current-origin>/api/integrations/instagram/callback
 ```
 
-That path is intentionally compatible with the currently configured production URI:
+Production uses the app subdomain:
 
 ```text
-https://vandastudio.app/api/integrations/instagram/callback
+https://app.vandastudio.app/api/integrations/instagram/callback
 ```
 
 For local OAuth testing, use a stable public HTTPS URL that is listed in Meta, then set:
