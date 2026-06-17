@@ -1,65 +1,353 @@
 ---
-import { buttonClasses } from "@vanda-studio/ui";
+import vandaMarkUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
+import vandaMarkWhiteUrl from "@vanda-studio/ui/assets/vanda-mark-white.svg?url";
+import "../styles.css";
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta
 			name="description"
-			content="Vanda Studio is an AI workspace for Instagram operators."
+			content="Vanda Studio cria, agenda e publica marketing no tom da sua marca."
 		/>
-		<title>Vanda Studio</title>
-		<link rel="stylesheet" href="/styles.css" />
+		<title>Vanda Studio - Marketing autonomo para marcas</title>
 	</head>
 	<body>
-		<main>
-			<section class="hero" aria-labelledby="hero-title">
-				<nav class="nav" aria-label="Primary">
-					<a class="brand" href="/">Vanda Studio</a>
-					<a class="nav-link" href="https://app.vandastudio.app">Open app</a>
-				</nav>
+		<header class="site-header">
+			<nav class="nav-shell" aria-label="Principal">
+				<a class="brand" href="/" aria-label="Vanda Studio">
+					<img src={vandaMarkUrl} alt="" width="27" height="27" />
+					<span>Vanda Studio</span>
+				</a>
+				<div class="nav-links">
+					<a href="#produto">Produto</a>
+					<a href="#como">Como funciona</a>
+					<a href="#precos">Precos</a>
+					<a href="#faq">FAQ</a>
+				</div>
+				<div class="nav-actions">
+					<a class="nav-login" href="https://app.vandastudio.app">Entrar</a>
+					<a class="button button-primary button-small" href="https://app.vandastudio.app">
+						Comecar gratis
+					</a>
+				</div>
+			</nav>
+		</header>
 
-				<div class="hero-copy">
-					<p class="eyebrow">Instagram operations, rebuilt</p>
-					<h1 id="hero-title">Vanda Studio</h1>
-					<p class="lede">
-						A focused workspace for creators and teams turning Instagram context into
-						repeatable publishing workflows.
-					</p>
-					<div class="actions">
-						<a class={buttonClasses({ tone: "primary" })} href="https://app.vandastudio.app">
-							Open app
-						</a>
-						<a class={buttonClasses({ tone: "secondary" })} href="mailto:hello@vandastudio.app">
-							Contact
-						</a>
+		<main>
+			<section class="hero">
+				<div class="section-shell">
+					<div class="hero-copy">
+						<h1>
+							A agencia de marketing que <span>trabalha sozinha</span>.
+						</h1>
+						<p>
+							A Vanda cria, agenda e publica conteudo no tom da sua marca, nos
+							melhores horarios, em todos os canais. Voce so aprova.
+						</p>
+					</div>
+
+					<div class="dashboard-stage" aria-label="Previa do produto Vanda Studio">
+						<div class="dashboard-glow"></div>
+						<div class="dashboard">
+							<aside class="dashboard-sidebar">
+								<div class="dashboard-brand">
+									<img src={vandaMarkUrl} alt="" width="22" height="22" />
+									<span>Vanda Studio</span>
+								</div>
+								<div class="dashboard-menu">
+									<span class="active"><i></i>Inicio</span>
+									<span><i></i>Galeria</span>
+									<span><i></i>Calendario</span>
+									<span><i></i>Perfil</span>
+								</div>
+								<div class="ai-meter">
+									<div><span>Vanda IA</span><span>62%</span></div>
+									<meter value="62" min="0" max="100">62%</meter>
+								</div>
+							</aside>
+
+							<section class="dashboard-main">
+								<div class="dashboard-topbar">
+									<strong>Ola, Marina</strong>
+									<span>+ Criar post</span>
+								</div>
+								<div class="dashboard-content">
+									<div class="review-card">
+										<div class="spark">✦</div>
+										<div>
+											<strong>8 posts prontos para revisar</strong>
+											<span>No tom da sua marca, nos melhores horarios.</span>
+										</div>
+										<a href="https://app.vandastudio.app">Revisar</a>
+									</div>
+
+									<div class="chart-card">
+										<div>
+											<span>Alcance · 30 dias</span>
+											<em>↑ 18%</em>
+										</div>
+										<strong>48,2 mil</strong>
+										<svg viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true">
+											<defs>
+												<linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
+													<stop offset="0%" stop-color="#c9417c" stop-opacity=".34" />
+													<stop offset="100%" stop-color="#c9417c" stop-opacity="0" />
+												</linearGradient>
+											</defs>
+											<path
+												d="M0 128 C70 120 96 112 150 106 C210 99 240 84 300 78 C360 72 388 56 450 46 C512 36 544 22 600 14 L600 150 L0 150 Z"
+												fill="url(#chart-fill)"
+											></path>
+											<path
+												d="M0 128 C70 120 96 112 150 106 C210 99 240 84 300 78 C360 72 388 56 450 46 C512 36 544 22 600 14"
+												fill="none"
+												stroke="#dd5790"
+												stroke-linecap="round"
+												stroke-width="3"
+											></path>
+										</svg>
+									</div>
+
+									<div class="post-grid">
+										<div>
+											<span>◎</span>
+											<p><strong>Promo de inverno</strong><small>Hoje · 18:00</small></p>
+										</div>
+										<div>
+											<span>▶</span>
+											<p><strong>Bastidores da torra</strong><small>Amanha · 09:00</small></p>
+										</div>
+									</div>
+								</div>
+							</section>
+						</div>
 					</div>
 				</div>
 			</section>
 
-			<section class="section" aria-labelledby="platform-title">
-				<div>
-					<p class="eyebrow">Platform</p>
-					<h2 id="platform-title">Built around the publishing loop.</h2>
+			<section class="logo-cloud" aria-label="Marcas que crescem no automatico">
+				<p>MARCAS QUE CRESCEM NO AUTOMATICO</p>
+				<div class="marquee">
+					<div>
+						<span>Cafe Lumiar</span>
+						<span>Studio Ver</span>
+						<span>Norte</span>
+						<span>Lina & Co</span>
+						<span>Oak House</span>
+						<span>Praca</span>
+						<span>Flore</span>
+						<span>Mare</span>
+						<span>Cafe Lumiar</span>
+						<span>Studio Ver</span>
+						<span>Norte</span>
+						<span>Lina & Co</span>
+						<span>Oak House</span>
+						<span>Praca</span>
+						<span>Flore</span>
+						<span>Mare</span>
+					</div>
 				</div>
-				<div class="features">
+			</section>
+
+			<section id="produto" class="section-shell feature-section">
+				<p class="kicker">O QUE A VANDA FAZ</p>
+				<h2>Uma equipe de social media inteira. No automatico.</h2>
+				<p class="section-intro">
+					Estrategia, criacao, publicacao e analise, tudo o que uma equipe faria,
+					rodando sozinho em segundo plano.
+				</p>
+
+				<div class="feature-grid">
 					<article>
-						<h3>Connect Instagram</h3>
-						<p>Bring account context into a secure workspace through the Instagram Graph API.</p>
+						<div class="icon-box">✦</div>
+						<h3>Geracao de conteudo</h3>
+						<p>
+							Posts, carrosseis e Reels escritos e desenhados no tom da sua marca,
+							prontos em segundos.
+						</p>
 					</article>
 					<article>
-						<h3>Shape campaigns</h3>
-						<p>Keep brand direction, post ideas, and generated drafts close to the operator.</p>
+						<div class="icon-box">◷</div>
+						<h3>Agendamento inteligente</h3>
+						<p>
+							Publica nos horarios de maior alcance, em cada canal, sem voce abrir
+							o app.
+						</p>
 					</article>
 					<article>
-						<h3>Ship from the app</h3>
-						<p>The product surface stays separate on app.vandastudio.app.</p>
+						<div class="icon-box">↗</div>
+						<h3>Otimizacao continua</h3>
+						<p>
+							Aprende com cada post e ajusta a estrategia toda semana, sozinha.
+						</p>
 					</article>
 				</div>
 			</section>
+
+			<section class="section-shell bento-section">
+				<article class="bento-card bento-calendar">
+					<p class="kicker">CALENDARIO INTELIGENTE</p>
+					<h3>Sempre no melhor horario</h3>
+					<p>
+						A Vanda distribui os posts pelos picos de alcance de cada canal, e voce
+						ve o mes inteiro planejado de uma vez.
+					</p>
+					<div class="calendar-dots" aria-hidden="true">
+						<span></span><span></span><span class="hot"></span><span></span><span class="warm"></span><span></span><span></span>
+						<span></span><span class="warm"></span><span class="hot"></span><span></span><span></span><span class="warm"></span><span></span>
+						<span></span><span class="warm"></span><span class="hot"></span><span></span><span class="warm"></span><span></span><span></span>
+					</div>
+				</article>
+				<article class="bento-card">
+					<p class="kicker">TOM DE VOZ</p>
+					<h3>Soa como a sua marca</h3>
+					<div class="tone-tags">
+						<span>Acolhedor</span>
+						<span>Artesanal</span>
+						<span>Caloroso</span>
+						<span>Bem-humorado</span>
+					</div>
+				</article>
+				<article class="bento-card">
+					<p class="kicker">APROVACAO EM 1 TOQUE</p>
+					<h3>Voce so da o ok</h3>
+					<p>
+						Revise no celular pela manha. Aprovou, esta no ar. Reprovou, a Vanda
+						refaz.
+					</p>
+				</article>
+			</section>
+
+			<section id="como" class="section-shell steps-section">
+				<p class="kicker">EM 3 PASSOS</p>
+				<h2>Comece a florescer em minutos.</h2>
+				<div class="steps-grid">
+					<article>
+						<div><span>01</span><i></i></div>
+						<h3>Conecte sua marca</h3>
+						<p>Logo, tom de voz e canais. A Vanda aprende a sua identidade em segundos.</p>
+					</article>
+					<article>
+						<div><span>02</span><i></i></div>
+						<h3>A Vanda cria e agenda</h3>
+						<p>Conteudo pronto para o mes inteiro, distribuido nos melhores horarios.</p>
+					</article>
+					<article>
+						<div><span>03</span><i></i></div>
+						<h3>Voce so aprova</h3>
+						<p>Revise no celular. Um toque e esta no ar, em todos os canais.</p>
+					</article>
+				</div>
+			</section>
+
+			<section class="section-shell stats-section" aria-label="Resultados">
+				<div class="stats-card">
+					<div>
+						<strong>+32%</strong>
+						<span>de alcance em 90 dias</span>
+					</div>
+					<div>
+						<strong>12</strong>
+						<span>posts por semana, sem esforco</span>
+					</div>
+					<div>
+						<strong>-4h</strong>
+						<span>de trabalho manual por dia</span>
+					</div>
+				</div>
+			</section>
+
+			<section class="testimonial">
+				<img src={vandaMarkUrl} alt="" width="34" height="34" />
+				<blockquote>
+					"A Vanda virou meu time de social media inteiro. Eu so aprovo no celular
+					de manha, e a marca nao para de crescer."
+				</blockquote>
+				<div>
+					<span>MA</span>
+					<p><strong>Marina Alves</strong><small>Fundadora · Cafe Lumiar</small></p>
+				</div>
+			</section>
+
+			<section id="faq" class="faq-section">
+				<h2>Perguntas frequentes</h2>
+				<div class="faq-list">
+					<details open>
+						<summary>A Vanda posta sozinha de verdade?</summary>
+						<p>
+							Sim. Depois que voce aprova, ou ativa o modo automatico, a Vanda
+							publica nos horarios ideais de cada canal sem nenhuma acao manual.
+						</p>
+					</details>
+					<details>
+						<summary>Ela escreve no tom da minha marca?</summary>
+						<p>
+							A Vanda aprende sua identidade a partir do logo, da personalidade e dos
+							posts anteriores. Cada conteudo sai no seu tom de voz.
+						</p>
+					</details>
+					<details>
+						<summary>Quais canais sao suportados?</summary>
+						<p>
+							Instagram, Facebook, TikTok e WhatsApp Business hoje, com novos canais
+							sendo adicionados todo mes.
+						</p>
+					</details>
+					<details>
+						<summary>Preciso de cartao para comecar?</summary>
+						<p>
+							Nao. Sao 14 dias gratis sem cartao de credito. Voce so decide o plano
+							depois de ver a Vanda trabalhando.
+						</p>
+					</details>
+				</div>
+			</section>
+
+			<section id="precos" class="section-shell cta-section">
+				<div class="cta-card">
+					<img src={vandaMarkWhiteUrl} alt="" width="38" height="38" />
+					<h2>Pronto para florescer?</h2>
+					<p>Comece gratis hoje. A Vanda cuida do resto, voce so aprova.</p>
+					<div>
+						<a class="button button-primary" href="https://app.vandastudio.app">Comecar gratis</a>
+						<a class="button button-secondary" href="mailto:hello@vandastudio.app">Falar com vendas</a>
+					</div>
+					<span>Gratis por 14 dias · Sem cartao · Cancele quando quiser</span>
+				</div>
+			</section>
 		</main>
+
+		<footer class="footer">
+			<div class="footer-shell">
+				<div class="footer-brand">
+					<a class="brand" href="/">
+						<img src={vandaMarkUrl} alt="" width="25" height="25" />
+						<span>Vanda Studio</span>
+					</a>
+					<p>A agencia de marketing autonoma que faz sua marca florescer no automatico.</p>
+				</div>
+				<div>
+					<strong>Produto</strong>
+					<a href="#produto">Recursos</a>
+					<a href="#precos">Precos</a>
+					<a href="#como">Como funciona</a>
+				</div>
+				<div>
+					<strong>Empresa</strong>
+					<a href="mailto:hello@vandastudio.app">Contato</a>
+					<a href="https://app.vandastudio.app">Entrar</a>
+				</div>
+				<div>
+					<strong>Legal</strong>
+					<a href="/">Privacidade</a>
+					<a href="/">Termos</a>
+				</div>
+			</div>
+			<p class="copyright">© 2026 Vanda Studio · Feito para marcas que florescem.</p>
+		</footer>
 	</body>
 </html>
