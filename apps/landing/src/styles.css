@@ -14,6 +14,7 @@
 	--rose-deep: #a22e61;
 	--plum: #20101a;
 	--glow: rgba(201, 65, 124, 0.48);
+	--ease-linear-enter: cubic-bezier(0.19, 1, 0.22, 1);
 	font-family:
 		Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	background: var(--bg);
@@ -99,8 +100,7 @@ blockquote {
 	gap: 4px;
 }
 
-.nav-links a,
-.nav-login {
+.nav-links a {
 	border-radius: 7px;
 	padding: 7px 11px;
 	color: var(--muted);
@@ -111,8 +111,7 @@ blockquote {
 		background 160ms ease;
 }
 
-.nav-links a:hover,
-.nav-login:hover {
+.nav-links a:hover {
 	background: rgba(255, 255, 255, 0.05);
 	color: var(--text);
 }
@@ -197,7 +196,7 @@ blockquote {
 	letter-spacing: 0;
 	line-height: 1;
 	text-wrap: balance;
-	animation: hero-rise 1180ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+	animation: linear-hero-reveal 2400ms var(--ease-linear-enter) 180ms both;
 }
 
 .hero h1 span,
@@ -214,14 +213,14 @@ blockquote {
 	font-size: 18px;
 	line-height: 1.55;
 	text-wrap: pretty;
-	animation: hero-rise 1180ms cubic-bezier(0.16, 1, 0.3, 1) 260ms both;
+	animation: linear-hero-reveal 2400ms var(--ease-linear-enter) 520ms both;
 }
 
 .dashboard-stage {
 	position: relative;
 	z-index: 1;
 	margin-top: 48px;
-	animation: product-rise 1400ms cubic-bezier(0.16, 1, 0.3, 1) 440ms both;
+	animation: linear-product-reveal 2600ms var(--ease-linear-enter) 980ms both;
 }
 
 .dashboard-glow {
@@ -262,31 +261,31 @@ blockquote {
 .review-card,
 .chart-card,
 .post-grid > div {
-	animation: surface-rise 860ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation: linear-surface-reveal 1500ms var(--ease-linear-enter) both;
 }
 
 .dashboard-sidebar {
-	animation-delay: 720ms;
+	animation-delay: 1420ms;
 }
 
 .dashboard-topbar {
-	animation-delay: 800ms;
+	animation-delay: 1540ms;
 }
 
 .review-card {
-	animation-delay: 900ms;
+	animation-delay: 1680ms;
 }
 
 .chart-card {
-	animation-delay: 980ms;
+	animation-delay: 1800ms;
 }
 
 .post-grid > div:first-child {
-	animation-delay: 1060ms;
+	animation-delay: 1920ms;
 }
 
 .post-grid > div:last-child {
-	animation-delay: 1120ms;
+	animation-delay: 2020ms;
 }
 
 .dashboard::after {
@@ -1055,7 +1054,7 @@ blockquote {
 	background: linear-gradient(160deg, #1a0f17, #0c0810);
 	padding: 72px 32px;
 	text-align: center;
-	animation: product-rise 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation: linear-product-reveal 1400ms var(--ease-linear-enter) both;
 }
 
 .cta-card::before {
@@ -1180,25 +1179,25 @@ blockquote {
 	}
 }
 
-@keyframes hero-rise {
-	from {
-		filter: blur(10px);
-		opacity: 0;
-		transform: translateY(28px) scale(0.985);
-	}
-
-	to {
-		filter: blur(0);
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-@keyframes product-rise {
+@keyframes linear-hero-reveal {
 	from {
 		filter: blur(14px);
 		opacity: 0;
-		transform: translateY(42px) scale(0.975);
+		transform: translateY(18px);
+	}
+
+	to {
+		filter: blur(0);
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes linear-product-reveal {
+	from {
+		filter: blur(18px);
+		opacity: 0;
+		transform: translateY(34px) scale(0.985);
 	}
 
 	to {
@@ -1208,11 +1207,11 @@ blockquote {
 	}
 }
 
-@keyframes surface-rise {
+@keyframes linear-surface-reveal {
 	from {
-		filter: blur(8px);
+		filter: blur(10px);
 		opacity: 0;
-		transform: translateY(16px);
+		transform: translateY(10px);
 	}
 
 	to {
@@ -1314,10 +1313,6 @@ blockquote {
 }
 
 @media (max-width: 560px) {
-	.nav-login {
-		display: none;
-	}
-
 	.brand span {
 		font-size: 15px;
 	}
