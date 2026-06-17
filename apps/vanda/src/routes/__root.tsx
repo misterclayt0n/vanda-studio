@@ -12,6 +12,7 @@ import { getAppUrl } from "../appUrl";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
 import vandaMarkUrl from "@vanda-studio/ui/assets/vanda-mark.svg";
+import vandaMarkIconUrl from "@vanda-studio/ui/assets/vanda-mark.svg?url";
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -20,7 +21,11 @@ export const Route = createRootRoute({
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: "Vanda Studio" },
 		],
-		links: [{ rel: "stylesheet", href: appCss }],
+		links: [
+			{ rel: "stylesheet", href: appCss },
+			{ rel: "icon", type: "image/svg+xml", href: vandaMarkIconUrl },
+			{ rel: "apple-touch-icon", href: vandaMarkIconUrl },
+		],
 	}),
 	component: RootComponent,
 	shellComponent: RootDocument,
