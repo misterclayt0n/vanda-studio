@@ -4,13 +4,23 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./assets/vanda-app-icon.svg": "./src/assets/vanda-app-icon.svg",
+		"./assets/vanda-mark.svg": "./src/assets/vanda-mark.svg",
+		"./assets/vanda-mark-solid.svg": "./src/assets/vanda-mark-solid.svg",
+		"./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
+		"./lib/utils": "./src/lib/utils.ts",
+		"./styles/globals.css": "./src/styles/globals.css"
 	},
 	"scripts": {
 		"build": "tsc --noEmit",
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm run typecheck",
 		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"clsx": "^2.1.1",
+		"tailwind-merge": "^3.4.0"
 	},
 	"devDependencies": {
 		"typescript": "catalog:"

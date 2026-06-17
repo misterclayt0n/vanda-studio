@@ -17,7 +17,8 @@
 		"isolatedModules": true,
 		"jsx": "react-jsx",
 		"paths": {
-			"@vanda-studio/ui": ["./packages/ui/src/index.ts"]
+			"@vanda-studio/ui": ["./packages/ui/src/index.ts"],
+			"@vanda-studio/ui/*": ["./packages/ui/src/*"]
 		}
 	}
 }

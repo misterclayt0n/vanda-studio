@@ -12,6 +12,7 @@ onlyBuiltDependencies:
 
 catalog:
   "@astrojs/check": ^0.9.4
+  "@tailwindcss/vite": ^4.3.1
   "@types/node": ^24.10.13
   "@vitejs/plugin-react": ^6.0.0
   astro: ^5.16.4

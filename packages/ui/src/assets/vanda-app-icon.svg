@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Vanda Studio app icon">
+	<defs>
+		<linearGradient id="vandaAppIconBg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#B83280" />
+			<stop offset="1" stop-color="#F2719E" />
+		</linearGradient>
+	</defs>
+	<rect width="100" height="100" rx="25" fill="url(#vandaAppIconBg)" />
+	<g fill="#FFFFFF">
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(0)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(60)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(120)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(180)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(240)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) scale(.62) rotate(300)" />
+	</g>
+	<circle cx="50" cy="50" r="4" fill="#C9417C" />
+</svg>

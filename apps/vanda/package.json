@@ -24,6 +24,7 @@
 		"@tanstack/react-router-ssr-query": "^1.0.0",
 		"@tanstack/react-start": "^1.0.0",
 		"@useautumn/convex": "^0.0.23",
+		"@vanda-studio/ui": "workspace:*",
 		"ai": "^5.0.0",
 		"autumn-js": "^0.1.75",
 		"class-variance-authority": "^0.7.1",
@@ -42,6 +43,7 @@
 	"devDependencies": {
 		"@effect/language-service": "^0.65.0",
 		"@tailwindcss/postcss": "^4",
+		"@tailwindcss/vite": "^4",
 		"@types/node": "catalog:",
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0",

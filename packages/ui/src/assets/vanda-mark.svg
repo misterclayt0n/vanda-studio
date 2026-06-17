@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Vanda Studio mark">
+	<defs>
+		<linearGradient id="vandaGrad" gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="86" y2="90">
+			<stop offset="0" stop-color="#B83280" />
+			<stop offset="0.55" stop-color="#D6568E" />
+			<stop offset="1" stop-color="#F2719E" />
+		</linearGradient>
+	</defs>
+	<g fill="url(#vandaGrad)">
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(0)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(60)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(120)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(180)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(240)" />
+		<path d="M0,0 C -8,-14 -10,-31 0,-45 C 10,-31 8,-14 0,0 Z" transform="translate(50,50) rotate(300)" />
+	</g>
+	<circle cx="50" cy="50" r="6" fill="#FBEFF6" />
+</svg>

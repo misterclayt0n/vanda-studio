@@ -11,6 +11,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { getAppUrl } from "../appUrl";
 import { getConvexClient } from "../convexClient";
 import appCss from "../styles.css?url";
+import vandaMarkUrl from "@vanda-studio/ui/assets/vanda-mark.svg";
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -39,8 +40,10 @@ function RootDocument({ children }: { children: ReactNode }) {
 						<div className="shell">
 							<header className="topbar">
 								<Link to="/" className="brand">
-									<span className="mark">V</span>
-									<span>Vanda Studio</span>
+									<img className="mark" src={vandaMarkUrl} alt="" aria-hidden="true" />
+									<span>
+										<strong>Vanda</strong> <span className="brand-muted">Studio</span>
+									</span>
 								</Link>
 								<nav className="nav" aria-label="Primary">
 									<a href={getAppUrl("/app")} className="btn secondary">
