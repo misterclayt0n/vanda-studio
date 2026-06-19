@@ -1,42 +1,42 @@
 {
-	"name": "@vanda-studio/ui",
-	"version": "0.1.0",
-	"private": true,
-	"type": "module",
-	"exports": {
-		".": "./src/index.ts",
-		"./assets/vanda-app-icon.svg": "./src/assets/vanda-app-icon.svg",
-		"./assets/vanda-mark.svg": "./src/assets/vanda-mark.svg",
-		"./assets/vanda-mark-solid.svg": "./src/assets/vanda-mark-solid.svg",
-		"./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
-		"./components/*": "./src/components/*.tsx",
-		"./hooks/*": "./src/hooks/*.ts",
-		"./lib/*": "./src/lib/*.ts",
-		"./lib/utils": "./src/lib/utils.ts",
-		"./styles/globals.css": "./src/styles/globals.css"
-	},
-	"scripts": {
-		"build": "tsc --noEmit",
-		"typecheck": "tsc --noEmit",
-		"test": "pnpm run typecheck",
-		"clean": "rm -rf dist"
-	},
-	"dependencies": {
-		"@base-ui/react": "^1.6.0",
-		"class-variance-authority": "^0.7.1",
-		"clsx": "^2.1.1",
-		"lucide-react": "^0.469.0",
-		"tailwind-merge": "^3.4.0"
-	},
-	"peerDependencies": {
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
-	},
-	"devDependencies": {
-		"@types/react": "^19.0.0",
-		"@types/react-dom": "^19.0.0",
-		"react": "catalog:",
-		"react-dom": "catalog:",
-		"typescript": "catalog:"
-	}
+  "name": "@vanda-studio/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./assets/vanda-app-icon.svg": "./src/assets/vanda-app-icon.svg",
+    "./assets/vanda-mark.svg": "./src/assets/vanda-mark.svg",
+    "./assets/vanda-mark-solid.svg": "./src/assets/vanda-mark-solid.svg",
+    "./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
+    "./components/*": "./src/components/*.tsx",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./lib/*": "./src/lib/*.ts",
+    "./lib/utils": "./src/lib/utils.ts",
+    "./styles/globals.css": "./src/styles/globals.css"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run typecheck",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.469.0",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
 }

@@ -1,15 +1,7 @@
 import type { ComponentType } from "react";
+import { UserButton, useUser } from "@clerk/tanstack-react-start";
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  Calendar,
-  ChevronDown,
-  LayoutGrid,
-  RefreshCw,
-  Settings,
-  Sparkles,
-  User,
-} from "lucide-react";
-import { cn } from "@vanda-studio/ui/lib/utils";
+import { Calendar, ChevronDown, LayoutGrid, RefreshCw, Sparkles, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -24,12 +16,7 @@ import {
 } from "@vanda-studio/ui/components/sidebar";
 import { VandaMark } from "./vanda-mark";
 
-type DashboardPath =
-  | "/"
-  | "/automatico"
-  | "/galeria"
-  | "/calendario"
-  | "/perfil";
+type DashboardPath = "/" | "/automatico" | "/galeria" | "/calendario" | "/perfil";
 
 interface NavItem {
   label: string;
@@ -69,6 +56,7 @@ function Home(props: { className?: string }) {
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useUser();
 
   return (
     <Sidebar collapsible="offcanvas" className="border-sidebar-border">
@@ -88,12 +76,8 @@ export function AppSidebar() {
             CL
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold">
-              Café Lumiar
-            </span>
-            <span className="block text-[11px] text-vanda-muted-2">
-              Plano Pro
-            </span>
+            <span className="block truncate text-[13px] font-semibold">Café Lumiar</span>
+            <span className="block text-[11px] text-vanda-muted-2">Plano Pro</span>
           </span>
           <ChevronDown className="size-[15px] text-vanda-muted-2" />
         </button>
@@ -103,9 +87,7 @@ export function AppSidebar() {
         <SidebarGroup className="p-0">
           <SidebarMenu className="gap-0.5">
             {NAV.map((item) => {
-              const active = item.exact
-                ? pathname === item.to
-                : pathname.startsWith(item.to);
+              const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
               const Icon = item.icon;
               return (
                 <SidebarMenuItem key={item.to}>
@@ -119,6 +101,7 @@ export function AppSidebar() {
                     {item.live ? (
                       <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-vanda-positive">
                         <span className="size-1.5 rounded-full bg-vanda-positive shadow-[0_0_6px_var(--vanda-positive)]" />
+                        ao vivo
                       </span>
                     ) : null}
                   </SidebarMenuButton>
@@ -141,31 +124,30 @@ export function AppSidebar() {
               <Sparkles className="size-[15px] text-vanda-accent-soft" />
               Vanda IA
             </span>
-            <span className="text-[12px] font-semibold text-vanda-muted-2">
-              62%
-            </span>
+            <span className="text-[12px] font-semibold text-vanda-muted-2">62%</span>
           </div>
           <div className="h-[5px] overflow-hidden rounded-full bg-[#261f28]">
-            <div
-              className="h-full rounded-full bg-primary"
-              style={{ width: "62%" }}
-            />
+            <div className="h-full rounded-full bg-primary" style={{ width: "62%" }} />
           </div>
         </div>
 
         <div className="flex items-center gap-[10px] border-t border-vanda-line-2 px-1.5 pt-3">
-          <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#2c1f2a] text-[12px] font-semibold text-[#e2a3c8]">
-            MA
-          </span>
+          <UserButton
+            appearance={{
+              elements: {
+                userButtonAvatarBox: "size-[30px]",
+                userButtonTrigger: "rounded-full focus:shadow-none",
+              },
+            }}
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12.5px] font-semibold">
-              Marina Alves
+              {user?.fullName ?? user?.username ?? "Minha conta"}
             </span>
             <span className="block truncate text-[11px] text-vanda-muted-2">
-              marina@cafelumiar.com
+              {user?.primaryEmailAddress?.emailAddress ?? ""}
             </span>
           </span>
-          <Settings className={cn("size-[17px] shrink-0 text-vanda-muted-2")} />
         </div>
       </SidebarFooter>
     </Sidebar>

@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
 import { Route as InstagramCallbackRouteImport } from './routes/instagram.callback'
@@ -18,6 +20,16 @@ import { Route as DashboardCalendarioRouteImport } from './routes/_dashboard.cal
 import { Route as DashboardAutomaticoRouteImport } from './routes/_dashboard.automatico'
 import { Route as ApiIntegrationsInstagramCallbackRouteImport } from './routes/api.integrations.instagram.callback'
 
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
@@ -61,6 +73,8 @@ const ApiIntegrationsInstagramCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
+  '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/galeria': typeof DashboardGaleriaRoute
@@ -69,6 +83,8 @@ export interface FileRoutesByFullPath {
   '/api/integrations/instagram/callback': typeof ApiIntegrationsInstagramCallbackRoute
 }
 export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
   '/galeria': typeof DashboardGaleriaRoute
@@ -80,6 +96,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
+  '/login': typeof LoginRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard/automatico': typeof DashboardAutomaticoRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
   '/_dashboard/galeria': typeof DashboardGaleriaRoute
@@ -92,6 +110,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
+    | '/sso-callback'
     | '/automatico'
     | '/calendario'
     | '/galeria'
@@ -100,6 +120,8 @@ export interface FileRouteTypes {
     | '/api/integrations/instagram/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/login'
+    | '/sso-callback'
     | '/automatico'
     | '/calendario'
     | '/galeria'
@@ -110,6 +132,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_dashboard'
+    | '/login'
+    | '/sso-callback'
     | '/_dashboard/automatico'
     | '/_dashboard/calendario'
     | '/_dashboard/galeria'
@@ -121,12 +145,28 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SsoCallbackRoute: typeof SsoCallbackRoute
   InstagramCallbackRoute: typeof InstagramCallbackRoute
   ApiIntegrationsInstagramCallbackRoute: typeof ApiIntegrationsInstagramCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_dashboard': {
       id: '/_dashboard'
       path: ''
@@ -208,6 +248,8 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SsoCallbackRoute: SsoCallbackRoute,
   InstagramCallbackRoute: InstagramCallbackRoute,
   ApiIntegrationsInstagramCallbackRoute: ApiIntegrationsInstagramCallbackRoute,
 }

@@ -1,9 +1,9 @@
 {
-	"extends": "./tsconfig.base.json",
-	"files": [],
-	"references": [
-		{ "path": "./apps/landing" },
-		{ "path": "./apps/vanda" },
-		{ "path": "./packages/ui" }
-	]
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./apps/landing" },
+    { "path": "./apps/vanda" },
+    { "path": "./packages/ui" }
+  ]
 }
