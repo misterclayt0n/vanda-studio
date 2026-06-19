@@ -1,5 +1,6 @@
 import { Show, SignInButton } from "@clerk/tanstack-react-start";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@vanda-studio/ui/components/button";
 import { useAction } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../convex/_generated/api";
@@ -53,12 +54,9 @@ export function InstagramCallbackRoute() {
           </h1>
           <div className="mt-5 flex justify-center">
             <SignInButton mode="modal">
-              <button
-                type="button"
-                className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-[13.5px] font-medium text-primary-foreground transition-transform duration-150 active:scale-[0.97]"
-              >
+              <Button type="button" variant="brand" size="lg">
                 Entrar
-              </button>
+              </Button>
             </SignInButton>
           </div>
         </Show>
@@ -74,12 +72,9 @@ export function InstagramCallbackRoute() {
             {error ?? message}
           </p>
           <div className="mt-5 flex justify-center">
-            <Link
-              to="/perfil"
-              className="inline-flex h-9 items-center rounded-lg border border-input px-4 text-[13.5px] font-medium transition-colors duration-150 hover:bg-vanda-elevated"
-            >
+            <Button variant="outline" size="lg" render={<Link to="/perfil" />}>
               Ir para o perfil
-            </Link>
+            </Button>
           </div>
         </Show>
       </div>

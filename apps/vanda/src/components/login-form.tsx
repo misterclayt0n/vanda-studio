@@ -3,6 +3,13 @@ import { useState } from "react";
 import { useSignIn } from "@clerk/tanstack-react-start/legacy";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Mail } from "lucide-react";
+import { Button } from "@vanda-studio/ui/components/button";
+import { Input } from "@vanda-studio/ui/components/input";
+import {
+	InputOTP,
+	InputOTPGroup,
+	InputOTPSlot,
+} from "@vanda-studio/ui/components/input-otp";
 
 type Step = "start" | "code" | "password";
 
@@ -17,6 +24,8 @@ function GoogleIcon() {
 	);
 }
 
+const FIELD_LABEL = "mb-[9px] block font-mono text-[10.5px] tracking-[0.14em] text-vanda-muted-2";
+
 function clerkErrorMessage(err: unknown): string {
 	if (err && typeof err === "object" && "errors" in err) {
 		const { errors } = err;
@@ -29,9 +38,6 @@ function clerkErrorMessage(err: unknown): string {
 	}
 	return "Algo deu errado. Tente novamente.";
 }
-
-const PRIMARY_BUTTON =
-	"flex h-[50px] w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-br from-[#ee7aaa] to-[#c4277f] text-[14.5px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_8px_24px_-8px_rgba(196,39,127,0.6)] transition-transform duration-150 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60";
 
 export function LoginForm() {
 	const clerk = useSignIn();
@@ -98,7 +104,7 @@ export function LoginForm() {
 
 	async function handleCode(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!clerk.isLoaded || !code) return;
+		if (!clerk.isLoaded || code.length < 6) return;
 		setError(null);
 		setBusy(true);
 		try {
@@ -137,7 +143,7 @@ export function LoginForm() {
 	return (
 		<div className="flex flex-col gap-5">
 			{error ? (
-				<p className="rounded-[10px] border border-[rgba(242,113,158,0.25)] bg-[rgba(242,113,158,0.1)] px-3.5 py-2.5 text-[13px] text-[#f2719e]">
+				<p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3.5 py-2.5 text-[13px] text-destructive">
 					{error}
 				</p>
 			) : null}
@@ -146,111 +152,103 @@ export function LoginForm() {
 				<>
 					<form onSubmit={handleStart} className="flex flex-col gap-[18px]">
 						<label className="block">
-							<span className="mb-[9px] block font-mono text-[10.5px] tracking-[0.14em] text-[#6a6e76]">
-								E-MAIL DE TRABALHO
-							</span>
-							<span className="flex h-[50px] items-center gap-2.5 rounded-[11px] border border-[#262029] bg-[#0f0d12] px-3.5 transition-colors focus-within:border-[#ee7aaa]">
-								<Mail className="size-[18px] shrink-0 text-[#5a5560]" />
-								<input
+							<span className={FIELD_LABEL}>E-MAIL DE TRABALHO</span>
+							<div className="relative">
+								<Mail className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
+								<Input
 									type="email"
 									required
 									autoComplete="email"
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
 									placeholder="voce@empresa.com"
-									className="h-full flex-1 bg-transparent text-[14px] text-[#f7f8f8] outline-none placeholder:text-[#54515a]"
+									className="h-[50px] pl-10"
 								/>
-							</span>
+							</div>
 						</label>
-						<button type="submit" disabled={busy} className={PRIMARY_BUTTON}>
+						<Button type="submit" variant="brand" size="xl" disabled={busy}>
 							Continuar
 							<ArrowRight className="size-[17px]" />
-						</button>
+						</Button>
 					</form>
 
 					<div className="flex items-center gap-3.5">
-						<span className="h-px flex-1 bg-[#1c1a22]" />
-						<span className="text-[11.5px] text-[#5a5560]">ou continue com</span>
-						<span className="h-px flex-1 bg-[#1c1a22]" />
+						<span className="h-px flex-1 bg-border" />
+						<span className="text-[11.5px] text-muted-foreground">ou continue com</span>
+						<span className="h-px flex-1 bg-border" />
 					</div>
 
-					<button
-						type="button"
-						onClick={handleGoogle}
-						className="flex h-12 w-full items-center justify-center gap-[11px] rounded-[11px] border border-[#232027] bg-[#100e13] text-[14px] font-semibold text-[#e6e7ea] transition-colors duration-150 hover:border-[#2e2a33] hover:bg-[#16131b]"
-					>
+					<Button type="button" variant="outline" size="xl" onClick={handleGoogle}>
 						<GoogleIcon />
 						Continuar com Google
-					</button>
+					</Button>
 				</>
 			) : null}
 
 			{step === "code" ? (
 				<form onSubmit={handleCode} className="flex flex-col gap-[18px]">
-					<p className="text-[13px] leading-[1.5] text-[#8a8f98]">
-						Enviamos um código para <span className="font-semibold text-[#f7f8f8]">{email}</span>.
+					<p className="text-[13px] leading-[1.5] text-muted-foreground">
+						Enviamos um código para <span className="font-semibold text-foreground">{email}</span>.
 					</p>
-					<label className="block">
-						<span className="mb-[9px] block font-mono text-[10.5px] tracking-[0.14em] text-[#6a6e76]">
-							CÓDIGO DE VERIFICAÇÃO
-						</span>
-						<input
-							inputMode="numeric"
-							autoComplete="one-time-code"
-							required
-							value={code}
-							onChange={(e) => setCode(e.target.value)}
-							placeholder="000000"
-							className="h-[50px] w-full rounded-[11px] border border-[#262029] bg-[#0f0d12] px-3.5 text-center font-mono text-[18px] tracking-[0.4em] text-[#f7f8f8] outline-none transition-colors placeholder:text-[#3c3a42] focus:border-[#ee7aaa]"
-						/>
-					</label>
-					<button type="submit" disabled={busy} className={PRIMARY_BUTTON}>
+					<InputOTP
+						maxLength={6}
+						value={code}
+						onChange={setCode}
+						containerClassName="justify-center"
+					>
+						<InputOTPGroup className="gap-2">
+							{[0, 1, 2, 3, 4, 5].map((i) => (
+								<InputOTPSlot key={i} index={i} className="size-12 rounded-lg border text-[18px]" />
+							))}
+						</InputOTPGroup>
+					</InputOTP>
+					<Button type="submit" variant="brand" size="xl" disabled={busy}>
 						Verificar
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
+						variant="link"
+						size="sm"
 						onClick={() => {
 							setStep("start");
 							setCode("");
 							setError(null);
 						}}
-						className="text-[12.5px] text-[#8a8f98] transition-colors hover:text-[#ee7aaa]"
 					>
 						Usar outro e-mail
-					</button>
+					</Button>
 				</form>
 			) : null}
 
 			{step === "password" ? (
 				<form onSubmit={handlePassword} className="flex flex-col gap-[18px]">
 					<label className="block">
-						<span className="mb-[9px] block font-mono text-[10.5px] tracking-[0.14em] text-[#6a6e76]">
-							SENHA
-						</span>
-						<input
+						<span className={FIELD_LABEL}>SENHA</span>
+						<Input
 							type="password"
-							autoComplete="current-password"
 							required
+							autoComplete="current-password"
 							value={password}
 							onChange={(e) => setPassword(e.target.value)}
 							placeholder="••••••••"
-							className="h-[50px] w-full rounded-[11px] border border-[#262029] bg-[#0f0d12] px-3.5 text-[14px] text-[#f7f8f8] outline-none transition-colors placeholder:text-[#54515a] focus:border-[#ee7aaa]"
+							className="h-[50px]"
 						/>
 					</label>
-					<button type="submit" disabled={busy} className={PRIMARY_BUTTON}>
+					<Button type="submit" variant="brand" size="xl" disabled={busy}>
 						Entrar
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
+						variant="link"
+						size="sm"
 						onClick={() => {
 							setStep("start");
 							setPassword("");
 							setError(null);
 						}}
-						className="text-[12.5px] text-[#8a8f98] transition-colors hover:text-[#ee7aaa]"
 					>
 						Usar outro e-mail
-					</button>
+					</Button>
 				</form>
 			) : null}
 		</div>
