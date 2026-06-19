@@ -19,7 +19,7 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         brand:
-          "border-transparent bg-gradient-to-br from-[#ee7aaa] to-[#c4277f] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_8px_24px_-8px_rgba(196,39,127,0.55)] hover:brightness-[1.06] active:scale-[0.99]",
+          "rounded-[11px] border-[color-mix(in_srgb,var(--primary)_86%,#fff)] bg-primary font-semibold text-primary-foreground shadow-[0_10px_30px_-18px_var(--vanda-glow)] hover:border-[color-mix(in_srgb,var(--vanda-rose-deep)_78%,#fff)] hover:bg-[var(--vanda-rose-deep)]",
         soft: "border-transparent bg-vanda-accent-soft-bg text-vanda-accent-soft hover:brightness-110",
       },
       size: {
