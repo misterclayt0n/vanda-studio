@@ -11,6 +11,11 @@ body {
   min-height: 100vh;
 }
 
+body::selection {
+  background: color-mix(in srgb, var(--primary) 34%, transparent);
+  color: white;
+}
+
 button,
 a {
   font: inherit;
