@@ -12,6 +12,13 @@ import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
 import type * as instagramGraph from "../instagramGraph.js";
 import type * as instagramGraphActions from "../instagramGraphActions.js";
+import type * as pipeline_domain from "../pipeline/domain.js";
+import type * as pipeline_live from "../pipeline/live.js";
+import type * as pipeline_observe from "../pipeline/observe.js";
+import type * as pipeline_signals from "../pipeline/signals.js";
+import type * as pipeline_storage from "../pipeline/storage.js";
+import type * as pipeline_testing from "../pipeline/testing.js";
+import type * as spike from "../spike.js";
 import type * as users from "../users.js";
 
 import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
@@ -21,6 +28,13 @@ declare const fullApi: ApiFromModules<{
   "billing/autumn": typeof billing_autumn;
   instagramGraph: typeof instagramGraph;
   instagramGraphActions: typeof instagramGraphActions;
+  "pipeline/domain": typeof pipeline_domain;
+  "pipeline/live": typeof pipeline_live;
+  "pipeline/observe": typeof pipeline_observe;
+  "pipeline/signals": typeof pipeline_signals;
+  "pipeline/storage": typeof pipeline_storage;
+  "pipeline/testing": typeof pipeline_testing;
+  spike: typeof spike;
   users: typeof users;
 }>;
 

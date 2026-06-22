@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { signalColumns } from "./pipeline/storage";
 
 export default defineSchema({
   users: defineTable({
@@ -51,4 +52,10 @@ export default defineSchema({
   })
     .index("by_connection_external", ["connectionId", "externalPostId"])
     .index("by_user_published", ["userId", "publishedAt"]),
+
+  // Phase 0 pipeline spike: observed signals produced by the `observe` stage.
+  signals: defineTable(signalColumns).index("by_account_external", [
+    "accountExternalId",
+    "externalId",
+  ]),
 });
