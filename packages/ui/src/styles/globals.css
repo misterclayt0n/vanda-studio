@@ -90,8 +90,8 @@
   --vanda-accent-soft-bg: #fcebf3;
   --vanda-muted-2: #b9a7b1;
   --vanda-line-2: #f1d9e6;
-	--vanda-rose-deep: #a22e61;
-	--vanda-glow: rgba(201, 65, 124, 0.3);
+  --vanda-rose-deep: #a22e61;
+  --vanda-glow: rgba(201, 65, 124, 0.3);
 }
 
 .dark {
@@ -105,7 +105,7 @@
   --popover: #130e18;
   --popover-foreground: var(--foreground);
 
-	--primary: #c9417c;
+  --primary: #c9417c;
   --primary-foreground: #ffffff;
 
   --secondary: #1a0f17;
@@ -122,9 +122,9 @@
 
   --border: #261f28;
   --input: #2b2330;
-	--ring: #c9417c;
+  --ring: #c9417c;
 
-	--chart-1: #c9417c;
+  --chart-1: #c9417c;
   --chart-2: #5fc88f;
   --chart-3: #f2a0c4;
   --chart-4: #dd5790;
@@ -132,12 +132,12 @@
 
   --sidebar: #0f0c11;
   --sidebar-foreground: #f8f2f6;
-	--sidebar-primary: #c9417c;
+  --sidebar-primary: #c9417c;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #231c26;
   --sidebar-accent-foreground: #f8f2f6;
   --sidebar-border: #221c24;
-	--sidebar-ring: #c9417c;
+  --sidebar-ring: #c9417c;
 
   --vanda-surface: #0b080c;
   --vanda-elevated: #231c26;
@@ -147,8 +147,8 @@
   --vanda-positive: #5fc88f;
   --vanda-positive-bg: rgba(76, 183, 130, 0.14);
   --vanda-line-2: #221c24;
-	--vanda-rose-deep: #a22e61;
-	--vanda-glow: rgba(201, 65, 124, 0.48);
+  --vanda-rose-deep: #a22e61;
+  --vanda-glow: rgba(201, 65, 124, 0.48);
 }
 
 @theme inline {

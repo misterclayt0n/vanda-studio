@@ -37,15 +37,13 @@ function LoginPage() {
       <div
         className="relative hidden flex-1 items-center justify-center overflow-hidden lg:flex"
         style={{
-          background:
-            "radial-gradient(72% 58% at 50% 45%,#1c0f1a 0%,#120a13 52%,#09060b 100%)",
+          background: "radial-gradient(72% 58% at 50% 45%,#1c0f1a 0%,#120a13 52%,#09060b 100%)",
         }}
       >
         <div
           className="pointer-events-none absolute left-1/2 top-[45%] size-[680px] -translate-x-1/2 -translate-y-1/2"
           style={{
-            background:
-              "radial-gradient(circle,rgba(224,86,143,0.32),rgba(224,86,143,0) 60%)",
+            background: "radial-gradient(circle,rgba(224,86,143,0.32),rgba(224,86,143,0) 60%)",
           }}
         />
         <div className="relative z-10 size-[540px] max-w-[80%]">

@@ -5,11 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Mail } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Input } from "@vanda-studio/ui/components/input";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@vanda-studio/ui/components/input-otp";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@vanda-studio/ui/components/input-otp";
 
 type Step = "start" | "code" | "password";
 
@@ -98,9 +94,7 @@ export function LoginForm() {
         return;
       }
       const factors = attempt.supportedFirstFactors ?? [];
-      const emailCode = factors.find(
-        (factor) => factor.strategy === "email_code",
-      );
+      const emailCode = factors.find((factor) => factor.strategy === "email_code");
       if (emailCode) {
         await clerk.signIn.prepareFirstFactor({
           strategy: "email_code",
@@ -198,18 +192,11 @@ export function LoginForm() {
 
           <div className="flex items-center gap-3.5">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[11.5px] text-muted-foreground">
-              ou continue com
-            </span>
+            <span className="text-[11.5px] text-muted-foreground">ou continue com</span>
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="xl"
-            onClick={handleGoogle}
-          >
+          <Button type="button" variant="outline" size="xl" onClick={handleGoogle}>
             <GoogleIcon />
             Continuar com Google
           </Button>
@@ -219,8 +206,7 @@ export function LoginForm() {
       {step === "code" ? (
         <form onSubmit={handleCode} className="flex flex-col gap-[18px]">
           <p className="text-[13px] leading-[1.5] text-muted-foreground">
-            Enviamos um código para{" "}
-            <span className="font-semibold text-foreground">{email}</span>.
+            Enviamos um código para <span className="font-semibold text-foreground">{email}</span>.
           </p>
           <InputOTP
             maxLength={6}
@@ -230,11 +216,7 @@ export function LoginForm() {
           >
             <InputOTPGroup className="gap-2">
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot
-                  key={i}
-                  index={i}
-                  className="size-12 rounded-lg border text-[18px]"
-                />
+                <InputOTPSlot key={i} index={i} className="size-12 rounded-lg border text-[18px]" />
               ))}
             </InputOTPGroup>
           </InputOTP>

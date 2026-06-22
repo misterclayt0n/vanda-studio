@@ -49,4 +49,3 @@ function DashboardSidebarTrigger() {
     </header>
   );
 }
-

@@ -106,7 +106,9 @@ function WorkspaceSwitcher() {
             sideOffset={4}
           >
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Negócios</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Negócios
+              </DropdownMenuLabel>
               <DropdownMenuItem className="gap-2 p-2">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#2a2330] text-[10px] font-semibold text-[#ccc6cc]">
                   {WORKSPACE.initials}
@@ -211,7 +213,9 @@ export function AppSidebar() {
                     className="h-[32px] gap-[11px] px-2.5 text-[13px] font-medium text-sidebar-foreground/55 transition-colors duration-150 data-active:text-sidebar-accent-foreground"
                   >
                     <Icon className="size-4" />
-                    <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    <span className="flex-1 group-data-[collapsible=icon]:hidden">
+                      {item.label}
+                    </span>
                     {item.live ? (
                       <span
                         className="flex items-center group-data-[collapsible=icon]:hidden"
