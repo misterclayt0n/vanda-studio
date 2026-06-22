@@ -1,0 +1,86 @@
+import * as Effect from "effect/Effect";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { igCommentsAdapter, igMentionsAdapter } from "./liveObserve";
+
+const config = { igUserId: "ig1", token: "tok" };
+
+describe("igCommentsAdapter (fetch-mocked)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("flattens comments across recent media into raw signals", async () => {
+    vi.stubGlobal("fetch", async (url: string | URL) => {
+      expect(String(url)).toContain("/ig1/media");
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              permalink: "https://p/1",
+              comments: {
+                data: [
+                  {
+                    id: "k1",
+                    text: "love",
+                    timestamp: "2024-01-01T00:00:00+0000",
+                    username: "alice",
+                  },
+                ],
+              },
+            },
+            { permalink: "https://p/2", comments: { data: [] } },
+            { permalink: "https://p/3" },
+          ],
+        }),
+        { status: 200 },
+      );
+    });
+
+    const signals = await Effect.runPromise(igCommentsAdapter(config).fetch());
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      source: "comments",
+      externalId: "k1",
+      text: "love",
+      authorHandle: "alice",
+      permalink: "https://p/1",
+    });
+    expect(signals[0]!.observedAt).toBe(Date.parse("2024-01-01T00:00:00+0000"));
+  });
+
+  it("fails SourceFetchFailed on a non-2xx response", async () => {
+    vi.stubGlobal("fetch", async () => new Response("nope", { status: 500 }));
+    const error = await Effect.runPromise(igCommentsAdapter(config).fetch().pipe(Effect.flip));
+    expect(error._tag).toBe("SourceFetchFailed");
+  });
+});
+
+describe("igMentionsAdapter (fetch-mocked)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("maps tagged media into mention signals", async () => {
+    vi.stubGlobal("fetch", async (url: string | URL) => {
+      expect(String(url)).toContain("/ig1/tags");
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "t1",
+              caption: "nice spot",
+              timestamp: "2024-02-02T00:00:00+0000",
+              username: "bob",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    });
+
+    const signals = await Effect.runPromise(igMentionsAdapter(config).fetch());
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      source: "mentions",
+      externalId: "t1",
+      text: "nice spot",
+      authorHandle: "bob",
+    });
+  });
+});

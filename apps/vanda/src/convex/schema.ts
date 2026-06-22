@@ -63,18 +63,16 @@ export default defineSchema({
     .index("by_connection_external", ["connectionId", "externalPostId"])
     .index("by_user_published", ["userId", "publishedAt"]),
 
-  // Phase 0 pipeline spike: observed signals produced by the `observe` stage.
-  signals: defineTable(signalColumns).index("by_account_external", [
-    "accountExternalId",
-    "externalId",
-  ]),
+  // Observed signals (observe stage). The feed reads by_account_observedAt;
+  // dedup looks up by_account_source_external.
+  signals: defineTable(signalColumns)
+    .index("by_account_observedAt", ["accountId", "observedAt"])
+    .index("by_account_source_external", ["accountId", "source", "externalId"]),
 
-  // ----- Phase 1 memory model (persistence projection of pipeline/memory.ts) -----
-  // Account-scoped tables for the discernment core. `accounts` is populated when a
-  // connection is promoted (Phase 3); until then these are declared but empty, and
-  // `signals` keeps its Phase 0 `accountExternalId`. brandCanon / outcomes /
-  // memoryNotes land with the stages that consume them, where their shapes can be
-  // designed against real usage.
+  // ----- Memory model (persistence projection of pipeline/memory.ts) -----
+  // Account-scoped tables for the discernment core. `accounts` is populated by
+  // promoteConnection (observe.ts). brandCanon / outcomes / memoryNotes land with
+  // the stages that consume them, where their shapes can be designed against real usage.
 
   accounts: defineTable({
     connectionId: v.optional(v.id("instagramConnections")),

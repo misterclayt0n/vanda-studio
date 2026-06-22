@@ -1,20 +1,20 @@
 import type * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { Signal } from "./domain";
+import type { RawSignal } from "./domain";
 
 /**
- * Persistence boundary for observed signals. The pipeline programs depend on
- * this contract, never on Convex directly — which is what lets the same program
- * run against an in-memory recorder in tests and against the Convex `ctx` in
- * production (see `live.ts` and `testing.ts`).
- *
- * `insert` is fallible: a Convex write can reject (write conflict, validator
- * rejection), so the failure is explicit in the error channel rather than
- * hidden as a defect.
+ * Persistence boundary for observed signals: a single idempotent `insert`.
+ * Inserting an already-seen `(accountId, source, externalId)` is a no-op that
+ * returns `false`, so the observe stage's dedup costs one indexed lookup per
+ * fetched item instead of scanning the account's whole signal history. Writes
+ * are typed fallible.
  */
 export interface SignalsShape {
-  readonly insert: (signal: Signal) => Effect.Effect<void, Cause.UnknownError>;
+  readonly insert: (
+    accountId: string,
+    signal: RawSignal,
+  ) => Effect.Effect<boolean, Cause.UnknownError>;
 }
 
 export class Signals extends Context.Service<Signals, SignalsShape>()("@vanda/pipeline/Signals") {}

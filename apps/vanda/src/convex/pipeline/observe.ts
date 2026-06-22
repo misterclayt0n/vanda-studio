@@ -1,58 +1,56 @@
-import * as Clock from "effect/Clock";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as LanguageModel from "effect/unstable/ai/LanguageModel";
-import { Classification, type IgComment, type Signal } from "./domain";
+import type { RawSignal, SignalSource } from "./domain";
 import { Signals } from "./signals";
 
-/** Comments are independent, so classification fans out concurrently. */
-const CLASSIFY_CONCURRENCY = 4;
+/** A source adapter failed to fetch (network, API error). Non-fatal to a run. */
+export class SourceFetchFailed extends Data.TaggedError("SourceFetchFailed")<{
+  readonly source: SignalSource;
+  readonly message: string;
+}> {}
 
 /**
- * Delimiter after which the comment text is appended verbatim. The test stub
- * keys on this to recover the comment, so prompt boilerplate above it can be
- * reworded without affecting deterministic test classification.
+ * A pluggable observation source. Each adapter owns one `source` and fetches its
+ * latest raw signals. New signal sources (competitors, trends, X, store orders)
+ * are new adapters — the observe program never changes.
  */
-export const COMMENT_MARKER = "COMMENT >>> ";
+export interface SourceAdapter {
+  readonly source: SignalSource;
+  readonly fetch: () => Effect.Effect<ReadonlyArray<RawSignal>, SourceFetchFailed>;
+}
 
-const classifyPrompt = (text: string) =>
-  `You are classifying an Instagram comment for a small business.\n` +
-  `Return the comment's kind and a salience score from 0 to 1.\n\n` +
-  `${COMMENT_MARKER}${text}`;
+/** Sources are independent, so they're fetched + persisted concurrently. */
+const OBSERVE_CONCURRENCY = 4;
 
 /**
- * The Phase 0 vertical slice of `observe`: take a batch of comments, classify
- * each into a structured signal with the language model, and persist it.
- *
- * Requires `LanguageModel` and `Signals` — both satisfied by a layer at the
- * call site (live in a Convex action, mocked in tests).
+ * The observe stage: run every source adapter and persist its fresh signals
+ * (the idempotent `insert` drops anything already seen). ETL only — no
+ * classification. A source fetch failure is logged and skipped so one flaky
+ * source never aborts the run; a persistence failure is fatal (surfaced to the
+ * caller). Returns the newly persisted signals.
  */
-export const ingestComments = Effect.fn("pipeline.ingestComments")(function* (
-  accountExternalId: string,
-  comments: ReadonlyArray<IgComment>,
+export const observe = Effect.fn("pipeline.observe")(function* (
+  accountId: string,
+  adapters: ReadonlyArray<SourceAdapter>,
 ) {
   const signals = yield* Signals;
-
-  return yield* Effect.forEach(
-    comments,
-    (comment) =>
+  const perSource = yield* Effect.forEach(
+    adapters,
+    (adapter) =>
       Effect.gen(function* () {
-        const response = yield* LanguageModel.generateObject({
-          prompt: classifyPrompt(comment.text),
-          schema: Classification,
-        });
-        const observedAt = yield* Clock.currentTimeMillis;
-        const signal: Signal = {
-          externalId: comment.externalId,
-          accountExternalId,
-          source: "comments",
-          kind: response.value.kind,
-          text: comment.text,
-          salience: response.value.salience,
-          observedAt,
-        };
-        yield* signals.insert(signal);
-        return signal;
-      }),
-    { concurrency: CLASSIFY_CONCURRENCY },
+        const fetched = yield* adapter.fetch();
+        const groups = yield* Effect.forEach(fetched, (raw) =>
+          Effect.map(signals.insert(accountId, raw), (inserted) => (inserted ? [raw] : [])),
+        );
+        return groups.flat();
+      }).pipe(
+        Effect.catchTag("SourceFetchFailed", (error) =>
+          Effect.logWarning(`observe: source "${error.source}" failed: ${error.message}`).pipe(
+            Effect.as([] as ReadonlyArray<RawSignal>),
+          ),
+        ),
+      ),
+    { concurrency: OBSERVE_CONCURRENCY },
   );
+  return perSource.flat();
 });
