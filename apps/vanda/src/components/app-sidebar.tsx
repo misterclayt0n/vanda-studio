@@ -7,12 +7,12 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@vanda-studio/ui/components/sidebar";
 import { VandaMark } from "./vanda-mark";
 
@@ -59,31 +59,35 @@ export function AppSidebar() {
   const { user } = useUser();
 
   return (
-    <Sidebar collapsible="offcanvas" className="border-sidebar-border">
-      <SidebarHeader className="gap-0 px-3 pt-4">
-        <Link to="/" className="flex items-center gap-[9px] px-2 pb-4">
-          <VandaMark size={26} />
-          <span className="text-[13.5px] font-semibold tracking-[-0.018em]">
-            Vanda<span className="text-vanda-muted-2"> Studio</span>
-          </span>
-        </Link>
+    <Sidebar collapsible="icon" className="border-sidebar-border">
+      <SidebarHeader className="gap-0 px-3 pt-4 group-data-[collapsible=icon]:px-2">
+        <div className="flex items-center justify-between gap-2 px-2 pb-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <Link to="/" className="flex items-center gap-[9px] group-data-[collapsible=icon]:hidden">
+            <VandaMark size={26} />
+            <span className="text-[13.5px] font-semibold tracking-[-0.018em]">
+              Vanda<span className="text-vanda-muted-2"> Studio</span>
+            </span>
+          </Link>
+          <SidebarTrigger className="size-7 shrink-0 text-vanda-muted-2 hover:text-sidebar-foreground" />
+        </div>
 
         <button
           type="button"
-          className="mb-4 flex w-full items-center gap-[9px] rounded-[9px] border border-[#261f28] bg-[#161117] px-[9px] py-[7px] text-left transition-colors duration-200 hover:bg-[#1b1620]"
+          title="Café Lumiar"
+          className="mb-4 flex w-full items-center gap-[9px] rounded-[9px] border border-[#261f28] bg-[#161117] px-[9px] py-[7px] text-left transition-colors duration-200 hover:bg-[#1b1620] group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
         >
           <span className="flex size-[26px] shrink-0 items-center justify-center rounded-[7px] bg-[#2a2330] text-[11px] font-semibold text-[#ccc6cc]">
             CL
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <span className="block truncate text-[13px] font-semibold">Café Lumiar</span>
             <span className="block text-[11px] text-vanda-muted-2">Plano Pro</span>
           </span>
-          <ChevronDown className="size-[15px] text-vanda-muted-2" />
+          <ChevronDown className="size-[15px] text-vanda-muted-2 group-data-[collapsible=icon]:hidden" />
         </button>
       </SidebarHeader>
 
-      <SidebarContent className="px-3">
+      <SidebarContent className="px-3 group-data-[collapsible=icon]:px-2">
         <SidebarGroup className="p-0">
           <SidebarMenu className="gap-0.5">
             {NAV.map((item) => {
@@ -94,12 +98,13 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     render={<Link to={item.to} />}
                     isActive={active}
+                    tooltip={item.label}
                     className="h-[32px] gap-[11px] px-2.5 text-[13px] font-medium text-sidebar-foreground/55 transition-colors duration-150 data-active:text-sidebar-accent-foreground"
                   >
                     <Icon className="size-4" />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
                     {item.live ? (
-                      <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-vanda-positive">
+                      <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-vanda-positive group-data-[collapsible=icon]:hidden">
                         <span className="size-1.5 rounded-full bg-vanda-positive shadow-[0_0_6px_var(--vanda-positive)]" />
                         ao vivo
                       </span>
@@ -117,8 +122,8 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="gap-0 px-3 pb-3">
-        <div className="mb-3 rounded-[10px] border border-[#261f28] bg-card p-3">
+      <SidebarFooter className="gap-0 px-3 pb-3 group-data-[collapsible=icon]:px-2">
+        <div className="mb-3 rounded-[10px] border border-[#261f28] bg-card p-3 group-data-[collapsible=icon]:hidden">
           <div className="mb-[9px] flex items-center justify-between">
             <span className="flex items-center gap-[7px] text-[12.5px] font-semibold text-[#ccc6cc]">
               <Sparkles className="size-[15px] text-vanda-accent-soft" />
@@ -131,7 +136,7 @@ export function AppSidebar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-[10px] border-t border-vanda-line-2 px-1.5 pt-3">
+        <div className="flex items-center gap-[10px] border-t border-vanda-line-2 px-1.5 pt-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0">
           <UserButton
             appearance={{
               elements: {
@@ -140,7 +145,7 @@ export function AppSidebar() {
               },
             }}
           />
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <span className="block truncate text-[12.5px] font-semibold">
               {user?.fullName ?? user?.username ?? "Minha conta"}
             </span>
