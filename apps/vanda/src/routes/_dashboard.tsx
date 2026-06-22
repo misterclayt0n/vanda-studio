@@ -24,7 +24,7 @@ function DashboardLayout() {
           <SidebarProvider style={{ "--sidebar-width": "15rem" } as CSSProperties}>
             <AppSidebar />
             <SidebarInset className="flex h-svh flex-col overflow-hidden bg-vanda-surface">
-              <header className="flex h-[72px] shrink-0 items-center px-3">
+              <header className="flex h-14 shrink-0 items-start px-3 pt-3">
                 <SidebarTrigger className="size-7 text-vanda-muted-2 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
               </header>
               <Outlet />
