@@ -45,7 +45,8 @@ export const Belief = Schema.Struct({
   confidence: UnitInterval,
   supportingSignalIds: Schema.Array(Schema.String),
   firstSeenAt: Timestamp,
-  lastReinforcedAt: Timestamp,
+  /** Decay anchor: the time the stored `confidence` is valid as-of (advances on every confidence change). */
+  confidenceAsOf: Timestamp,
   status: BeliefStatus,
 });
 export type Belief = typeof Belief.Type;
@@ -115,3 +116,16 @@ export const defaultPolicy: Policy = {
   momentumRisingRatio: 1.2,
   momentumFallingRatio: 0.8,
 };
+
+/**
+ * A short reflection appended after a consolidation pass — the human-readable
+ * "what Vanda is thinking" journal that gives continuity between cycles. It
+ * records perception (what changed in memory), never a post idea.
+ */
+export const MemoryNote = Schema.Struct({
+  accountId: Schema.String,
+  note: Schema.String,
+  signalCount: Count,
+  createdAt: Timestamp,
+});
+export type MemoryNote = typeof MemoryNote.Type;

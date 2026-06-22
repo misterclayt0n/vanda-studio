@@ -23,3 +23,14 @@ export interface RawSignal {
 export interface Signal extends RawSignal {
   readonly accountId: string;
 }
+
+/**
+ * A persisted signal as consolidate consumes it: the stored row's id plus the
+ * fields the judgment + evidence tracking need.
+ */
+export interface StoredSignal {
+  readonly id: string;
+  readonly source: SignalSource;
+  readonly text: string;
+  readonly observedAt: number;
+}

@@ -28,7 +28,7 @@ const beliefBase: Belief = {
   confidence: 0.9,
   supportingSignalIds: ["s1", "s2", "s3"],
   firstSeenAt: 0,
-  lastReinforcedAt: 0,
+  confidenceAsOf: 0,
   status: "active",
 };
 
@@ -70,7 +70,7 @@ describe("reinforceBelief", () => {
     const next = reinforceBelief(belief, signalId, now, policy);
     expect(next.supportingSignalIds).toContain(signalId);
     expect(next.supportingSignalIds.length).toBe(belief.supportingSignalIds.length + 1);
-    expect(next.lastReinforcedAt).toBe(now);
+    expect(next.confidenceAsOf).toBe(now);
   });
 
   it.prop(
@@ -108,15 +108,15 @@ describe("reinforceBelief", () => {
 
 describe("decayBelief", () => {
   it.prop("keeps confidence within [0,1]", [beliefArb, elapsed], ([belief, dt]) => {
-    const c = decayBelief(belief, belief.lastReinforcedAt + dt, policy).confidence;
+    const c = decayBelief(belief, belief.confidenceAsOf + dt, policy).confidence;
     expect(c).toBeGreaterThanOrEqual(0);
     expect(c).toBeLessThanOrEqual(1);
   });
 
   it.prop("never raises confidence", [beliefArb, elapsed], ([belief, dt]) => {
-    expect(
-      decayBelief(belief, belief.lastReinforcedAt + dt, policy).confidence,
-    ).toBeLessThanOrEqual(belief.confidence);
+    expect(decayBelief(belief, belief.confidenceAsOf + dt, policy).confidence).toBeLessThanOrEqual(
+      belief.confidence,
+    );
   });
 
   it.prop(
@@ -125,8 +125,8 @@ describe("decayBelief", () => {
     ([belief, a, b]) => {
       const lo = Math.min(a, b);
       const hi = Math.max(a, b);
-      const cLo = decayBelief(belief, belief.lastReinforcedAt + lo, policy).confidence;
-      const cHi = decayBelief(belief, belief.lastReinforcedAt + hi, policy).confidence;
+      const cLo = decayBelief(belief, belief.confidenceAsOf + lo, policy).confidence;
+      const cHi = decayBelief(belief, belief.confidenceAsOf + hi, policy).confidence;
       expect(cHi).toBeLessThanOrEqual(cLo);
     },
   );
@@ -135,39 +135,54 @@ describe("decayBelief", () => {
     "is identity at or before the last reinforcement",
     [beliefArb, elapsed],
     ([belief, back]) => {
-      const now = Math.max(0, belief.lastReinforcedAt - back);
+      const now = Math.max(0, belief.confidenceAsOf - back);
       expect(decayBelief(belief, now, policy).confidence).toBe(belief.confidence);
     },
   );
 
   it.prop("always derives status from confidence", [beliefArb, elapsed], ([belief, dt]) => {
-    const next = decayBelief(belief, belief.lastReinforcedAt + dt, policy);
+    const next = decayBelief(belief, belief.confidenceAsOf + dt, policy);
     expect(next.status).toBe(statusFor(next.confidence, policy));
   });
 
   it("halves confidence after exactly one half-life", () => {
     const next = decayBelief(
-      { ...beliefBase, confidence: 0.8, lastReinforcedAt: 0 },
+      { ...beliefBase, confidence: 0.8, confidenceAsOf: 0 },
       policy.decayHalfLifeMs,
       policy,
     );
     expect(next.confidence).toBeCloseTo(0.4, 10);
   });
+
+  it("telescopes: re-decaying counts only the new elapsed time, not the whole interval", () => {
+    const hl = policy.decayHalfLifeMs;
+    const belief = { ...beliefBase, confidence: 0.8, confidenceAsOf: 0 };
+    const once = decayBelief(belief, 2 * hl, policy);
+    const twice = decayBelief(decayBelief(belief, hl, policy), 2 * hl, policy);
+    expect(once.confidence).toBeCloseTo(0.2, 10); // 0.8 * 0.5^2
+    expect(twice.confidence).toBeCloseTo(once.confidence, 10); // no compounding
+  });
 });
 
 describe("contradictBelief", () => {
   it.prop("lowers confidence, stays in [0,1], status consistent", [beliefArb], ([belief]) => {
-    const next = contradictBelief(belief, policy);
+    const next = contradictBelief(belief, 0, policy);
     expect(next.confidence).toBeGreaterThanOrEqual(0);
     expect(next.confidence).toBeLessThanOrEqual(belief.confidence);
     expect(next.status).toBe(statusFor(next.confidence, policy));
   });
 
   it("scales confidence by contradictionFactor", () => {
-    expect(contradictBelief({ ...beliefBase, confidence: 0.8 }, policy).confidence).toBeCloseTo(
+    expect(contradictBelief({ ...beliefBase, confidence: 0.8 }, 0, policy).confidence).toBeCloseTo(
       0.8 * policy.contradictionFactor,
       10,
     ); // 0.4
+  });
+
+  it("advances the decay anchor to now", () => {
+    expect(
+      contradictBelief({ ...beliefBase, confidenceAsOf: 0 }, 5000, policy).confidenceAsOf,
+    ).toBe(5000);
   });
 });
 

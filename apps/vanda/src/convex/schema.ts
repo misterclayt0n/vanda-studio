@@ -1,12 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { signalColumns } from "./pipeline/storage";
+import { beliefColumns, memoryNoteColumns, signalColumns, themeColumns } from "./pipeline/storage";
 import {
   accountModes,
-  beliefKinds,
-  beliefStatuses,
   imageOrigins,
-  momenta,
   postStatuses,
   postTypes,
   scheduledStatuses,
@@ -64,15 +61,17 @@ export default defineSchema({
     .index("by_user_published", ["userId", "publishedAt"]),
 
   // Observed signals (observe stage). The feed reads by_account_observedAt;
-  // dedup looks up by_account_source_external.
+  // dedup looks up by_account_source_external; consolidate scans the pending
+  // queue via by_account_consolidated (consolidatedAt unset).
   signals: defineTable(signalColumns)
     .index("by_account_observedAt", ["accountId", "observedAt"])
-    .index("by_account_source_external", ["accountId", "source", "externalId"]),
+    .index("by_account_source_external", ["accountId", "source", "externalId"])
+    .index("by_account_consolidated", ["accountId", "consolidatedAt"]),
 
   // ----- Memory model (persistence projection of pipeline/memory.ts) -----
   // Account-scoped tables for the discernment core. `accounts` is populated by
-  // promoteConnection (observe.ts). brandCanon / outcomes / memoryNotes land with
-  // the stages that consume them, where their shapes can be designed against real usage.
+  // promoteConnection (observe.ts); beliefs/themes/memoryNotes are written by
+  // consolidate. brandCanon / outcomes land with the stages that consume them.
 
   accounts: defineTable({
     connectionId: v.optional(v.id("instagramConnections")),
@@ -81,29 +80,9 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
-  beliefs: defineTable({
-    accountId: v.id("accounts"),
-    statement: v.string(),
-    kind: v.union(...beliefKinds.map((kind) => v.literal(kind))),
-    confidence: v.number(),
-    // The deduplicated evidence set. A long-lived, high-volume belief grows this
-    // unbounded; Phase 4 (consolidate) revisits with a bounded window or join
-    // table, and the ids become `v.id("signals")` once signals are account-scoped.
-    supportingSignalIds: v.array(v.string()),
-    firstSeenAt: v.number(),
-    lastReinforcedAt: v.number(),
-    status: v.union(...beliefStatuses.map((status) => v.literal(status))),
-  }).index("by_account_status", ["accountId", "status"]),
+  beliefs: defineTable(beliefColumns).index("by_account_status", ["accountId", "status"]),
 
-  themes: defineTable({
-    accountId: v.id("accounts"),
-    name: v.string(),
-    summary: v.string(),
-    momentum: v.union(...momenta.map((m) => v.literal(m))),
-    lastPostedAt: v.optional(v.number()),
-    postCount: v.number(),
-    signalCount: v.number(),
-  }).index("by_account", ["accountId"]),
+  themes: defineTable(themeColumns).index("by_account", ["accountId"]),
 
   policies: defineTable({
     accountId: v.id("accounts"),
@@ -118,6 +97,9 @@ export default defineSchema({
     momentumRisingRatio: v.number(),
     momentumFallingRatio: v.number(),
   }).index("by_account", ["accountId"]),
+
+  // The consolidation journal: one reflection note per pass, newest-first by account.
+  memoryNotes: defineTable(memoryNoteColumns).index("by_account", ["accountId"]),
 
   // ----- Phase 2 composable media + calendar -----
   // Images are atomic units; posts compose ordered image sets; scheduledPosts

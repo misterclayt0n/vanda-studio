@@ -40,27 +40,35 @@ export const reinforceBelief = (
       policy,
     ),
     supportingSignalIds: [...belief.supportingSignalIds, signalId],
-    lastReinforcedAt: now,
+    confidenceAsOf: now,
   };
 };
 
 /**
- * Apply time decay since the belief was last reinforced. Confidence halves every
- * `decayHalfLifeMs`, so it is non-increasing in elapsed time and never leaves
- * 0..1. Time before the last reinforcement is treated as no elapsed time.
+ * Apply time decay since the belief's confidence was last set. Confidence halves
+ * every `decayHalfLifeMs`, so it is non-increasing in elapsed time and never
+ * leaves 0..1. The decay anchor (`confidenceAsOf`) advances to `now`, so the
+ * decayed value telescopes: re-decaying it later only counts the new elapsed
+ * time rather than re-applying the whole interval (which would compound when the
+ * decayed value is persisted and decayed again next pass).
  */
 export const decayBelief = (belief: Belief, now: number, policy: Policy): Belief => {
-  const elapsed = Math.max(0, now - belief.lastReinforcedAt);
-  return withConfidence(
-    belief,
-    belief.confidence * Math.pow(0.5, elapsed / policy.decayHalfLifeMs),
-    policy,
-  );
+  const elapsed = Math.max(0, now - belief.confidenceAsOf);
+  return {
+    ...withConfidence(
+      belief,
+      belief.confidence * Math.pow(0.5, elapsed / policy.decayHalfLifeMs),
+      policy,
+    ),
+    confidenceAsOf: Math.max(belief.confidenceAsOf, now),
+  };
 };
 
-/** Lower a belief's confidence in response to contradicting evidence. */
-export const contradictBelief = (belief: Belief, policy: Policy): Belief =>
-  withConfidence(belief, belief.confidence * policy.contradictionFactor, policy);
+/** Lower a belief's confidence in response to contradicting evidence, as of `now`. */
+export const contradictBelief = (belief: Belief, now: number, policy: Policy): Belief => ({
+  ...withConfidence(belief, belief.confidence * policy.contradictionFactor, policy),
+  confidenceAsOf: now,
+});
 
 /** Whether a belief is strong and well-evidenced enough to drive a suggestion. */
 export const meetsEvidenceThreshold = (belief: Belief, policy: Policy): boolean =>
