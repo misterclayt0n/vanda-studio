@@ -1,7 +1,16 @@
 import type { ComponentType } from "react";
 import { UserButton, useUser } from "@clerk/tanstack-react-start";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Calendar, ChevronDown, LayoutGrid, RefreshCw, Sparkles, User } from "lucide-react";
+import { Calendar, ChevronsUpDown, LayoutGrid, Plus, RefreshCw, Sparkles, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@vanda-studio/ui/components/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -12,9 +21,8 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
+  useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
-import { VandaMark } from "./vanda-mark";
 
 type DashboardPath = "/" | "/automatico" | "/galeria" | "/calendario" | "/perfil";
 
@@ -54,37 +62,71 @@ function Home(props: { className?: string }) {
   );
 }
 
+const WORKSPACE = { name: "Café Lumiar", plan: "Plano Pro", initials: "CL" };
+
+function WorkspaceSwitcher() {
+  const { isMobile } = useSidebar();
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="gap-[9px] border border-[#261f28] bg-[#161117] px-2 transition-colors duration-200 hover:bg-[#1b1620] data-popup-open:bg-[#1b1620] group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
+              />
+            }
+          >
+            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-[7px] bg-[#2a2330] text-[11px] font-semibold text-[#ccc6cc]">
+              {WORKSPACE.initials}
+            </span>
+            <span className="grid flex-1 text-left leading-tight">
+              <span className="truncate text-[13px] font-semibold">{WORKSPACE.name}</span>
+              <span className="truncate text-[11px] text-vanda-muted-2">{WORKSPACE.plan}</span>
+            </span>
+            <ChevronsUpDown className="ml-auto size-4 text-vanda-muted-2" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="min-w-56 rounded-lg"
+            align="start"
+            side={isMobile ? "bottom" : "right"}
+            sideOffset={4}
+          >
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Negócios</DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2 p-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#2a2330] text-[10px] font-semibold text-[#ccc6cc]">
+                  {WORKSPACE.initials}
+                </span>
+                {WORKSPACE.name}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem className="gap-2 p-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border">
+                  <Plus className="size-4" />
+                </span>
+                <span className="font-medium text-muted-foreground">Adicionar negócio</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useUser();
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
-      <SidebarHeader className="gap-0 px-3 pt-4 group-data-[collapsible=icon]:px-2">
-        <div className="flex items-center justify-between gap-2 px-2 pb-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <Link to="/" className="flex items-center gap-[9px] group-data-[collapsible=icon]:hidden">
-            <VandaMark size={26} />
-            <span className="text-[13.5px] font-semibold tracking-[-0.018em]">
-              Vanda<span className="text-vanda-muted-2"> Studio</span>
-            </span>
-          </Link>
-          <SidebarTrigger className="size-7 shrink-0 text-vanda-muted-2 hover:text-sidebar-foreground" />
-        </div>
-
-        <button
-          type="button"
-          title="Café Lumiar"
-          className="mb-4 flex w-full items-center gap-[9px] rounded-[9px] border border-[#261f28] bg-[#161117] px-[9px] py-[7px] text-left transition-colors duration-200 hover:bg-[#1b1620] group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
-        >
-          <span className="flex size-[26px] shrink-0 items-center justify-center rounded-[7px] bg-[#2a2330] text-[11px] font-semibold text-[#ccc6cc]">
-            CL
-          </span>
-          <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <span className="block truncate text-[13px] font-semibold">Café Lumiar</span>
-            <span className="block text-[11px] text-vanda-muted-2">Plano Pro</span>
-          </span>
-          <ChevronDown className="size-[15px] text-vanda-muted-2 group-data-[collapsible=icon]:hidden" />
-        </button>
+      <SidebarHeader className="px-3 py-3 group-data-[collapsible=icon]:px-2">
+        <WorkspaceSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="px-3 group-data-[collapsible=icon]:px-2">

@@ -1,7 +1,11 @@
 import type { CSSProperties } from "react";
 import { RedirectToSignIn, Show } from "@clerk/tanstack-react-start";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { SidebarInset, SidebarProvider } from "@vanda-studio/ui/components/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@vanda-studio/ui/components/sidebar";
 import { TooltipProvider } from "@vanda-studio/ui/components/tooltip";
 import { AppSidebar } from "../components/app-sidebar";
 
@@ -20,6 +24,9 @@ function DashboardLayout() {
           <SidebarProvider style={{ "--sidebar-width": "15rem" } as CSSProperties}>
             <AppSidebar />
             <SidebarInset className="flex h-svh flex-col overflow-hidden bg-vanda-surface">
+              <header className="flex h-[72px] shrink-0 items-center px-3">
+                <SidebarTrigger className="size-7 text-vanda-muted-2 hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+              </header>
               <Outlet />
             </SidebarInset>
           </SidebarProvider>
