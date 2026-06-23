@@ -135,6 +135,9 @@ export default defineSchema({
     caption: v.string(),
     platform: v.string(),
     status: v.union(...postStatuses.map((status) => v.literal(status))),
+    // Provenance: the suggestion this post was composed from (created by the
+    // create stage; absent for manually uploaded / gallery-built posts).
+    suggestionId: v.optional(v.id("suggestions")),
     createdAt: v.number(),
   }).index("by_account", ["accountId"]),
 

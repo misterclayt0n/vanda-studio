@@ -12,6 +12,7 @@ import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
 import type * as consolidate from "../consolidate.js";
 import type * as consolidateAction from "../consolidateAction.js";
+import type * as create from "../create.js";
 import type * as crons from "../crons.js";
 import type * as instagramGraph from "../instagramGraph.js";
 import type * as instagramGraphActions from "../instagramGraphActions.js";
@@ -21,9 +22,11 @@ import type * as observeNode from "../observeNode.js";
 import type * as pipeline_cassette from "../pipeline/cassette.js";
 import type * as pipeline_consolidate from "../pipeline/consolidate.js";
 import type * as pipeline_constants from "../pipeline/constants.js";
+import type * as pipeline_create from "../pipeline/create.js";
 import type * as pipeline_discernment from "../pipeline/discernment.js";
 import type * as pipeline_domain from "../pipeline/domain.js";
 import type * as pipeline_liveConsolidate from "../pipeline/liveConsolidate.js";
+import type * as pipeline_liveCreate from "../pipeline/liveCreate.js";
 import type * as pipeline_liveMemory from "../pipeline/liveMemory.js";
 import type * as pipeline_liveModel from "../pipeline/liveModel.js";
 import type * as pipeline_liveObserve from "../pipeline/liveObserve.js";
@@ -35,6 +38,7 @@ import type * as pipeline_observe from "../pipeline/observe.js";
 import type * as pipeline_plan from "../pipeline/plan.js";
 import type * as pipeline_publish from "../pipeline/publish.js";
 import type * as pipeline_publisher from "../pipeline/publisher.js";
+import type * as pipeline_retrieval from "../pipeline/retrieval.js";
 import type * as pipeline_signals from "../pipeline/signals.js";
 import type * as pipeline_storage from "../pipeline/storage.js";
 import type * as pipeline_suggestions from "../pipeline/suggestions.js";
@@ -56,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "billing/autumn": typeof billing_autumn;
   consolidate: typeof consolidate;
   consolidateAction: typeof consolidateAction;
+  create: typeof create;
   crons: typeof crons;
   instagramGraph: typeof instagramGraph;
   instagramGraphActions: typeof instagramGraphActions;
@@ -65,9 +70,11 @@ declare const fullApi: ApiFromModules<{
   "pipeline/cassette": typeof pipeline_cassette;
   "pipeline/consolidate": typeof pipeline_consolidate;
   "pipeline/constants": typeof pipeline_constants;
+  "pipeline/create": typeof pipeline_create;
   "pipeline/discernment": typeof pipeline_discernment;
   "pipeline/domain": typeof pipeline_domain;
   "pipeline/liveConsolidate": typeof pipeline_liveConsolidate;
+  "pipeline/liveCreate": typeof pipeline_liveCreate;
   "pipeline/liveMemory": typeof pipeline_liveMemory;
   "pipeline/liveModel": typeof pipeline_liveModel;
   "pipeline/liveObserve": typeof pipeline_liveObserve;
@@ -79,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   "pipeline/plan": typeof pipeline_plan;
   "pipeline/publish": typeof pipeline_publish;
   "pipeline/publisher": typeof pipeline_publisher;
+  "pipeline/retrieval": typeof pipeline_retrieval;
   "pipeline/signals": typeof pipeline_signals;
   "pipeline/storage": typeof pipeline_storage;
   "pipeline/suggestions": typeof pipeline_suggestions;
@@ -116,4 +124,7 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  autumn: import("@useautumn/convex/_generated/component.js").ComponentApi<"autumn">;
+  workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
+};
