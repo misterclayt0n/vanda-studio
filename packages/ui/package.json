@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./assets/vanda-app-icon.svg": "./src/assets/vanda-app-icon.svg",
     "./assets/vanda-mark.svg": "./src/assets/vanda-mark.svg",
+    "./assets/vanda-logo.svg": "./src/assets/vanda-logo.svg",
     "./assets/vanda-mark-solid.svg": "./src/assets/vanda-mark-solid.svg",
     "./assets/vanda-mark-white.svg": "./src/assets/vanda-mark-white.svg",
     "./components/*": "./src/components/*.tsx",
