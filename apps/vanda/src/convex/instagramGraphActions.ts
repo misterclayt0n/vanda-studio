@@ -186,6 +186,10 @@ export const completeOAuth = action({
       ...(longToken.expires_in ? { tokenExpiresAt: Date.now() + longToken.expires_in * 1000 } : {}),
     });
 
+    // Bridge the connection into the pipeline: a business `accounts` row the
+    // observe cron can pick up. Idempotent, so reconnecting never duplicates.
+    await ctx.runMutation(internal.observe.promoteConnection, { connectionId: connection._id });
+
     return {
       connected: true,
       externalAccountId: connection.externalAccountId,

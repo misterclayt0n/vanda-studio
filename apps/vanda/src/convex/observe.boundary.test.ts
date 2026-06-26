@@ -13,18 +13,20 @@ const modules = import.meta.glob("./**/*.ts");
 describe("promoteConnection", () => {
   it("creates an account for a connection and is idempotent", async () => {
     const t = convexTest(schema, modules);
-    const connectionId = await t.run(async (ctx) => {
+    const { userId, connectionId } = await t.run(async (ctx) => {
       const now = Date.now();
       const userId = await ctx.db.insert("users", { name: "U", email: "u@e.com", clerkId: "c1" });
-      return ctx.db.insert("instagramConnections", {
+      const connectionId = await ctx.db.insert("instagramConnections", {
         userId,
         provider: "instagram_graph",
         status: "connected",
         externalAccountId: "ig1",
+        externalAccountName: "Café Lumiar",
         lastConnectedAt: now,
         createdAt: now,
         updatedAt: now,
       });
+      return { userId, connectionId };
     });
 
     const first = await t.mutation(internal.observe.promoteConnection, {
@@ -37,6 +39,8 @@ describe("promoteConnection", () => {
     const account = await t.run((ctx) => ctx.db.get(first));
     expect(account!.mode).toBe("auto");
     expect(account!.connectionId).toBe(connectionId);
+    expect(account!.ownerUserId).toBe(userId); // owner carried from the connection
+    expect(account!.name).toBe("Café Lumiar"); // name defaults to the IG account name
   });
 });
 

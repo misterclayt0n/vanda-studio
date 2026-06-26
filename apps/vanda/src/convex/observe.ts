@@ -41,12 +41,18 @@ export const promoteConnection = internalMutation({
     mode: v.optional(v.union(...accountModes.map((mode) => v.literal(mode)))),
   },
   handler: async (ctx, { connectionId, mode }) => {
-    const accounts = await ctx.db.query("accounts").collect();
-    const existing = accounts.find((account) => account.connectionId === connectionId);
-    if (existing !== undefined) return existing._id;
+    const existing = await ctx.db
+      .query("accounts")
+      .withIndex("by_connection", (q) => q.eq("connectionId", connectionId))
+      .first();
+    if (existing !== null) return existing._id;
+    const connection = await ctx.db.get(connectionId);
+    if (connection === null) throw new Error("connection not found");
     const now = Date.now();
     return ctx.db.insert("accounts", {
+      ownerUserId: connection.userId,
       connectionId,
+      ...(connection.externalAccountName ? { name: connection.externalAccountName } : {}),
       mode: mode ?? "needs_approval",
       createdAt: now,
       updatedAt: now,

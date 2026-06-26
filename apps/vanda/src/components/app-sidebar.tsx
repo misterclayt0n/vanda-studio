@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
 import {
   BadgeCheckIcon,
   Calendar,
@@ -34,6 +35,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@vanda-studio/ui/components/sidebar";
+import { api } from "../convex/_generated/api";
 
 type DashboardPath = "/" | "/automatico" | "/galeria" | "/calendario" | "/perfil";
 
@@ -73,10 +75,48 @@ function Home(props: { className?: string }) {
   );
 }
 
-const WORKSPACE = { name: "Café Lumiar", plan: "Plano Pro", initials: "CL" };
+const MODE_LABEL: Record<string, string> = {
+  auto: "Automático",
+  needs_approval: "Aprovação",
+  manual: "Manual",
+};
 
 function WorkspaceSwitcher() {
   const { isMobile } = useSidebar();
+  const navigate = useNavigate();
+  const accounts = useQuery(api.accounts.listMine);
+
+  // No business connected yet → point at setup (the Perfil/onboarding surface).
+  if (accounts !== undefined && accounts.length === 0) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="lg"
+            render={<Link to="/perfil" />}
+            className="gap-[9px] border border-border-strong bg-inset px-2 transition-colors duration-200 hover:bg-accent"
+          >
+            <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-sm border border-border-strong">
+              <Plus className="size-4 text-text-4" />
+            </span>
+            <span className="grid flex-1 text-left leading-tight">
+              <span className="truncate text-[13px] font-semibold">Configurar negócio</span>
+              <span className="truncate text-[11px] text-text-4">Conecte seu Instagram</span>
+            </span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  const active = accounts?.[0];
+  const name = active?.name ?? "Vanda Studio";
+  const initials = getInitials(name) || "VS";
+  const subtitle = active
+    ? active.handle
+      ? `@${active.handle}`
+      : (MODE_LABEL[active.mode] ?? active.mode)
+    : "Carregando...";
 
   return (
     <SidebarMenu>
@@ -91,11 +131,11 @@ function WorkspaceSwitcher() {
             }
           >
             <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-sm bg-border-strong text-[11px] font-semibold text-text-2">
-              {WORKSPACE.initials}
+              {initials}
             </span>
             <span className="grid flex-1 text-left leading-tight">
-              <span className="truncate text-[13px] font-semibold">{WORKSPACE.name}</span>
-              <span className="truncate text-[11px] text-text-4">{WORKSPACE.plan}</span>
+              <span className="truncate text-[13px] font-semibold">{name}</span>
+              <span className="truncate text-[11px] text-text-4">{subtitle}</span>
             </span>
             <ChevronsUpDown className="ml-auto size-4 text-text-4" />
           </DropdownMenuTrigger>
@@ -109,16 +149,21 @@ function WorkspaceSwitcher() {
               <DropdownMenuLabel className="text-xs text-muted-foreground">
                 Negócios
               </DropdownMenuLabel>
-              <DropdownMenuItem className="gap-2 p-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
-                  {WORKSPACE.initials}
-                </span>
-                {WORKSPACE.name}
-              </DropdownMenuItem>
+              {accounts?.map((account) => (
+                <DropdownMenuItem key={account.id} className="gap-2 p-2">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-border-strong text-[10px] font-semibold text-text-2">
+                    {getInitials(account.name) || "?"}
+                  </span>
+                  {account.name}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem className="gap-2 p-2">
+              <DropdownMenuItem
+                className="gap-2 p-2"
+                onClick={() => void navigate({ to: "/perfil" })}
+              >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md border">
                   <Plus className="size-4" />
                 </span>

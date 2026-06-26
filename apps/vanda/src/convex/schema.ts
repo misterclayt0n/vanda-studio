@@ -80,11 +80,20 @@ export default defineSchema({
   // consolidate. brandCanon / outcomes land with the stages that consume them.
 
   accounts: defineTable({
+    // The human who owns this business (set on promote from a connection). `orgId`
+    // is a reserved slot for if/when Clerk Organizations bring team access — nothing
+    // reads it today; ownership is the direct user link.
+    ownerUserId: v.optional(v.id("users")),
+    orgId: v.optional(v.string()),
+    // Display name override; defaults to the connected IG account name when unset.
+    name: v.optional(v.string()),
     connectionId: v.optional(v.id("instagramConnections")),
     mode: v.union(...accountModes.map((mode) => v.literal(mode))),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }),
+  })
+    .index("by_owner", ["ownerUserId"])
+    .index("by_connection", ["connectionId"]),
 
   beliefs: defineTable(beliefColumns).index("by_account_status", ["accountId", "status"]),
 
