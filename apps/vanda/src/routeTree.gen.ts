@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard.index'
@@ -23,6 +24,11 @@ import { Route as ApiIntegrationsInstagramCallbackRouteImport } from './routes/a
 const SsoCallbackRoute = SsoCallbackRouteImport.update({
   id: '/sso-callback',
   path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -74,6 +80,7 @@ const ApiIntegrationsInstagramCallbackRoute =
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
@@ -84,6 +91,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/automatico': typeof DashboardAutomaticoRoute
   '/calendario': typeof DashboardCalendarioRoute
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/_dashboard/automatico': typeof DashboardAutomaticoRoute
   '/_dashboard/calendario': typeof DashboardCalendarioRoute
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/onboarding'
     | '/sso-callback'
     | '/automatico'
     | '/calendario'
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/onboarding'
     | '/sso-callback'
     | '/automatico'
     | '/calendario'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_dashboard'
     | '/login'
+    | '/onboarding'
     | '/sso-callback'
     | '/_dashboard/automatico'
     | '/_dashboard/calendario'
@@ -146,6 +158,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
   InstagramCallbackRoute: typeof InstagramCallbackRoute
   ApiIntegrationsInstagramCallbackRoute: typeof ApiIntegrationsInstagramCallbackRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       path: '/sso-callback'
       fullPath: '/sso-callback'
       preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -249,6 +269,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
   SsoCallbackRoute: SsoCallbackRoute,
   InstagramCallbackRoute: InstagramCallbackRoute,
   ApiIntegrationsInstagramCallbackRoute: ApiIntegrationsInstagramCallbackRoute,

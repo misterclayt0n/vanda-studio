@@ -1,8 +1,8 @@
 import { Show, SignInButton } from "@clerk/tanstack-react-start";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Button } from "@vanda-studio/ui/components/button";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAction } from "convex/react";
 import { useEffect, useState } from "react";
+import { Button } from "@vanda-studio/ui/components/button";
 import { api } from "../convex/_generated/api";
 import { getInstagramRedirectUri } from "../instagramRedirect";
 
@@ -12,6 +12,7 @@ export const Route = createFileRoute("/instagram/callback")({
 
 export function InstagramCallbackRoute() {
   const completeOAuth = useAction(api.instagramGraphActions.completeOAuth);
+  const navigate = useNavigate();
   const [message, setMessage] = useState("Finalizando conexão com o Instagram...");
   const [error, setError] = useState<string | null>(null);
 
@@ -34,17 +35,17 @@ export function InstagramCallbackRoute() {
       state,
       redirectUri: getInstagramRedirectUri(),
     })
-      .then((result) => {
-        setMessage(
-          result.handle ? `Instagram @${result.handle} conectado.` : "Instagram conectado.",
-        );
+      .then(() => {
+        setMessage("Instagram conectado. Levando você pra Vanda…");
+        // The account now exists; onboarding resumes at the analyze step.
+        void navigate({ to: "/onboarding" });
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, [completeOAuth]);
+  }, [completeOAuth, navigate]);
 
   return (
-    <main className="grid min-h-svh place-items-center bg-background px-6">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center">
+    <main className="grid min-h-svh place-items-center bg-app px-6">
+      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 text-center">
         <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-4">Instagram</p>
         <Show when="signed-out">
           <h1 className="mt-3 text-[17px] font-semibold tracking-[-0.018em]">
@@ -60,18 +61,18 @@ export function InstagramCallbackRoute() {
         </Show>
         <Show when="signed-in">
           <h1 className="mt-3 text-[17px] font-semibold tracking-[-0.018em]">
-            {error ? "Falha na conexão." : "Status da conexão"}
+            {error ? "Falha na conexão." : "Conectando…"}
           </h1>
           <p
             className={`mx-auto mt-2 max-w-sm text-[13.5px] leading-[1.5] ${
-              error ? "text-destructive" : "text-muted-foreground"
+              error ? "text-destructive" : "text-text-3"
             }`}
           >
             {error ?? message}
           </p>
           <div className="mt-5 flex justify-center">
-            <Button variant="outline" size="lg" render={<Link to="/perfil" />}>
-              Ir para o perfil
+            <Button variant="outline" size="lg" render={<Link to="/onboarding" />}>
+              Continuar
             </Button>
           </div>
         </Show>
