@@ -19,6 +19,12 @@ export const brandCanonKinds = [
   "summary",
 ] as const;
 
+// Brand type Vanda proposes at onboarding: a place/product vs a person who IS the brand.
+export const brandKinds = ["negocio", "pessoal"] as const;
+
+// Image role: brand reference photos (owner uploads) vs post-bound media (create output).
+export const imagePurposes = ["reference", "post"] as const;
+
 export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
 export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;

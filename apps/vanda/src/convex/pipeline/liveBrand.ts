@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { BrandCorpus } from "./brand";
+import type { BrandCorpusResult } from "./brand";
 import { fetchAndDecode, type IgConfig } from "./igGraph";
 import type { SourceFetchFailed } from "./observe";
 
@@ -32,13 +32,21 @@ const IgCorpusMedia = Schema.Struct({
   ),
 });
 
+const IgTags = Schema.Struct({
+  data: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.String }))),
+});
+
 /**
  * Assemble the cold-start brand corpus: the profile facts plus the text of recent
- * posts and the comments under them. This is onboarding's read of the account —
- * `proposeBrandProfile` reasons over it. Tagged `"posts"` since it's the
- * account's own content; any fetch/shape failure surfaces as `SourceFetchFailed`.
+ * posts and the comments under them, and the presentation counts the Confirmar
+ * screen shows ("LI N POSTS · N COMENTÁRIOS · N MENÇÕES"). Profile/media are
+ * required (no content → can't analyze); the mentions count is best-effort —
+ * the tags endpoint is often permission-gated, so a failure there defaults to 0
+ * rather than aborting onboarding.
  */
-export const fetchBrandCorpus = (config: IgConfig): Effect.Effect<BrandCorpus, SourceFetchFailed> =>
+export const fetchBrandCorpus = (
+  config: IgConfig,
+): Effect.Effect<BrandCorpusResult, SourceFetchFailed> =>
   Effect.all({
     profile: fetchAndDecode(
       config,
@@ -54,21 +62,30 @@ export const fetchBrandCorpus = (config: IgConfig): Effect.Effect<BrandCorpus, S
       "caption,comments{text}",
       IgCorpusMedia,
     ),
+    mentions: fetchAndDecode(config, "mentions", `/${config.igUserId}/tags`, "id", IgTags).pipe(
+      Effect.map((tags) => (tags.data ?? []).length),
+      Effect.orElseSucceed(() => 0),
+    ),
   }).pipe(
-    Effect.map(({ profile, media }): BrandCorpus => {
+    Effect.map(({ profile, media, mentions }): BrandCorpusResult => {
       const items = media.data ?? [];
+      const comments = items.flatMap((m) =>
+        (m.comments?.data ?? []).flatMap((c) => (c.text !== undefined ? [c.text] : [])),
+      );
+      const captions = items.flatMap((m) => (m.caption !== undefined ? [m.caption] : []));
       return {
-        profile: {
-          name: profile.name,
-          username: profile.username,
-          biography: profile.biography,
-          accountType: profile.account_type,
-          mediaCount: profile.media_count,
+        corpus: {
+          profile: {
+            name: profile.name,
+            username: profile.username,
+            biography: profile.biography,
+            accountType: profile.account_type,
+            mediaCount: profile.media_count,
+          },
+          captions,
+          comments,
         },
-        captions: items.flatMap((m) => (m.caption !== undefined ? [m.caption] : [])),
-        comments: items.flatMap((m) =>
-          (m.comments?.data ?? []).flatMap((c) => (c.text !== undefined ? [c.text] : [])),
-        ),
+        stats: { posts: items.length, comments: comments.length, mentions },
       };
     }),
   );

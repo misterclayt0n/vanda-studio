@@ -38,6 +38,7 @@ const buildPrompt = (corpus: BrandCorpus): string =>
     "",
     "- identity: uma frase dizendo o que é o negócio (nome, categoria, lugar).",
     "- summary: 2 a 3 frases descrevendo a marca, escritas com a sua voz.",
+    "- kind: 'negocio' (lugar/produto) ou 'pessoal' (uma pessoa é a marca — o dono aparece nos posts).",
     "- voice: adjetivos do tom de voz da marca.",
     "- themes: assuntos recorrentes nos posts.",
     "- characters: personagens recorrentes (pessoas, pets, mascotes).",

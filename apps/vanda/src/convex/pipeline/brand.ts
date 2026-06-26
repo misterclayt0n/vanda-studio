@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { brandCanonKinds } from "./constants";
+import { brandCanonKinds, brandKinds } from "./constants";
 import { UnitInterval } from "./memory";
 
 /**
@@ -40,14 +40,30 @@ export const BrandGroup = Schema.Struct({
 export type BrandGroup = typeof BrandGroup.Type;
 
 /**
+ * The brand TYPE Vanda proposes — a place/product ("negocio") or a person who is
+ * the brand ("pessoal", e.g. the owner appears in the posts). The owner confirms
+ * or flips it; it sets `accounts.kind` and shapes how create generates.
+ */
+export const BrandKind = Schema.Literals(brandKinds);
+export type BrandKind = typeof BrandKind.Type;
+
+export const BrandKindCard = Schema.Struct({
+  value: BrandKind,
+  evidence: Schema.String,
+  confidence: UnitInterval,
+});
+export type BrandKindCard = typeof BrandKindCard.Type;
+
+/**
  * Vanda's structured read of a brand — the `generateObject` schema and the shape
- * the owner approves. `identity`/`voice`/`character`/`restriction`/`summary`
- * persist as `brandCanon`; `themes` seed the `themes` table and `opportunities`
- * seed the first `suggestions` (Vanda's first planned moves), so neither is canon.
+ * the owner approves. `identity`/`voice`/`character`/`restriction`/`summary` persist
+ * as `brandCanon`; `kind` sets the account's brand type; `themes` seed the `themes`
+ * table; `opportunities` are previews the planner later earns, so neither is canon.
  */
 export const BrandAnalysis = Schema.Struct({
   identity: BrandText,
   summary: BrandText,
+  kind: BrandKindCard,
   voice: BrandGroup,
   themes: BrandGroup,
   characters: BrandGroup,
@@ -74,4 +90,17 @@ export interface BrandCorpus {
   readonly profile: BrandProfileInfo;
   readonly captions: ReadonlyArray<string>;
   readonly comments: ReadonlyArray<string>;
+}
+
+/** Presentation counts for the "LI N POSTS · N COMENTÁRIOS · N MENÇÕES" trust line. */
+export interface CorpusStats {
+  readonly posts: number;
+  readonly comments: number;
+  readonly mentions: number;
+}
+
+/** What `fetchBrandCorpus` returns: the LLM corpus plus the counts the UI displays. */
+export interface BrandCorpusResult {
+  readonly corpus: BrandCorpus;
+  readonly stats: CorpusStats;
 }

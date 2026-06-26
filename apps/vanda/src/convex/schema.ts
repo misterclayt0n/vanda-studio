@@ -10,7 +10,9 @@ import {
 } from "./pipeline/storage";
 import {
   accountModes,
+  brandKinds,
   imageOrigins,
+  imagePurposes,
   postStatuses,
   postTypes,
   scheduledStatuses,
@@ -94,6 +96,8 @@ export default defineSchema({
     // Set by approveBrandProfile when the owner confirms the brand profile — the
     // onboarding gate. Unset means connected-but-not-yet-onboarded.
     onboardedAt: v.optional(v.number()),
+    // Brand type Vanda proposed and the owner confirmed at onboarding (negocio | pessoal).
+    kind: v.optional(v.union(...brandKinds.map((k) => v.literal(k)))),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -144,8 +148,13 @@ export default defineSchema({
     width: v.optional(v.number()),
     height: v.optional(v.number()),
     prompt: v.optional(v.string()),
+    // "reference" = an owner-uploaded brand reference photo (personal brands); absent
+    // means post-bound media written by create.
+    purpose: v.optional(v.union(...imagePurposes.map((p) => v.literal(p)))),
     createdAt: v.number(),
-  }).index("by_account", ["accountId"]),
+  })
+    .index("by_account", ["accountId"])
+    .index("by_storage", ["storageId"]),
 
   posts: defineTable({
     accountId: v.id("accounts"),

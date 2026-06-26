@@ -10,6 +10,7 @@ import {
 import * as Schema from "effect/Schema";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
+import { accountModes } from "./pipeline/constants";
 
 /** Resolve the caller's owned account or throw — the auth gate for every brand op. */
 async function requireOwnedAccount(ctx: QueryCtx | MutationCtx, accountId: Id<"accounts">) {
@@ -91,11 +92,15 @@ const canonFromGroup = (kind: BrandCanonKind, group: CanonGroup) =>
  * idempotent.
  */
 export const approveBrandProfile = mutation({
-  args: { accountId: v.id("accounts"), ...brandAnalysisArgs },
+  args: {
+    accountId: v.id("accounts"),
+    mode: v.union(...accountModes.map((m) => v.literal(m))),
+    ...brandAnalysisArgs,
+  },
   handler: async (ctx, args) => {
     const account = await requireOwnedAccount(ctx, args.accountId);
     if (account.onboardedAt !== undefined) throw new Error("account already onboarded");
-    const { accountId, ...rest } = args;
+    const { accountId, mode, ...rest } = args;
     // The public mutation's v.number() args don't enforce UnitInterval; decode against
     // the domain contract so an out-of-range confidence is rejected, not persisted.
     const analysis = Schema.decodeSync(BrandAnalysis)(rest);
@@ -143,7 +148,12 @@ export const approveBrandProfile = mutation({
       });
     }
 
-    await ctx.db.patch(accountId, { onboardedAt: now, updatedAt: now });
+    await ctx.db.patch(accountId, {
+      kind: analysis.kind.value,
+      mode,
+      onboardedAt: now,
+      updatedAt: now,
+    });
   },
 });
 
@@ -156,5 +166,94 @@ export const getBrandCanon = query({
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+  },
+});
+
+// --- Reference photos (brand reference images for personal brands) ----------
+
+/**
+ * A short-lived upload URL for a reference photo. Auth-gated; the uploaded file is
+ * linked to an account by `addReferencePhoto` once the client finishes the upload.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    return ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Link an uploaded file to an account as a brand reference photo (personal brands).
+ * Validates the upload exists and is unlinked first: a double-submit (or a reused
+ * id) would otherwise create rows sharing one blob, so removing one breaks the
+ * rest. Idempotent — relinking the same upload returns the existing row.
+ */
+export const addReferencePhoto = mutation({
+  args: {
+    accountId: v.id("accounts"),
+    storageId: v.id("_storage"),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+  },
+  handler: async (ctx, { accountId, storageId, width, height }) => {
+    await requireOwnedAccount(ctx, accountId);
+    // getUrl is null for an unknown/expired upload — reject before linking a dead id.
+    if ((await ctx.storage.getUrl(storageId)) === null) throw new Error("upload not found");
+    const existing = await ctx.db
+      .query("images")
+      .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+      .first();
+    if (existing !== null) return existing._id;
+    return ctx.db.insert("images", {
+      accountId,
+      origin: "uploaded",
+      purpose: "reference",
+      storageId,
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/** The owner's brand reference photos, with resolved URLs for display. */
+export const listReferencePhotos = query({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    await requireOwnedAccount(ctx, accountId);
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+    const references = images.filter((image) => image.purpose === "reference");
+    return Promise.all(
+      references.map(async (image) => ({
+        id: image._id,
+        url: image.storageId === undefined ? null : await ctx.storage.getUrl(image.storageId),
+      })),
+    );
+  },
+});
+
+/** Remove a reference photo the caller owns (deletes the row; the blob only when
+ *  no other image row still references it). */
+export const removeReferencePhoto = mutation({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, { imageId }) => {
+    const image = await ctx.db.get(imageId);
+    if (image === null || image.purpose !== "reference") {
+      throw new Error("reference photo not found");
+    }
+    await requireOwnedAccount(ctx, image.accountId);
+    await ctx.db.delete(imageId);
+    if (image.storageId !== undefined) {
+      const stillLinked = await ctx.db
+        .query("images")
+        .withIndex("by_storage", (q) => q.eq("storageId", image.storageId))
+        .first();
+      if (stillLinked === null) await ctx.storage.delete(image.storageId);
+    }
   },
 });

@@ -3,6 +3,7 @@ import {
   beliefKinds,
   beliefStatuses,
   brandCanonKinds,
+  brandKinds,
   momenta,
   postTypes,
   signalSources,
@@ -131,10 +132,17 @@ const brandGroupArg = v.object({
   confidence: v.number(),
 });
 
+const brandKindArg = v.object({
+  value: v.union(...brandKinds.map((k) => v.literal(k))),
+  evidence: v.string(),
+  confidence: v.number(),
+});
+
 /** The edited brand analysis the owner approves — the `approveBrandProfile` args. */
 export const brandAnalysisArgs = {
   identity: brandTextArg,
   summary: brandTextArg,
+  kind: brandKindArg,
   voice: brandGroupArg,
   themes: brandGroupArg,
   characters: brandGroupArg,

@@ -17,6 +17,11 @@ export const cafeLumiarAnalysis: BrandAnalysis = {
     evidence: "Síntese de 18 posts e 40 comentários",
     confidence: 0.9,
   },
+  kind: {
+    value: "negocio",
+    evidence: "Conta business de um lugar",
+    confidence: 0.85,
+  },
   voice: {
     items: ["acolhedor", "informal", "local", "afetuoso com pets"],
     evidence: "Detectado em 18 posts",
