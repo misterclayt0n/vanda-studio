@@ -7,6 +7,18 @@ export const beliefStatuses = ["active", "decaying", "retired"] as const;
 export const momenta = ["rising", "steady", "falling"] as const;
 export const accountModes = ["auto", "needs_approval", "manual"] as const;
 
+// Brand canon — the owner-confirmed stable identity (output of onboarding's
+// approve). `identity`/`summary` are single rows; `voice`/`character`/`restriction`
+// are multi. Themes and opportunities shown at onboarding are NOT canon: on
+// approve they materialize into `themes` / `suggestions`, never brandCanon.
+export const brandCanonKinds = [
+  "identity",
+  "voice",
+  "character",
+  "restriction",
+  "summary",
+] as const;
+
 export const imageOrigins = ["generated", "uploaded", "gallery"] as const;
 export const postTypes = ["feed", "reel", "story", "tweet", "image"] as const;
 export const postStatuses = ["draft", "ready", "scheduled", "published"] as const;

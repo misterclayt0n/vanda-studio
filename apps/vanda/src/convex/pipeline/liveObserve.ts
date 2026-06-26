@@ -5,16 +5,10 @@ import * as Schema from "effect/Schema";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
-import type { RawSignal, SignalSource } from "./domain";
-import { type SourceAdapter, SourceFetchFailed } from "./observe";
+import type { RawSignal } from "./domain";
+import { fetchAndDecode, type IgConfig, parseTimestamp } from "./igGraph";
+import type { SourceAdapter } from "./observe";
 import { Signals, type SignalsShape } from "./signals";
-
-const GRAPH_BASE = "https://graph.instagram.com/v23.0";
-
-interface IgConfig {
-  readonly igUserId: string;
-  readonly token: string;
-}
 
 // --- Graph response schemas (decoded, not cast) ---------------------------
 
@@ -49,44 +43,6 @@ const IgTagsResponse = Schema.Struct({
     ),
   ),
 });
-
-const parseTimestamp = (timestamp: string | undefined): number => {
-  if (timestamp === undefined) return Date.now();
-  const parsed = Date.parse(timestamp);
-  return Number.isNaN(parsed) ? Date.now() : parsed;
-};
-
-const graphFetch = (config: IgConfig, path: string, fields: string): Promise<unknown> => {
-  const query = new URLSearchParams({ fields, limit: "25", access_token: config.token });
-  return fetch(`${GRAPH_BASE}${path}?${query.toString()}`).then(async (response) => {
-    if (!response.ok) throw new Error(`graph ${path} -> HTTP ${response.status}`);
-    return response.json();
-  });
-};
-
-const fetchAndDecode = <A>(
-  config: IgConfig,
-  source: SignalSource,
-  path: string,
-  fields: string,
-  schema: Schema.Codec<A, unknown>,
-): Effect.Effect<A, SourceFetchFailed> =>
-  Effect.tryPromise({
-    try: () => graphFetch(config, path, fields),
-    catch: (error) =>
-      new SourceFetchFailed({
-        source,
-        message: error instanceof Error ? error.message : String(error),
-      }),
-  }).pipe(
-    Effect.flatMap((json) =>
-      Schema.decodeUnknownEffect(schema)(json).pipe(
-        Effect.mapError(
-          (error) => new SourceFetchFailed({ source, message: `decode failed: ${error}` }),
-        ),
-      ),
-    ),
-  );
 
 /** Recent comments across the account's recent media. */
 export const igCommentsAdapter = (config: IgConfig): SourceAdapter => ({

@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
   beliefColumns,
+  brandCanonColumns,
   memoryNoteColumns,
   signalColumns,
   suggestionColumns,
@@ -77,7 +78,8 @@ export default defineSchema({
   // ----- Memory model (persistence projection of pipeline/memory.ts) -----
   // Account-scoped tables for the discernment core. `accounts` is populated by
   // promoteConnection (observe.ts); beliefs/themes/memoryNotes are written by
-  // consolidate. brandCanon / outcomes land with the stages that consume them.
+  // consolidate; brandCanon by onboarding's approve. outcomes land with the
+  // stage that consumes them.
 
   accounts: defineTable({
     // The human who owns this business (set on promote from a connection). `orgId`
@@ -89,6 +91,9 @@ export default defineSchema({
     name: v.optional(v.string()),
     connectionId: v.optional(v.id("instagramConnections")),
     mode: v.union(...accountModes.map((mode) => v.literal(mode))),
+    // Set by approveBrandProfile when the owner confirms the brand profile — the
+    // onboarding gate. Unset means connected-but-not-yet-onboarded.
+    onboardedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -115,6 +120,11 @@ export default defineSchema({
 
   // The consolidation journal: one reflection note per pass, newest-first by account.
   memoryNotes: defineTable(memoryNoteColumns).index("by_account", ["accountId"]),
+
+  // Brand canon (output of onboarding's approve): the owner-confirmed stable
+  // identity — one editable row per fact. Confirmed canon grounds create's RAG
+  // corpus (create.brandCorpus); the "what Vanda knows" panel reads it too.
+  brandCanon: defineTable(brandCanonColumns).index("by_account", ["accountId"]),
 
   // Suggestions (plan stage): composed post ideas with control status + provenance.
   // Rejected candidates are kept (status "rejected" + rejectionReason) for inspectable autonomy.

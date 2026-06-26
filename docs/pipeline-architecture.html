@@ -1234,10 +1234,11 @@
           is imported history — observation input). Add the pipeline core and the memory layer.
         </p>
         <pre><code><span class="tok-c">// account-level autonomy knob</span>
-<span class="tok-n">accounts</span>: { connectionId, mode: <span class="tok-s">"auto" | "needs_approval" | "manual"</span>, brandProfileId }
+<span class="tok-n">accounts</span>: { connectionId, ownerUserId, name?, mode: <span class="tok-s">"auto" | "needs_approval" | "manual"</span>, onboardedAt? }
 
 <span class="tok-c">// ---------- MEMORY (the moat) ----------</span>
-<span class="tok-n">brandCanon</span>: { accountId, kind, text, weight, confirmedByOwner: <span class="tok-t">boolean</span> }
+<span class="tok-n">brandCanon</span>: { accountId, kind: <span class="tok-s">"identity"|"voice"|"character"|"restriction"|"summary"</span>,
+             text, evidence?, confidence?, confirmedByOwner: <span class="tok-t">boolean</span>, createdAt }  <span class="tok-c">// output of onboarding's approve</span>
 <span class="tok-n">beliefs</span>:    { accountId, statement, kind, confidence, evidenceCount,
              supportingSignalIds, firstSeenAt, lastReinforcedAt,
              status: <span class="tok-s">"active" | "decaying" | "retired"</span>, themeId? }

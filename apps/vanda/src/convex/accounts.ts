@@ -33,6 +33,7 @@ export const listMine = query({
           mode: account.mode,
           handle: connection?.handle ?? null,
           connected: connection?.status === "connected",
+          onboardedAt: account.onboardedAt ?? null,
         };
       }),
     );

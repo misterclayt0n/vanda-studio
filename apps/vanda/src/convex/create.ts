@@ -66,13 +66,18 @@ export const loadCreatableSuggestion = internalQuery({
 });
 
 /**
- * The RAG corpus: the account's held belief statements (brand knowledge) plus
- * its themes rendered as a voice summary. The live Retrieval layer ranks these
- * against the suggestion to build a context bundle.
+ * The RAG corpus: the owner-confirmed brand canon (identity, voice, characters,
+ * restrictions) plus the account's held belief statements, with themes rendered
+ * as a voice summary. The live Retrieval layer ranks these against the suggestion
+ * to build a context bundle — so confirmed brand identity grounds every caption.
  */
 export const brandCorpus = internalQuery({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<{ statements: string[]; themeSummary: string }> => {
+    const canon = await ctx.db
+      .query("brandCanon")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
     const beliefs = await ctx.db
       .query("beliefs")
       .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
@@ -82,7 +87,10 @@ export const brandCorpus = internalQuery({
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
     return {
-      statements: beliefs.filter((b) => b.status !== "retired").map((b) => b.statement),
+      statements: [
+        ...canon.filter((c) => c.confirmedByOwner).map((c) => c.text),
+        ...beliefs.filter((b) => b.status !== "retired").map((b) => b.statement),
+      ],
       themeSummary: themes.map((t) => `${t.name}: ${t.summary}`).join("; "),
     };
   },
