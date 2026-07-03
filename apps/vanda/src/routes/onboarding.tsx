@@ -52,10 +52,10 @@ function OnboardingLoading() {
 function OnboardingFlow() {
   const accounts = useQuery(api.accounts.listMine);
   if (accounts === undefined) return <OnboardingLoading />;
-  if (accounts.some((account) => account.onboardedAt !== null)) {
+  if (accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/automatico" />;
   }
-  const pending = accounts.find((account) => account.onboardedAt === null);
+  const pending = accounts.find((account) => account.onboardedAt == null);
   return pending === undefined ? <ConnectStep /> : <AnalyzeFlow accountId={pending.id} />;
 }
 

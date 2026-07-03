@@ -37,7 +37,7 @@ function DashboardLayout() {
 function DashboardGate() {
   const accounts = useQuery(api.accounts.listMine);
   if (accounts === undefined) return <div className="min-h-svh bg-app" />;
-  if (!accounts.some((account) => account.onboardedAt !== null)) {
+  if (!accounts.some((account) => account.onboardedAt != null)) {
     return <Navigate to="/onboarding" />;
   }
   return (

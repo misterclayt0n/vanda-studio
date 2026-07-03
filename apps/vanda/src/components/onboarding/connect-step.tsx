@@ -19,7 +19,11 @@ export function ConnectStep() {
   async function connect() {
     setStatus("connecting");
     try {
-      const { url } = await getConnectUrl({ redirectUri: getInstagramRedirectUri() });
+      const redirectUri = getInstagramRedirectUri();
+      if (import.meta.env.DEV) {
+        console.info("[instagram oauth] redirect_uri", redirectUri);
+      }
+      const { url } = await getConnectUrl({ redirectUri });
       window.location.href = url;
     } catch {
       setStatus("error");

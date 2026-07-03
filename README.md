@@ -35,7 +35,8 @@ Set local app variables in the repo root `.env.local`. `apps/vanda/vite.config.t
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: Instagram app credentials.
 - `INSTAGRAM_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt stored Instagram tokens.
 - `VITE_APP_ORIGIN`: Public app origin. Production uses `https://app.vandastudio.app`.
-- `VITE_INSTAGRAM_REDIRECT_URI`: Optional exact OAuth redirect URI to send to Meta.
+- `VITE_INSTAGRAM_REDIRECT_URI`: Optional exact OAuth redirect URI to send to Meta when
+  running from `localhost`.
 
 Convex-side secrets should also be configured in the Convex deployment when needed.
 
@@ -53,13 +54,22 @@ Production uses the app subdomain:
 https://app.vandastudio.app/api/integrations/instagram/callback
 ```
 
-For local OAuth testing, use a stable public HTTPS URL that is listed in Meta, then set:
+For local OAuth testing, use a public HTTPS URL that is listed in Meta. If you open the app
+through a Cloudflare/ngrok tunnel, the app uses that tunnel origin automatically:
+
+```text
+https://your-tunnel.example.com/api/integrations/instagram/callback
+```
+
+If you open the app through `localhost`, set the callback explicitly:
 
 ```bash
 VITE_INSTAGRAM_REDIRECT_URI=https://your-stable-dev-url.example.com/api/integrations/instagram/callback
 ```
 
-Random tunnel URLs work only until the hostname changes. Prefer a named Cloudflare tunnel or a stable preview/dev URL.
+Restart the Vite dev server after changing `.env.local`; Vite inlines `VITE_*` values at
+server start. Random tunnel URLs work only until the hostname changes. Prefer a named
+Cloudflare tunnel or a stable preview/dev URL.
 
 ## Checks
 
