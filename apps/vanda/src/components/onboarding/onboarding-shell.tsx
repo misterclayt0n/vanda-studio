@@ -40,7 +40,7 @@ export function StepIndicator({ current }: { current: OnboardingStep }) {
               <StatusRing state={state} />
               <span
                 className={cn(
-                  "font-mono text-[10.5px] uppercase tracking-[0.16em]",
+                  "text-[12px]",
                   state === "active"
                     ? "text-text-2"
                     : state === "done"
@@ -82,7 +82,7 @@ export function OnboardingSplit({
         <div className="flex flex-1 flex-col justify-center py-10">
           <div className="w-full max-w-[420px]">{children}</div>
         </div>
-        <p className="font-mono text-[11px] tracking-[0.04em] text-text-5">© 2026 Vanda Studio</p>
+        <p className="text-[11.5px] text-text-5">© 2026 Vanda Studio</p>
       </div>
 
       <div className="relative hidden flex-1 items-center justify-center overflow-hidden bg-inset lg:flex">
@@ -90,13 +90,9 @@ export function OnboardingSplit({
           <OrchidAperture />
         </div>
         <div className="absolute right-8 bottom-8 text-right">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-4">
-            {aperture.caption}
-          </p>
+          <p className="text-[12.5px] text-text-4">{aperture.caption}</p>
           {aperture.sub ? (
-            <p className="mt-1 font-mono text-[10.5px] tracking-[0.04em] text-text-6">
-              {aperture.sub}
-            </p>
+            <p className="mt-1 text-[11.5px] text-text-5">{aperture.sub}</p>
           ) : null}
         </div>
       </div>

@@ -58,7 +58,7 @@ export function ModeStep({ busy, onFinish }: { busy: boolean; onFinish: (mode: M
               <span className="flex items-center gap-2">
                 <span className="text-[14px] font-medium text-text">{option.label}</span>
                 {option.recommended ? (
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-brand-accent">
+                  <span className="rounded-sm bg-brand-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-brand-accent">
                     Recomendado
                   </span>
                 ) : null}

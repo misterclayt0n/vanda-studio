@@ -1,6 +1,6 @@
 import { type ReactNode, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowRight, Plus, Sparkles, X } from "lucide-react";
+import { ArrowRight, Plus, X } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Input } from "@vanda-studio/ui/components/input";
 import { cn } from "@vanda-studio/ui/lib/utils";
@@ -9,52 +9,18 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { OnboardingHeader, StepIndicator } from "./onboarding-shell";
 import type { BrandKindValue, CorpusStats, EditableAnalysis, GroupKey } from "./types";
 
-// --- Confidence ------------------------------------------------------------
+// --- Field scaffold --------------------------------------------------------
 
-function confidenceTone(confidence: number): { label: string; className: string } {
-  if (confidence >= 0.75) return { label: "Confiança alta", className: "text-green" };
-  if (confidence >= 0.45) return { label: "Confiança média", className: "text-amber" };
-  return { label: "Confiança baixa", className: "text-peri" };
-}
-
-function ConfidenceDot({ confidence }: { confidence: number }) {
-  const { label, className } = confidenceTone(confidence);
+/**
+ * A single editable row: a quiet label, then the control. The whole step is just
+ * a stack of these separated by hairlines — dense but calm, Linear-style. No
+ * confidence dots, no evidence lines, no helper noise: the control is the field.
+ */
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.12em]",
-        className,
-      )}
-    >
-      <span className="size-1.5 rounded-full bg-current" />
-      {label}
-    </span>
-  );
-}
-
-// --- Section scaffold ------------------------------------------------------
-
-function Section({
-  label,
-  confidence,
-  evidence,
-  children,
-}: {
-  label: string;
-  confidence: number;
-  evidence?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-t border-border pt-6">
-      <div className="flex items-center justify-between gap-4">
-        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-5">
-          {label}
-        </span>
-        <ConfidenceDot confidence={confidence} />
-      </div>
-      <div className="mt-3">{children}</div>
-      {evidence ? <p className="mt-2 font-mono text-[11px] text-text-5">{evidence}</p> : null}
+    <div className="mt-5 border-t border-border pt-5">
+      <span className="text-[13px] font-medium text-text-2">{label}</span>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
@@ -115,7 +81,7 @@ function ChipEditor({
               setAdding(false);
             }
           }}
-          className="h-[28px] w-28 rounded-md border border-border-strong bg-transparent px-2 text-[13px] text-text transition-colors outline-none placeholder:text-text-5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+          className="h-[28px] w-28 rounded-md border border-border-strong bg-transparent px-2 text-[13px] text-text-2 transition-colors outline-none placeholder:text-text-5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
         />
       ) : (
         <button
@@ -253,11 +219,11 @@ function ReferencePhotos({ accountId }: { accountId: Id<"accounts"> }) {
 // --- The step --------------------------------------------------------------
 
 /**
- * Step 3 — the centerpiece. Vanda shows what she understood as a calm, editorial
- * summary (not a form): a hero paragraph, then facts grouped by certainty, the
- * brand type she proposes (with the reference-photo ask for personal brands), and
- * a forward-looking opportunities preview. Everything is editable in place; the
- * whole edited analysis is held client-side and committed at "Começar".
+ * Step 3 — Vanda shows what she understood. A calm, single-column form: a short
+ * intro, the summary as an obvious input, then each fact as a plain labeled
+ * field. Confidence/evidence stay in the data (the schema validates them) but
+ * aren't shown — they're signal for Vanda, not chrome for the owner. Everything
+ * is held client-side and committed at "Começar" (step 4).
  */
 export function ConfirmStep({
   accountId,
@@ -286,72 +252,48 @@ export function ConfirmStep({
         <StepIndicator current="confirmar" />
       </header>
 
-      <div className="mx-auto w-full max-w-[680px] flex-1 overflow-y-auto px-6 pt-8 pb-10">
+      <div className="mx-auto w-full max-w-[680px] flex-1 overflow-y-auto px-6 pt-10 pb-12">
         <h1 className="text-[26px] font-semibold tracking-[-0.025em]">
           Confirme o que a Vanda entendeu.
         </h1>
-        <p className="mt-2 text-[14.5px] text-text-3">
-          Tudo abaixo é editável. A Vanda aprende com o que você corrige.
-        </p>
-        <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-text-5">
-          Li {stats.posts} posts · {stats.comments} comentários · {stats.mentions} menções
+        <p className="mt-2 text-[14px] leading-[1.55] text-text-3">
+          A Vanda leu {stats.posts} posts, {stats.comments} comentários e {stats.mentions} menções.
+          Ajuste o que precisar — o resto você refine depois no Perfil.
         </p>
 
-        {/* Hero summary — Vanda speaking */}
-        <div className="mt-7">
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-5">
-              Em poucas palavras
-            </span>
-            <ConfidenceDot confidence={draft.summary.confidence} />
-          </div>
+        {/* Resumo — the hero, as an obvious input */}
+        <div className="mt-7 border-t border-border pt-5">
+          <span className="text-[13px] font-medium text-text-2">Resumo</span>
           <textarea
             value={draft.summary.text}
-            rows={3}
-            aria-label="Resumo da Vanda"
+            rows={5}
+            aria-label="Resumo"
             onChange={(event) => setText("summary", event.target.value)}
-            className="mt-3 -mx-3 w-[calc(100%+1.5rem)] resize-none rounded-lg bg-transparent px-3 py-2 text-[17px] leading-[1.55] text-text-2 transition-colors duration-150 ease-[var(--ease-out)] outline-none focus-visible:bg-inset focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="mt-2 w-full resize-y rounded-lg border border-border bg-inset px-3.5 py-3 text-[17px] leading-[1.6] text-text-2 outline-none transition-colors duration-150 ease-[var(--ease-out)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           />
-          <p className="mt-1 font-mono text-[11px] text-text-5">
-            Resumo da Vanda · clique para editar
-          </p>
         </div>
 
-        {/* O que sei — high confidence */}
-        <Section
-          label="Identidade"
-          confidence={draft.identity.confidence}
-          evidence={draft.identity.evidence}
-        >
+        <Field label="Identidade">
           <Input
             aria-label="Identidade"
             value={draft.identity.text}
             onChange={(event) => setText("identity", event.target.value)}
+            className="h-10 border-border bg-inset px-3.5 text-[15px] text-text-2 md:text-[15px] dark:bg-inset focus-visible:ring-ring/30"
           />
-        </Section>
+        </Field>
 
-        <Section
-          label="Tom de voz"
-          confidence={draft.voice.confidence}
-          evidence={draft.voice.evidence}
-        >
+        <Field label="Tom de voz">
           <ChipEditor
             label="Tom de voz"
             items={draft.voice.items}
             onChange={(items) => setGroup("voice", items)}
           />
-        </Section>
+        </Field>
 
-        {/* Tipo de marca — Vanda proposes, owner confirms */}
-        <div className="border-t border-border pt-6">
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-5">
-              Tipo de marca
-            </span>
-            <ConfidenceDot confidence={draft.kind.confidence} />
-          </div>
+        <div className="mt-5 border-t border-border pt-5">
+          <span className="text-[13px] font-medium text-text-2">Tipo de marca</span>
           <div
-            className="mt-3 grid grid-cols-2 gap-2.5"
+            className="mt-2 grid grid-cols-2 gap-2.5"
             role="radiogroup"
             aria-label="Tipo de marca"
           >
@@ -375,63 +317,29 @@ export function ConfirmStep({
           {draft.kind.value === "pessoal" ? <ReferencePhotos accountId={accountId} /> : null}
         </div>
 
-        {/* O que imagino — lower confidence, more tentative */}
-        <Section
-          label="Temas recorrentes"
-          confidence={draft.themes.confidence}
-          evidence={draft.themes.evidence}
-        >
+        <Field label="Temas recorrentes">
           <ChipEditor
             label="Temas recorrentes"
             items={draft.themes.items}
             onChange={(items) => setGroup("themes", items)}
           />
-        </Section>
+        </Field>
 
-        <Section
-          label="Personagens"
-          confidence={draft.characters.confidence}
-          evidence={draft.characters.evidence}
-        >
+        <Field label="Personagens">
           <ChipEditor
             label="Personagens"
             items={draft.characters.items}
             onChange={(items) => setGroup("characters", items)}
           />
-        </Section>
+        </Field>
 
-        <Section
-          label="Restrições"
-          confidence={draft.restrictions.confidence}
-          evidence={draft.restrictions.evidence}
-        >
+        <Field label="Restrições">
           <ChipEditor
             label="Restrições"
             items={draft.restrictions.items}
             onChange={(items) => setGroup("restrictions", items)}
           />
-        </Section>
-
-        {/* Opportunities — a forward-looking preview, not a confirmed fact */}
-        <div className="mt-6 border-t border-border pt-6">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-3.5 text-brand-accent" />
-            <span className="text-[14px] font-medium text-text">E é por aqui que eu começaria</span>
-          </div>
-          <p className="mt-1 text-[13px] leading-[1.5] text-text-4">
-            Não é parte do seu perfil — são os primeiros movimentos que a Vanda planeja.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {draft.opportunities.items.map((item) => (
-              <span
-                key={item}
-                className="rounded-md border border-border bg-inset px-2.5 py-1 text-[13px] text-text-2"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
+        </Field>
       </div>
 
       <div className="shrink-0 border-t border-border bg-app">
@@ -440,7 +348,7 @@ export function ConfirmStep({
             Continuar
             <ArrowRight />
           </Button>
-          <span className="text-[13px] text-text-4">Você pode ajustar tudo depois, no Perfil.</span>
+          <span className="text-[13px] text-text-4">Ajuste o resto depois, no Perfil.</span>
         </div>
       </div>
     </div>

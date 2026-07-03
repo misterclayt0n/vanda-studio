@@ -63,9 +63,7 @@ export function ConnectStep() {
           </button>
         </p>
       ) : (
-        <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-text-5">
-          Conexão segura · você controla tudo
-        </p>
+        <p className="mt-3 text-[12px] text-text-5">Conexão segura · você controla tudo</p>
       )}
     </OnboardingSplit>
   );
