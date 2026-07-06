@@ -5,13 +5,115 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
 import { correctBeliefImpl, markSignalNoiseImpl } from "./steer";
-import { signalSources } from "./pipeline/constants";
 
 // ============================================================================
 // The public app-API for the Automático screen. Everything is auth-gated on the
 // caller owning the account; the pipeline internals (observe/plan/create/steer)
 // stay internal — this is the thin read + control surface the board renders.
 // ============================================================================
+
+type PostType = Doc<"posts">["type"];
+type SuggestionStatus = Doc<"suggestions">["status"];
+type SignalSource = Doc<"signals">["source"];
+type ScheduledStatus = Doc<"scheduledPosts">["status"];
+type BeliefKind = Doc<"beliefs">["kind"];
+
+/** The belief a card cites, projected to what a chip needs. */
+export interface PlanBelief {
+  statement: string;
+  confidence: number;
+}
+
+/** A suggestion projected to the plan-card the board renders. */
+export interface PlanCard {
+  id: Id<"suggestions">;
+  title: string;
+  rationale: string;
+  format: PostType | null;
+  themeName: string;
+  status: SuggestionStatus;
+  requiresApproval: boolean;
+  progress: number | null;
+  belief: PlanBelief | null;
+  createdAt: number;
+}
+
+/** A scheduled post projected to the Agendado card. */
+export interface ScheduledCard {
+  id: Id<"scheduledPosts">;
+  title: string;
+  format: PostType | null;
+  scheduledFor: number;
+  status: ScheduledStatus;
+  belief: PlanBelief | null;
+}
+
+/** The board: suggestions partitioned by control status + the calendar's next posts. */
+export interface AutomaticoBoard {
+  needsYou: PlanCard[];
+  creating: PlanCard[];
+  pool: PlanCard[];
+  scheduled: ScheduledCard[];
+}
+
+/** A notable signal shown in the Observando rail. */
+export interface NotableSignal {
+  id: Id<"signals">;
+  source: SignalSource;
+  text: string;
+  authorHandle: string | null;
+  permalink: string | null;
+  observedAt: number;
+  salience: number | null;
+}
+
+/** How a learned belief cashes out — the "→ 1 ideia / → agenda / → precisa de você" hint. */
+export type LearnedHint = "idea" | "agenda" | "needs_you" | null;
+
+/** A belief in "O que aprendi", with the count behind it and how it cashes out. */
+export interface LearnedBelief {
+  id: Id<"beliefs">;
+  statement: string;
+  confidence: number;
+  kind: BeliefKind;
+  signalCount: number;
+  hint: LearnedHint;
+}
+
+/** The Observando rail snapshot. */
+export interface ObservingSnapshot {
+  totalToday: number;
+  notable: NotableSignal[];
+  routineCount: number;
+  learned: LearnedBelief[];
+}
+
+/** A supporting signal in the lineage panel. */
+export interface LineageSignal {
+  id: Id<"signals">;
+  text: string;
+  authorHandle: string | null;
+  permalink: string | null;
+  source: SignalSource;
+  salience: number | null;
+  noise: boolean;
+}
+
+/** The primary belief behind an idea, in the lineage panel. */
+export interface LineageBelief {
+  id: Id<"beliefs">;
+  statement: string;
+  confidence: number;
+  kind: BeliefKind;
+}
+
+/** The reasoning behind one idea: its belief, the signals that sustain it, the rest. */
+export interface Lineage {
+  suggestion: { id: Id<"suggestions">; title: string };
+  belief: LineageBelief | null;
+  salientSignals: LineageSignal[];
+  discardedCount: number;
+}
 
 /** Map an account's beliefs by their statement — the provenance key suggestions cite. */
 const beliefsByStatement = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
@@ -23,7 +125,7 @@ const beliefsByStatement = async (ctx: QueryCtx, accountId: Id<"accounts">) => {
 };
 
 /** A suggestion projected to the plan-card shape the board renders. */
-const toPlanCard = (s: Doc<"suggestions">, beliefs: Map<string, Doc<"beliefs">>) => {
+const toPlanCard = (s: Doc<"suggestions">, beliefs: Map<string, Doc<"beliefs">>): PlanCard => {
   const primary = s.beliefStatements[0];
   const belief = primary ? beliefs.get(primary) : undefined;
   return {
@@ -51,7 +153,7 @@ const toPlanCard = (s: Doc<"suggestions">, beliefs: Map<string, Doc<"beliefs">>)
  */
 export const board = query({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
+  handler: async (ctx, { accountId }): Promise<AutomaticoBoard> => {
     await requireOwnedAccount(ctx, accountId);
     const beliefs = await beliefsByStatement(ctx, accountId);
 
@@ -70,7 +172,7 @@ export const board = query({
       .withIndex("by_account_scheduledFor", (q) => q.eq("accountId", accountId))
       .order("asc")
       .collect();
-    const scheduled = await Promise.all(
+    const scheduled: ScheduledCard[] = await Promise.all(
       scheduledRows
         .filter((r) => r.status !== "published" && r.status !== "failed")
         .map(async (r) => {
@@ -93,8 +195,7 @@ export const board = query({
   },
 });
 
-/** How a learned belief cashes out — drives the "→ 1 ideia / → agenda / → precisa de você" hint. */
-type LearnedHint = "idea" | "agenda" | "needs_you" | null;
+/** How a learned belief cashes out — reads the suggestions that cite its statement. */
 const hintFor = (statement: string, suggestions: Doc<"suggestions">[]): LearnedHint => {
   const citing = suggestions.filter((s) => s.beliefStatements.includes(statement));
   if (citing.some((s) => s.status === "scheduled")) return "agenda";
@@ -104,13 +205,13 @@ const hintFor = (statement: string, suggestions: Doc<"suggestions">[]): LearnedH
 };
 
 /**
- * The Observando rail: the raw context Vanda watches (signals grouped by source,
- * latest + count) and "O que aprendi" — the strongest live beliefs with the
- * count of signals behind each and how it cashes out.
+ * The Observando rail: the notable recent signals Vanda watched (salient-first,
+ * each tagged by source), the count of routine signals folded away, and "O que
+ * aprendi" — the strongest live beliefs with the count behind each + how it cashes out.
  */
 export const observing = query({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }) => {
+  handler: async (ctx, { accountId }): Promise<ObservingSnapshot> => {
     await requireOwnedAccount(ctx, accountId);
     const recent = await ctx.db
       .query("signals")
@@ -121,22 +222,21 @@ export const observing = query({
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const totalToday = recent.filter((s) => s.observedAt >= dayAgo).length;
 
-    const sources = signalSources.map((source) => {
-      const forSource = recent.filter((s) => s.source === source && s.noise !== true);
-      const latest = forSource[0];
-      return {
-        source,
-        count: forSource.length,
-        latest: latest
-          ? {
-              text: latest.text,
-              authorHandle: latest.authorHandle ?? null,
-              permalink: latest.permalink ?? null,
-              observedAt: latest.observedAt,
-            }
-          : null,
-      };
-    });
+    // The rail surfaces the salient few; the rest fold into "+N rotineiros".
+    const live = recent.filter((s) => s.noise !== true);
+    const notable: NotableSignal[] = [...live]
+      .sort((a, b) => (b.salience ?? 0) - (a.salience ?? 0))
+      .slice(0, 5)
+      .map((s) => ({
+        id: s._id,
+        source: s.source,
+        text: s.text,
+        authorHandle: s.authorHandle ?? null,
+        permalink: s.permalink ?? null,
+        observedAt: s.observedAt,
+        salience: s.salience ?? null,
+      }));
+    const routineCount = Math.max(0, live.length - notable.length);
 
     const beliefs = await ctx.db
       .query("beliefs")
@@ -146,7 +246,7 @@ export const observing = query({
       .query("suggestions")
       .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
       .collect();
-    const learned = beliefs
+    const learned: LearnedBelief[] = beliefs
       .filter((b) => b.status !== "retired")
       .sort((a, b) => b.confidence - a.confidence)
       .slice(0, 6)
@@ -159,19 +259,9 @@ export const observing = query({
         hint: hintFor(b.statement, suggestions),
       }));
 
-    return { totalToday, sources, learned };
+    return { totalToday, notable, routineCount, learned };
   },
 });
-
-type LineageSignal = {
-  id: Id<"signals">;
-  text: string;
-  authorHandle: string | null;
-  permalink: string | null;
-  source: Doc<"signals">["source"];
-  salience: number | null;
-  noise: boolean;
-};
 
 /**
  * Intervir na linhagem: the reasoning behind one idea — its primary belief, the
@@ -180,7 +270,7 @@ type LineageSignal = {
  */
 export const lineage = query({
   args: { suggestionId: v.id("suggestions") },
-  handler: async (ctx, { suggestionId }) => {
+  handler: async (ctx, { suggestionId }): Promise<Lineage> => {
     const suggestion = await ctx.db.get(suggestionId);
     if (suggestion === null) throw new Error("suggestion not found");
     await requireOwnedAccount(ctx, suggestion.accountId);

@@ -353,10 +353,7 @@ export const createNow = internalAction({
  * path. Skips the `approved` queue (the owner is delegating now), guards against
  * double-create, and clears any pause reason. Returns whether it started.
  */
-const startCreate = async (
-  ctx: MutationCtx,
-  suggestionId: Id<"suggestions">,
-): Promise<boolean> => {
+const startCreate = async (ctx: MutationCtx, suggestionId: Id<"suggestions">): Promise<boolean> => {
   const suggestion = await ctx.db.get(suggestionId);
   if (suggestion === null) return false;
   if (!["suggestion", "needs_you", "approved"].includes(suggestion.status)) return false;
