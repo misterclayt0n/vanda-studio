@@ -34,6 +34,7 @@ Set local app variables in the repo root `.env.local`. `apps/vanda/vite.config.t
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`: Clerk auth.
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: Instagram app credentials.
 - `INSTAGRAM_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt stored Instagram tokens.
+- `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`: Secret string Meta sends during Instagram webhook setup.
 - `VITE_APP_ORIGIN`: Public app origin. Production uses `https://app.vandastudio.app`.
 - `VITE_INSTAGRAM_REDIRECT_URI`: Optional exact OAuth redirect URI to send to Meta when
   running from `localhost`.
@@ -70,6 +71,19 @@ VITE_INSTAGRAM_REDIRECT_URI=https://your-stable-dev-url.example.com/api/integrat
 Restart the Vite dev server after changing `.env.local`; Vite inlines `VITE_*` values at
 server start. Random tunnel URLs work only until the hostname changes. Prefer a named
 Cloudflare tunnel or a stable preview/dev URL.
+
+## Instagram Webhooks
+
+The Convex HTTP endpoint for Meta Instagram webhooks is:
+
+```text
+https://<your-convex-deployment>.convex.site/integrations/instagram/webhook
+```
+
+Configure the Meta App Dashboard Webhooks product with that callback URL and the same
+`INSTAGRAM_WEBHOOK_VERIFY_TOKEN` value set in Convex. The app subscribes connected
+Instagram professional accounts to `comments,mentions` during OAuth, while the existing
+observe cron remains as backfill/reconciliation.
 
 ## Checks
 

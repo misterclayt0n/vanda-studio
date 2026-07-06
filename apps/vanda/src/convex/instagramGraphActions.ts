@@ -31,6 +31,11 @@ type ProfileResponse = {
   error?: MetaError;
 };
 
+type SubscribeResponse = {
+  success?: boolean;
+  error?: MetaError;
+};
+
 function requireFirstEnv(names: string[]) {
   for (const name of names) {
     const value = process.env[name]?.trim();
@@ -77,6 +82,25 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+async function subscribeToInstagramWebhooks(
+  igUserId: string,
+  accessToken: string,
+): Promise<string | undefined> {
+  try {
+    const response = await fetchJson<SubscribeResponse>(
+      `${INSTAGRAM_GRAPH_BASE}/${igUserId}/subscribed_apps?` +
+        new URLSearchParams({
+          subscribed_fields: "comments,mentions",
+          access_token: accessToken,
+        }),
+      { method: "POST" },
+    );
+    return response.success === true ? undefined : "Instagram webhook subscription failed";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export const getConnectUrl = action({
   args: {
     redirectUri: v.string(),
@@ -102,6 +126,7 @@ export const getConnectUrl = action({
         "instagram_business_basic",
         "instagram_business_content_publish",
         "instagram_business_manage_insights",
+        "instagram_business_manage_comments",
       ].join(","),
     );
     url.searchParams.set("response_type", "code");
@@ -169,6 +194,8 @@ export const completeOAuth = action({
         }),
     );
 
+    const webhookSubscriptionError = await subscribeToInstagramWebhooks(profile.id, accessToken);
+
     const encrypted = encryptToken(accessToken);
     const connection = await ctx.runMutation(internal.instagramGraph.upsertConnectionInternal, {
       clerkId: identity.subject,
@@ -181,9 +208,18 @@ export const completeOAuth = action({
         "instagram_business_basic",
         "instagram_business_content_publish",
         "instagram_business_manage_insights",
+        "instagram_business_manage_comments",
       ],
       ...encrypted,
       ...(longToken.expires_in ? { tokenExpiresAt: Date.now() + longToken.expires_in * 1000 } : {}),
+    });
+
+    await ctx.runMutation(internal.instagramWebhook.recordSubscriptionError, {
+      connectionId: connection._id,
+      error:
+        webhookSubscriptionError === undefined
+          ? null
+          : `Webhook subscription failed: ${webhookSubscriptionError}`,
     });
 
     // Bridge the connection into the pipeline: a business `accounts` row the

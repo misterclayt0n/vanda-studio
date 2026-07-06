@@ -24,7 +24,7 @@ graph LR
 
 | Stage           | What happens                                                                                              | Output                             | Cadence      |
 | --------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------ |
-| **Observe**     | Pull raw signals from IG (comments, mentions, …), dedup, persist                                          | `signals`                          | every 30 min |
+| **Observe**     | Ingest IG webhooks for live comments/@mentions, plus cron-pull recent IG signals as backfill; dedup + persist | `signals`                          | webhook + every 30 min |
 | **Consolidate** | LLM folds new signals into belief/theme memory (reinforce / decay / contradict); writes a journal note    | `beliefs`, `themes`, `memoryNotes` | hourly       |
 | **Plan**        | LLM generates post ideas from well-evidenced beliefs, then a skeptical critique accepts/rejects each      | `suggestions`                      | daily        |
 | **Create**      | Durable workflow: retrieve brand context (RAG) → caption + image prompts → generate images → compose post | `posts`, `images`                  | hourly       |
@@ -42,7 +42,7 @@ dog post — it nudges a belief; sustained evidence across signals is what posts
 
 - **Convex** is the substrate: every stage reads/writes tables; the UI reads
   the same tables **reactively** (live-updating, no polling).
-- **Crons** drive the loop (see cadences above). Each per-account.
+- **Webhooks + crons** drive observation: Instagram comment/@mention webhooks make `/automatico` feel live, while the 30-minute observe cron reconciles/backfills recent media/tags. The later stages still run on crons (see cadences above), each per-account.
 - **Create is a durable workflow** (`@convex-dev/workflow`): each image is its
   own checkpointed, retried step — a failed image never redoes the caption.
 - **LLM** calls go through OpenRouter (`gpt-4o-mini`); deliberation is
@@ -182,6 +182,7 @@ When mocking screens, know what's live vs scaffolded:
 | RAG context retrieval                      | **real but lexical** (vector swap is a port away)                                                     |
 | image generation                           | **placeholder** (on-brand SVG; real AI generator is a port away — won't be IG-publishable until then) |
 | observe pulling from real Instagram        | built + tested; **needs a connected IG account** to run live                                          |
+| observe receiving Instagram webhooks       | built; requires Meta Webhooks setup, live app, advanced access for comment webhooks, and `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` |
 | publish to Instagram                       | built; **not run live** (destructive; needs hosted images)                                            |
 | the screens above + Assistente             | **not built yet** — this doc is the spec to build them against                                        |
 
