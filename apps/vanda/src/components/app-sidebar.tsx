@@ -1,7 +1,7 @@
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   BadgeCheckIcon,
   Calendar,
@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
   User,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@vanda-studio/ui/components/avatar";
@@ -87,6 +88,8 @@ function WorkspaceSwitcher() {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
   const accounts = useQuery(api.accounts.listMine);
+  const removeAccount = useMutation(api.accounts.remove);
+  const [removing, setRemoving] = useState(false);
 
   // No business connected yet → point at setup (the Perfil/onboarding surface).
   if (accounts !== undefined && accounts.length === 0) {
@@ -119,6 +122,22 @@ function WorkspaceSwitcher() {
       ? `@${active.handle}`
       : (MODE_LABEL[active.mode] ?? active.mode)
     : "Carregando...";
+
+  const handleRemoveCurrent = async () => {
+    if (!active || removing) return;
+    const confirmed = window.confirm(
+      `Remover ${name}? A Vanda vai apagar os dados desse negócio neste app e desconectar o Instagram salvo.`,
+    );
+    if (!confirmed) return;
+
+    setRemoving(true);
+    try {
+      await removeAccount({ accountId: active.id });
+      await navigate({ to: "/onboarding" });
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   return (
     <SidebarMenu>
@@ -170,6 +189,19 @@ function WorkspaceSwitcher() {
                   <Plus className="size-4" />
                 </span>
                 <span className="font-medium text-muted-foreground">Adicionar negócio</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                className="gap-2 p-2"
+                disabled={!active || removing}
+                onClick={() => void handleRemoveCurrent()}
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-destructive/30">
+                  <Trash2 className="size-4" />
+                </span>
+                <span className="font-medium">
+                  {removing ? "Removendo..." : "Remover negócio atual"}
+                </span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

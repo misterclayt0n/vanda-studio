@@ -94,3 +94,72 @@ describe("accounts.setMode", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("accounts.remove", () => {
+  it("removes an owned business, clears account data, and expires its connection", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const { mine, theirs, connectionId, signalId, canonId } = await t.run(async (ctx) => {
+      const me = await ctx.db.insert("users", { name: "Me", email: "me@e.com", clerkId: "me" });
+      const other = await ctx.db.insert("users", { name: "O", email: "o@e.com", clerkId: "other" });
+      const connectionId = await ctx.db.insert("instagramConnections", {
+        userId: me,
+        provider: "instagram_graph",
+        status: "connected",
+        externalAccountId: "ig1",
+        externalAccountName: "Café Lumiar",
+        handle: "cafelumiar",
+        scopes: ["instagram_business_basic"],
+        tokenCiphertext: "cipher",
+        tokenIv: "iv",
+        tokenAuthTag: "tag",
+        lastConnectedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const mine = await ctx.db.insert("accounts", {
+        ownerUserId: me,
+        connectionId,
+        mode: "auto",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const theirs = await ctx.db.insert("accounts", {
+        ownerUserId: other,
+        mode: "auto",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const signalId = await ctx.db.insert("signals", {
+        accountId: mine,
+        source: "comments",
+        externalId: "c1",
+        text: "great",
+        observedAt: now,
+      });
+      const canonId = await ctx.db.insert("brandCanon", {
+        accountId: mine,
+        kind: "identity",
+        text: "Cafe",
+        confirmedByOwner: true,
+        createdAt: now,
+      });
+      return { mine, theirs, connectionId, signalId, canonId };
+    });
+
+    const asMe = t.withIdentity({ subject: "me" });
+    await expect(asMe.mutation(api.accounts.remove, { accountId: theirs })).rejects.toThrow();
+
+    await asMe.mutation(api.accounts.remove, { accountId: mine });
+
+    expect(await t.run((ctx) => ctx.db.get(mine))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get(signalId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get(canonId))).toBeNull();
+
+    const connection = await t.run((ctx) => ctx.db.get(connectionId));
+    expect(connection?.status).toBe("expired");
+    expect(connection).not.toHaveProperty("tokenCiphertext");
+    expect(connection).not.toHaveProperty("tokenIv");
+    expect(connection).not.toHaveProperty("tokenAuthTag");
+  });
+});
