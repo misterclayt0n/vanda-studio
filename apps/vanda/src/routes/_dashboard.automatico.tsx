@@ -320,5 +320,3 @@ function BoardSkeleton() {
     </div>
   );
 }
-
-export { AutomaticoPage };
