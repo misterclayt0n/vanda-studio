@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { requireOwnedAccount } from "./authz";
 import { accountModes } from "./pipeline/constants";
 
 /**
@@ -47,16 +48,7 @@ export const setMode = mutation({
     mode: v.union(...accountModes.map((mode) => v.literal(mode))),
   },
   handler: async (ctx, { accountId, mode }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    const account = await ctx.db.get(accountId);
-    if (!user || account === null || account.ownerUserId !== user._id) {
-      throw new Error("account not found");
-    }
+    await requireOwnedAccount(ctx, accountId);
     await ctx.db.patch(accountId, { mode, updatedAt: Date.now() });
   },
 });

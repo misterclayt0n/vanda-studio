@@ -7,8 +7,10 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
+  mutation,
   type MutationCtx,
 } from "./_generated/server";
+import { requireOwnedAccount } from "./authz";
 import {
   type ComposedPost,
   type CreatableSuggestion,
@@ -341,5 +343,65 @@ export const createNow = internalAction({
       await ctx.runMutation(internal.create.releaseCreate, { suggestionId });
       throw error;
     }
+  },
+});
+
+// --- Owner-initiated create (the "Vanda faz" intent) ----------------------
+
+/**
+ * Kick a durable create for one idea — the UI counterpart to the cron's auto
+ * path. Skips the `approved` queue (the owner is delegating now), guards against
+ * double-create, and clears any pause reason. Returns whether it started.
+ */
+const startCreate = async (
+  ctx: MutationCtx,
+  suggestionId: Id<"suggestions">,
+): Promise<boolean> => {
+  const suggestion = await ctx.db.get(suggestionId);
+  if (suggestion === null) return false;
+  if (!["suggestion", "needs_you", "approved"].includes(suggestion.status)) return false;
+  await ctx.db.patch(suggestionId, {
+    status: "creating",
+    progress: 0,
+    requiresApproval: false,
+    rejectionReason: undefined,
+  });
+  const workflowId = await workflow.start(
+    ctx,
+    internal.create.createWorkflow,
+    { suggestionId },
+    { onComplete: internal.create.onCreateComplete, context: { suggestionId } },
+  );
+  await ctx.db.patch(suggestionId, { workflowId });
+  return true;
+};
+
+/** Vanda faz: the owner hands one idea to Vanda — starts its durable create. */
+export const delegate = mutation({
+  args: { suggestionId: v.id("suggestions") },
+  handler: async (ctx, { suggestionId }) => {
+    const suggestion = await ctx.db.get(suggestionId);
+    if (suggestion === null) throw new Error("suggestion not found");
+    await requireOwnedAccount(ctx, suggestion.accountId);
+    if (!(await startCreate(ctx, suggestionId)))
+      throw new Error("suggestion is not actionable (already creating, scheduled, or dismissed)");
+  },
+});
+
+/** Aprovar todas: hand the whole review pool to Vanda at once (Aprovação mode). */
+export const approveAll = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }): Promise<{ started: number }> => {
+    await requireOwnedAccount(ctx, accountId);
+    const suggestions = await ctx.db
+      .query("suggestions")
+      .withIndex("by_account_created", (q) => q.eq("accountId", accountId))
+      .collect();
+    let started = 0;
+    for (const s of suggestions) {
+      if (s.status !== "suggestion" && s.status !== "approved") continue;
+      if (await startCreate(ctx, s._id)) started++;
+    }
+    return { started };
   },
 });

@@ -9,8 +9,10 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as authz from "../authz.js";
 import type * as autumn from "../autumn.js";
 import type * as billing_autumn from "../billing/autumn.js";
+import type * as board from "../board.js";
 import type * as brandProfile from "../brandProfile.js";
 import type * as brandProfileNode from "../brandProfileNode.js";
 import type * as consolidate from "../consolidate.js";
@@ -65,8 +67,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  authz: typeof authz;
   autumn: typeof autumn;
   "billing/autumn": typeof billing_autumn;
+  board: typeof board;
   brandProfile: typeof brandProfile;
   brandProfileNode: typeof brandProfileNode;
   consolidate: typeof consolidate;

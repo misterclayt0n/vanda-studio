@@ -61,64 +61,77 @@ const rethinkBelief = async (ctx: MutationCtx, belief: Belief, policy: Policy): 
 /**
  * Flag a signal as noise: drop it from every belief it supported, recompute each
  * belief's confidence (inverse-reinforce), and re-think the ideas they ground.
- * The owner steers the reasoning, not just the output.
+ * The owner steers the reasoning, not just the output. Shared by the internal
+ * mutation (reasoning tests) and the public `board.markNoise` (auth + this).
  */
+export const markSignalNoiseImpl = async (
+  ctx: MutationCtx,
+  signalId: Id<"signals">,
+): Promise<void> => {
+  const signal = await ctx.db.get(signalId);
+  if (signal === null || signal.noise === true) return;
+  await ctx.db.patch(signalId, { noise: true });
+  const policy = await policyFor(ctx, signal.accountId);
+  const now = Date.now();
+  const beliefs = await ctx.db
+    .query("beliefs")
+    .withIndex("by_account_status", (q) => q.eq("accountId", signal.accountId))
+    .collect();
+  for (const row of beliefs) {
+    if (!row.supportingSignalIds.includes(signalId)) continue;
+    const updated = dropSignal(toBelief(row), signalId, now, policy);
+    await ctx.db.patch(row._id, {
+      confidence: updated.confidence,
+      confidenceAsOf: updated.confidenceAsOf,
+      supportingSignalIds: [...updated.supportingSignalIds],
+      status: updated.status,
+    });
+    await rethinkBelief(ctx, updated, policy);
+  }
+};
+
 export const markSignalNoise = internalMutation({
   args: { signalId: v.id("signals") },
-  handler: async (ctx, { signalId }) => {
-    const signal = await ctx.db.get(signalId);
-    if (signal === null || signal.noise === true) return;
-    await ctx.db.patch(signalId, { noise: true });
-    const policy = await policyFor(ctx, signal.accountId);
-    const now = Date.now();
-    const beliefs = await ctx.db
-      .query("beliefs")
-      .withIndex("by_account_status", (q) => q.eq("accountId", signal.accountId))
-      .collect();
-    for (const row of beliefs) {
-      if (!row.supportingSignalIds.includes(signalId)) continue;
-      const updated = dropSignal(toBelief(row), signalId, now, policy);
-      await ctx.db.patch(row._id, {
-        confidence: updated.confidence,
-        confidenceAsOf: updated.confidenceAsOf,
-        supportingSignalIds: [...updated.supportingSignalIds],
-        status: updated.status,
-      });
-      await rethinkBelief(ctx, updated, policy);
-    }
-  },
+  handler: (ctx, { signalId }) => markSignalNoiseImpl(ctx, signalId),
 });
 
 /**
  * Correct a belief's wording. Confidence is untouched (only the statement
  * changed), so the ideas it grounds stay valid; we re-point their provenance to
  * the new wording so the lineage link survives. The next plan pass deliberates
- * with the corrected belief.
+ * with the corrected belief. Shared by the internal mutation and the public
+ * `board.correctBelief` (auth + this).
  */
+export const correctBeliefImpl = async (
+  ctx: MutationCtx,
+  beliefId: Id<"beliefs">,
+  statement: string,
+): Promise<void> => {
+  const row = await ctx.db.get(beliefId);
+  if (row === null || row.statement === statement) return;
+  const beliefs = await ctx.db
+    .query("beliefs")
+    .withIndex("by_account_status", (q) => q.eq("accountId", row.accountId))
+    .collect();
+  // Statements are the provenance key (suggestions cite them; consolidate upserts
+  // by them), so they must stay unique per account — reject a colliding rename.
+  if (beliefs.some((b) => b._id !== beliefId && b.statement === statement))
+    throw new Error("another belief already holds that statement");
+  const previous = row.statement;
+  await ctx.db.patch(beliefId, { statement });
+  const suggestions = await ctx.db
+    .query("suggestions")
+    .withIndex("by_account_status", (q) => q.eq("accountId", row.accountId))
+    .collect();
+  for (const s of suggestions) {
+    if (!s.beliefStatements.includes(previous)) continue;
+    await ctx.db.patch(s._id, {
+      beliefStatements: s.beliefStatements.map((b) => (b === previous ? statement : b)),
+    });
+  }
+};
+
 export const correctBelief = internalMutation({
   args: { beliefId: v.id("beliefs"), statement: v.string() },
-  handler: async (ctx, { beliefId, statement }) => {
-    const row = await ctx.db.get(beliefId);
-    if (row === null || row.statement === statement) return;
-    const beliefs = await ctx.db
-      .query("beliefs")
-      .withIndex("by_account_status", (q) => q.eq("accountId", row.accountId))
-      .collect();
-    // Statements are the provenance key (suggestions cite them; consolidate upserts
-    // by them), so they must stay unique per account — reject a colliding rename.
-    if (beliefs.some((b) => b._id !== beliefId && b.statement === statement))
-      throw new Error("another belief already holds that statement");
-    const previous = row.statement;
-    await ctx.db.patch(beliefId, { statement });
-    const suggestions = await ctx.db
-      .query("suggestions")
-      .withIndex("by_account_status", (q) => q.eq("accountId", row.accountId))
-      .collect();
-    for (const s of suggestions) {
-      if (!s.beliefStatements.includes(previous)) continue;
-      await ctx.db.patch(s._id, {
-        beliefStatements: s.beliefStatements.map((b) => (b === previous ? statement : b)),
-      });
-    }
-  },
+  handler: (ctx, { beliefId, statement }) => correctBeliefImpl(ctx, beliefId, statement),
 });

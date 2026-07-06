@@ -1,31 +1,10 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import {
-  internalQuery,
-  mutation,
-  type MutationCtx,
-  type QueryCtx,
-  query,
-} from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import * as Schema from "effect/Schema";
+import { requireOwnedAccount } from "./authz";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
 import { accountModes } from "./pipeline/constants";
-
-/** Resolve the caller's owned account or throw — the auth gate for every brand op. */
-async function requireOwnedAccount(ctx: QueryCtx | MutationCtx, accountId: Id<"accounts">) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .unique();
-  const account = await ctx.db.get(accountId);
-  if (!user || account === null || account.ownerUserId !== user._id) {
-    throw new Error("account not found");
-  }
-  return account;
-}
 
 /**
  * The Instagram connection (id + encrypted token) for an account the caller owns.
