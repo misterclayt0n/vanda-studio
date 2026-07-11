@@ -121,6 +121,9 @@ export const upsertConnectionInternal = internalMutation({
     };
 
     if (existing) {
+      if (existing.userId !== user._id) {
+        throw new Error("Instagram account is already connected to another Vanda user");
+      }
       await ctx.db.patch(existing._id, patch);
       return {
         _id: existing._id,

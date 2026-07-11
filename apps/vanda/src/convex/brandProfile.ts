@@ -133,6 +133,9 @@ export const approveBrandProfile = mutation({
       onboardedAt: now,
       updatedAt: now,
     });
+    if (account.ownerUserId !== undefined) {
+      await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
+    }
   },
 });
 

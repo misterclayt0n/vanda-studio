@@ -32,7 +32,7 @@ export const listMine = query({
       .withIndex("by_owner", (q) => q.eq("ownerUserId", user._id))
       .collect();
 
-    return Promise.all(
+    const rows = await Promise.all(
       accounts.map(async (account) => {
         const connection = account.connectionId ? await ctx.db.get(account.connectionId) : null;
         return {
@@ -43,9 +43,30 @@ export const listMine = query({
           handle: connection?.handle ?? null,
           connected: connection?.status === "connected",
           onboardedAt: account.onboardedAt ?? null,
+          active: user.activeAccountId === account._id,
+          createdAt: account.createdAt,
         };
       }),
     );
+
+    return rows.sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      const aReady = a.onboardedAt !== null;
+      const bReady = b.onboardedAt !== null;
+      if (aReady !== bReady) return aReady ? -1 : 1;
+      return a.createdAt - b.createdAt;
+    });
+  },
+});
+
+/** Persist the dashboard business selection for the caller across routes and devices. */
+export const selectActive = mutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const account = await requireOwnedAccount(ctx, accountId);
+    if (account.onboardedAt === undefined) throw new Error("account not onboarded");
+    if (account.ownerUserId === undefined) throw new Error("account has no owner");
+    await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: Date.now() });
   },
 });
 
@@ -68,6 +89,24 @@ export const remove = mutation({
   },
   handler: async (ctx, { accountId }) => {
     const account = await requireOwnedAccount(ctx, accountId);
+
+    if (account.ownerUserId !== undefined) {
+      const owner = await ctx.db.get(account.ownerUserId);
+      if (owner?.activeAccountId === accountId) {
+        const fallback = (
+          await ctx.db
+            .query("accounts")
+            .withIndex("by_owner", (q) => q.eq("ownerUserId", account.ownerUserId))
+            .collect()
+        )
+          .filter((candidate) => candidate._id !== accountId && candidate.onboardedAt !== undefined)
+          .sort((a, b) => a.createdAt - b.createdAt)[0];
+        await ctx.db.patch(owner._id, {
+          activeAccountId: fallback?._id,
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     const signals = await ctx.db
       .query("signals")

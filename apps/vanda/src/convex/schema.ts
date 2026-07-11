@@ -24,6 +24,7 @@ export default defineSchema({
     email: v.string(),
     clerkId: v.string(),
     imageUrl: v.optional(v.string()),
+    activeAccountId: v.optional(v.id("accounts")),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
