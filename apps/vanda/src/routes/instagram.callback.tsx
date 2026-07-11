@@ -13,7 +13,9 @@ export const Route = createFileRoute("/instagram/callback")({
 export function InstagramCallbackRoute() {
   const completeOAuth = useAction(api.instagramGraphActions.completeOAuth);
   const navigate = useNavigate();
-  const [message, setMessage] = useState("Finalizando conexão com o Instagram...");
+  const [message, setMessage] = useState(
+    "Finalizando conexão com o Instagram...",
+  );
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
 
@@ -38,17 +40,28 @@ export function InstagramCallbackRoute() {
       state,
       redirectUri: getInstagramRedirectUri(),
     })
-      .then(({ accountId }) => {
+      .then((result) => {
+        if (!result.connected) {
+          setError(result.message);
+          return;
+        }
         setMessage("Instagram conectado. Levando você pra Vanda…");
-        void navigate({ to: "/onboarding", search: { accountId } });
+        void navigate({
+          to: "/onboarding",
+          search: { accountId: result.accountId },
+        });
       })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
   }, [completeOAuth, navigate]);
 
   return (
     <main className="grid min-h-svh place-items-center bg-app px-6">
       <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 text-center">
-        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-4">Instagram</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-4">
+          Instagram
+        </p>
         <Show when="signed-out">
           <h1 className="mt-3 text-[17px] font-semibold tracking-[-0.018em]">
             Entre para finalizar.
@@ -73,7 +86,11 @@ export function InstagramCallbackRoute() {
             {error ?? message}
           </p>
           <div className="mt-5 flex justify-center">
-            <Button variant="outline" size="lg" render={<Link to="/onboarding" />}>
+            <Button
+              variant="outline"
+              size="lg"
+              render={<Link to="/onboarding" />}
+            >
               Continuar
             </Button>
           </div>
