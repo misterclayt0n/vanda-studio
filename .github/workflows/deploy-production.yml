@@ -49,20 +49,6 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PROD_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "production $GITHUB_SHA"
 
-      - name: Pull Vercel production configuration
-        env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-
-      - name: Build Vercel production
-        env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
-
       - name: Create staged production deployment
         id: vercel
         env:
@@ -70,7 +56,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --prod --skip-domain --token="$VERCEL_TOKEN")
+          deployment_url=$(pnpm dlx vercel@latest deploy --yes --prod --skip-domain --token="$VERCEL_TOKEN")
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
       - name: Promote staged deployment

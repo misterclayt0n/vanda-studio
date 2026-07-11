@@ -45,24 +45,6 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEV_DEPLOY_KEY }}
         run: pnpm exec convex deploy --yes --typecheck try --message "staging $GITHUB_SHA"
 
-      - name: Pull Vercel preview configuration
-        env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
-
-      - name: Build Vercel preview
-        env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PUBLIC_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
-          VITE_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
-          VITE_APP_ORIGIN: https://staging.vandastudio.app
-          VITE_INSTAGRAM_REDIRECT_URI: https://staging.vandastudio.app/api/integrations/instagram/callback
-        run: pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
-
       - name: Deploy and assign staging domain
         id: vercel
         env:
@@ -70,7 +52,16 @@ jobs:
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN")
+          deployment_url=$(pnpm dlx vercel@latest deploy --yes \
+            --build-env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
+            --build-env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
+            --build-env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
+            --build-env VITE_INSTAGRAM_REDIRECT_URI="https://staging.vandastudio.app/api/integrations/instagram/callback" \
+            --env PUBLIC_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
+            --env VITE_CONVEX_URL="${{ vars.CONVEX_DEV_URL }}" \
+            --env VITE_APP_ORIGIN="https://staging.vandastudio.app" \
+            --env VITE_INSTAGRAM_REDIRECT_URI="https://staging.vandastudio.app/api/integrations/instagram/callback" \
+            --token="$VERCEL_TOKEN")
           pnpm dlx vercel@latest alias set "$deployment_url" staging.vandastudio.app --token="$VERCEL_TOKEN"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
