@@ -1,0 +1,88 @@
+name: Deploy staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit SHA to deploy
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vanda-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.ref }} to staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.vandastudio.app
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Validate selected revision
+        run: |
+          pnpm lint
+          pnpm typecheck
+          CI=true pnpm test
+          pnpm build
+
+      - name: Deploy Convex development
+        working-directory: apps/vanda
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEV_DEPLOY_KEY }}
+        run: pnpm exec convex deploy --yes --typecheck try --message "staging $GITHUB_SHA"
+
+      - name: Pull Vercel preview configuration
+        env:
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel preview
+        env:
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PUBLIC_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
+          VITE_CONVEX_URL: ${{ vars.CONVEX_DEV_URL }}
+          VITE_APP_ORIGIN: https://staging.vandastudio.app
+          VITE_INSTAGRAM_REDIRECT_URI: https://staging.vandastudio.app/api/integrations/instagram/callback
+        run: pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
+
+      - name: Deploy and assign staging domain
+        id: vercel
+        env:
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          deployment_url=$(pnpm dlx vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN")
+          pnpm dlx vercel@latest alias set "$deployment_url" staging.vandastudio.app --token="$VERCEL_TOKEN"
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test staging
+        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 https://staging.vandastudio.app/ >/dev/null
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "### Staging deployment"
+            echo "- Ref: \`${{ inputs.ref }}\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- URL: https://staging.vandastudio.app"
+            echo "- Vercel deployment: ${{ steps.vercel.outputs.deployment_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"

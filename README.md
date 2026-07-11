@@ -26,6 +26,33 @@ Use two Vercel projects from the same repository:
 
 The app project should keep the existing Clerk, Convex, Autumn, OpenRouter, and Instagram environment variables.
 
+### Release workflow
+
+`main` is the only long-lived branch. Feature branches are tested locally and can be
+deployed to the shared integration slot with the **Deploy staging** GitHub Actions
+workflow. Enter a branch, tag, or commit SHA when starting the workflow.
+
+- `staging.vandastudio.app` runs the selected revision against the development Convex
+  deployment and is reserved for test Instagram accounts.
+- `app.vandastudio.app` runs `main` against the production Convex deployment.
+- **Deploy production** is manually triggered from `main`. It deploys Convex first,
+  creates a staged Vercel production deployment, and promotes it only after the build
+  succeeds.
+
+Vercel Git deployments are disabled for `apps/vanda`; the workflows own app deployment
+ordering. The landing project remains independent.
+
+Required GitHub environment secrets:
+
+- `staging`: `CONVEX_DEV_DEPLOY_KEY`, `VERCEL_TOKEN`
+- `production`: `CONVEX_PROD_DEPLOY_KEY`, `VERCEL_TOKEN`
+
+Required GitHub environment variables in both environments:
+
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+- `CONVEX_DEV_URL` (staging only)
+
 ## Environment
 
 Set local app variables in the repo root `.env.local`. `apps/vanda/vite.config.ts` points Vite at the repo root env directory.
