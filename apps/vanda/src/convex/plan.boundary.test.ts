@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 import { internal } from "./_generated/api";
 import { memoryStoreLive } from "./pipeline/liveMemory";
+import { brandContextLive } from "./pipeline/liveBrandContext";
 import { suggestionsStoreLive } from "./pipeline/livePlan";
 import { type Idea, plan } from "./pipeline/plan";
 import { makePlannerStub } from "./pipeline/plan.testing";
@@ -67,6 +68,7 @@ describe("plan through the ctx-backed stores", () => {
       Effect.runPromise(
         plan(accountId).pipe(
           Effect.provide(memoryStoreLive(ctx)),
+          Effect.provide(brandContextLive(ctx)),
           Effect.provide(suggestionsStoreLive(ctx)),
           Effect.provide(planStub),
         ),
@@ -114,6 +116,7 @@ describe("plan through the ctx-backed stores", () => {
       Effect.runPromise(
         plan(accountId).pipe(
           Effect.provide(memoryStoreLive(ctx)),
+          Effect.provide(brandContextLive(ctx)),
           Effect.provide(suggestionsStoreLive(ctx)),
           Effect.provide(planStub),
         ),

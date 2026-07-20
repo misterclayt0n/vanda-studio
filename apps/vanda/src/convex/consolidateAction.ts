@@ -25,6 +25,17 @@ export const consolidateAccount = internalAction({
       source: signal.source,
       text: signal.text,
       observedAt: signal.observedAt,
+      ...(signal.authorHandle !== undefined ? { authorHandle: signal.authorHandle } : {}),
+      ...(signal.permalink !== undefined ? { permalink: signal.permalink } : {}),
+      ...(signal.ingestedAt !== undefined ? { ingestedAt: signal.ingestedAt } : {}),
+      ...(signal.syncKind !== undefined ? { syncKind: signal.syncKind } : {}),
+      ...(signal.mediaExternalId !== undefined ? { mediaExternalId: signal.mediaExternalId } : {}),
+      ...(signal.mediaCaption !== undefined ? { mediaCaption: signal.mediaCaption } : {}),
+      ...(signal.mediaType !== undefined ? { mediaType: signal.mediaType } : {}),
+      ...(signal.mediaPublishedAt !== undefined
+        ? { mediaPublishedAt: signal.mediaPublishedAt }
+        : {}),
+      ...(signal.isSelf !== undefined ? { isSelf: signal.isSelf } : {}),
     }));
     await Effect.runPromise(
       consolidate(accountId, inputs).pipe(Effect.provide(consolidateLayer(ctx, apiKey))),

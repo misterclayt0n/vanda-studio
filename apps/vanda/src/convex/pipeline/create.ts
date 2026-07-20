@@ -98,6 +98,10 @@ const queryOf = (suggestion: CreatableSuggestion): string =>
   `${suggestion.title} — ${suggestion.themeName}`;
 
 const captionPrompt = (suggestion: CreatableSuggestion, bundle: ContextBundle): string => {
+  const critical =
+    bundle.critical.length === 0
+      ? "(não informado)"
+      : bundle.critical.map((statement) => `- ${statement}`).join("\n");
   const cited =
     suggestion.beliefStatements.length === 0
       ? "(none)"
@@ -105,13 +109,15 @@ const captionPrompt = (suggestion: CreatableSuggestion, bundle: ContextBundle): 
   const context =
     bundle.snippets.length === 0 ? "(none)" : bundle.snippets.map((s) => `- ${s}`).join("\n");
   return (
-    `You are a brand's social-media copywriter. Write the Instagram ${resolveType(suggestion)} ` +
-    `for the idea below: a caption (on-brand, with a tasteful call to action, no hashtag spam) ` +
-    `and one image prompt per carousel slide (1–${MAX_IMAGES}, each a concrete visual ` +
-    `description). Ground everything in the brand's held beliefs — invent no facts.\n\n` +
-    `Idea: ${suggestion.title}\nTheme: ${suggestion.themeName}` +
+    `Você é a redatora de redes sociais de uma marca. Crie o ${resolveType(suggestion)} ` +
+    `para Instagram a partir da ideia abaixo: uma legenda em português do Brasil, alinhada ` +
+    `à marca, com chamada para ação natural e sem excesso de hashtags, além de um prompt ` +
+    `visual concreto para cada slide do carrossel (1–${MAX_IMAGES}). Fundamente tudo nas ` +
+    `crenças e no contexto confirmado da marca; não invente fatos.\n\n` +
+    `Contexto confirmado obrigatório:\n${critical}\n\n` +
+    `Ideia: ${suggestion.title}\nTema: ${suggestion.themeName}` +
     `${bundle.themeSummary ? ` — ${bundle.themeSummary}` : ""}\n\n` +
-    `Beliefs this idea draws on:\n${cited}\n\nOther relevant brand context:\n${context}`
+    `Crenças que fundamentam a ideia:\n${cited}\n\nOutro contexto relevante da marca:\n${context}`
   );
 };
 

@@ -2,9 +2,16 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as FastCheck from "effect/testing/FastCheck";
-import { consolidate, foldConsolidation, SignalJudgment, SIGNAL_MARKER } from "./consolidate";
+import {
+  type BatchJudgment,
+  consolidate,
+  discardReason,
+  foldConsolidation,
+  SignalJudgment,
+} from "./consolidate";
 import {
   failingConsolidator,
+  makeBatchConsolidator,
   makeMemoryRecorder,
   makeStubConsolidator,
 } from "./consolidate.testing";
@@ -26,25 +33,27 @@ const empty: MemorySnapshot = {
   mode: "needs_approval",
 };
 
-/** A marker-keyed judge: keys only on the signal text after SIGNAL_MARKER. */
-const routeJudge = (prompt: string): SignalJudgment => {
-  const text = prompt.slice(prompt.lastIndexOf(SIGNAL_MARKER) + SIGNAL_MARKER.length);
-  return text.includes("slow")
-    ? {
-        kind: "sentiment",
-        salience: 0.6,
-        relation: "novel",
-        beliefStatement: "service can be slow",
-        themeName: "Service",
-      }
-    : {
-        kind: "audience",
-        salience: 0.7,
-        relation: "novel",
-        beliefStatement: "customers love dogs",
-        themeName: "Dogs",
-      };
-};
+const routeBatch = (): BatchJudgment => ({
+  groups: [
+    {
+      signalIds: ["s1"],
+      kind: "audience",
+      salience: 0.7,
+      relation: "novel",
+      beliefStatement: "clientes gostam de cães",
+      themeName: "Cães",
+    },
+    {
+      signalIds: ["s2"],
+      kind: "sentiment",
+      salience: 0.6,
+      relation: "novel",
+      beliefStatement: "o atendimento pode ser lento",
+      themeName: "Atendimento",
+    },
+  ],
+  ignored: [],
+});
 
 describe("foldConsolidation (pure)", () => {
   it("decays stale beliefs before folding new evidence", () => {
@@ -182,6 +191,13 @@ describe("foldConsolidation (pure)", () => {
 });
 
 describe("consolidate (program, stub model)", () => {
+  it("descarta reações genéricas, vazias e comentários da própria marca", () => {
+    expect(discardReason(signal("empty", "  "), 1)).toContain("vazio");
+    expect(discardReason(signal("generic", "top 🔥"), 1)).toContain("genérica");
+    expect(discardReason({ ...signal("self", "novidade"), isSelf: true }, 1)).toContain("própria");
+    expect(discardReason(signal("intent", "já quero"), 1)).toBeUndefined();
+  });
+
   it.effect("creates a belief + theme from a novel signal and journals it", () =>
     Effect.gen(function* () {
       const recorder = makeMemoryRecorder();
@@ -203,7 +219,7 @@ describe("consolidate (program, stub model)", () => {
       expect(result.beliefs[0]!.confidence).toBeCloseTo(defaultPolicy.learningRate);
       expect(result.beliefs[0]!.supportingSignalIds).toEqual(["s1"]);
       expect(result.themes).toHaveLength(1);
-      expect(result.note).toContain("1 new");
+      expect(result.note).toContain("1 nova");
       expect(recorder.applied).toHaveLength(1);
     }),
   );
@@ -290,11 +306,11 @@ describe("consolidate (program, stub model)", () => {
       const result = yield* consolidate("acct_1", [
         signal("s1", "the dog is great"),
         signal("s2", "so slow today"),
-      ]).pipe(Effect.provide(recorder.layer), Effect.provide(makeStubConsolidator(routeJudge)));
+      ]).pipe(Effect.provide(recorder.layer), Effect.provide(makeBatchConsolidator(routeBatch)));
 
       expect(result.beliefs.map((b) => b.statement)).toEqual([
-        "customers love dogs",
-        "service can be slow",
+        "clientes gostam de cães",
+        "o atendimento pode ser lento",
       ]);
       expect(result.themes).toHaveLength(2);
     }),

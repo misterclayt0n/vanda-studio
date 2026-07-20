@@ -11,17 +11,7 @@ export const fakeAdapter = (
   items: ReadonlyArray<Omit<RawSignal, "source">>,
 ): SourceAdapter => ({
   source,
-  fetch: () =>
-    Effect.succeed(
-      items.map((item) => ({
-        source,
-        externalId: item.externalId,
-        text: item.text,
-        observedAt: item.observedAt,
-        authorHandle: item.authorHandle,
-        permalink: item.permalink,
-      })),
-    ),
+  fetch: () => Effect.succeed(items.map((item) => ({ source, ...item }))),
 });
 
 /** An adapter whose fetch always fails — for the resilience path. */

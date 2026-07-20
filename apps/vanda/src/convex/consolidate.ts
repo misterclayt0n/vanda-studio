@@ -18,6 +18,7 @@ const themeArg = { ...themeColumns, accountId: v.string() };
 // validates strictly against the table columns.
 const toBelief = (b: Doc<"beliefs">): Belief => ({
   accountId: b.accountId,
+  ...(b.key !== undefined ? { key: b.key } : {}),
   statement: b.statement,
   kind: b.kind,
   confidence: b.confidence,
@@ -99,7 +100,13 @@ export const applyConsolidation = internalMutation({
     beliefs: v.array(v.object(beliefArg)),
     themes: v.array(v.object(themeArg)),
     note: v.string(),
-    consumedSignals: v.array(v.object({ id: v.string(), salience: v.number() })),
+    consumedSignals: v.array(
+      v.object({
+        id: v.string(),
+        salience: v.number(),
+        discardedReason: v.optional(v.string()),
+      }),
+    ),
   },
   handler: async (ctx, { accountId, beliefs, themes, note, consumedSignals }) => {
     const now = Date.now();
@@ -108,10 +115,17 @@ export const applyConsolidation = internalMutation({
       .query("beliefs")
       .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
       .collect();
-    const beliefId = new Map(existingBeliefs.map((b) => [b.statement, b._id] as const));
+    const beliefId = new Map(
+      existingBeliefs.flatMap((belief) => [
+        [belief.statement, belief._id] as const,
+        ...(belief.key === undefined ? [] : ([[belief.key, belief._id]] as const)),
+      ]),
+    );
     for (const belief of beliefs) {
       const row = { ...belief, accountId };
-      const id = beliefId.get(belief.statement);
+      const id =
+        (belief.key === undefined ? undefined : beliefId.get(belief.key)) ??
+        beliefId.get(belief.statement);
       if (id !== undefined) await ctx.db.replace(id, row);
       else await ctx.db.insert("beliefs", row);
     }
@@ -135,8 +149,13 @@ export const applyConsolidation = internalMutation({
       createdAt: now,
     });
 
-    for (const { id, salience } of consumedSignals) {
-      await ctx.db.patch(id as Id<"signals">, { consolidatedAt: now, salience });
+    for (const { id, salience, discardedReason } of consumedSignals) {
+      await ctx.db.patch(id as Id<"signals">, {
+        consolidatedAt: now,
+        salience,
+        actionable: discardedReason === undefined,
+        ...(discardedReason !== undefined ? { discardedReason } : {}),
+      });
     }
   },
 });

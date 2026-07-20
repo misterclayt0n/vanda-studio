@@ -70,10 +70,26 @@ export const getAccountConnection = internalQuery({
     if (connection === null) return null;
     return {
       igUserId: connection.externalAccountId,
+      handle: connection.handle,
+      lastSyncAt: connection.lastSyncAt,
       tokenCiphertext: connection.tokenCiphertext,
       tokenIv: connection.tokenIv,
       tokenAuthTag: connection.tokenAuthTag,
     };
+  },
+});
+
+export const recordObserveSuccess = internalMutation({
+  args: { accountId: v.id("accounts") },
+  handler: async (ctx, { accountId }) => {
+    const account = await ctx.db.get(accountId);
+    if (account?.connectionId === undefined) return;
+    const now = Date.now();
+    await ctx.db.patch(account.connectionId, {
+      lastSyncAt: now,
+      lastError: undefined,
+      updatedAt: now,
+    });
   },
 });
 

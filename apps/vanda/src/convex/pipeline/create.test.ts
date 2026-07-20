@@ -87,7 +87,7 @@ describe("createPost (composed post under test layer)", () => {
       const imageGen = makeMockImageGen();
       const store = makeInMemoryCreateStore();
       const layer = Layer.mergeAll(
-        makeStubRetrieval({ snippets: ["pet-friendly cafe"], themeSummary: "Pets" }),
+        makeStubRetrieval({ critical: [], snippets: ["pet-friendly cafe"], themeSummary: "Pets" }),
         makeStubCaption(composition),
         imageGen.layer,
         store.layer,
@@ -115,7 +115,7 @@ describe("createPost (composed post under test layer)", () => {
       const imageGen = makeMockImageGen();
       const store = makeInMemoryCreateStore();
       const layer = Layer.mergeAll(
-        makeStubRetrieval({ snippets: [], themeSummary: "" }),
+        makeStubRetrieval({ critical: [], snippets: [], themeSummary: "" }),
         makeStubCaption({ caption: "hi", imagePrompts: [] }),
         imageGen.layer,
         store.layer,
@@ -133,7 +133,7 @@ describe("createPost (composed post under test layer)", () => {
       const imageGen = makeMockImageGen({ failOn: "latte art close-up" });
       const store = makeInMemoryCreateStore();
       const layer = Layer.mergeAll(
-        makeStubRetrieval({ snippets: [], themeSummary: "" }),
+        makeStubRetrieval({ critical: [], snippets: [], themeSummary: "" }),
         makeStubCaption(composition),
         imageGen.layer,
         store.layer,

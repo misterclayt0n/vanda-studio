@@ -14,6 +14,10 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
         JSON.stringify({
           data: [
             {
+              id: "m1",
+              caption: "new phone",
+              media_type: "IMAGE",
+              timestamp: "2023-12-30T00:00:00+0000",
               permalink: "https://p/1",
               comments: {
                 data: [
@@ -26,8 +30,8 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
                 ],
               },
             },
-            { permalink: "https://p/2", comments: { data: [] } },
-            { permalink: "https://p/3" },
+            { id: "m2", permalink: "https://p/2", comments: { data: [] } },
+            { id: "m3", permalink: "https://p/3" },
           ],
         }),
         { status: 200 },
@@ -42,6 +46,10 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
       text: "love",
       authorHandle: "alice",
       permalink: "https://p/1",
+      mediaExternalId: "m1",
+      mediaCaption: "new phone",
+      mediaType: "IMAGE",
+      syncKind: "reconciliation",
     });
     expect(signals[0]!.observedAt).toBe(Date.parse("2024-01-01T00:00:00+0000"));
   });

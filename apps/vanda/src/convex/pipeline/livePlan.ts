@@ -6,8 +6,10 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { memoryStoreLive } from "./liveMemory";
+import { brandContextLive } from "./liveBrandContext";
 import { languageModelLayer, type Mutable } from "./liveModel";
 import type { Memory } from "./memoryStore";
+import type { BrandContext } from "./brandContext";
 import { type PlanResult, Suggestions, type SuggestionsShape } from "./suggestions";
 
 const accountKey = (id: string): Id<"accounts"> => id as Id<"accounts">;
@@ -35,5 +37,10 @@ export const suggestionsStoreLive = (ctx: ActionCtx): Layer.Layer<Suggestions> =
 export const planLayer = (
   ctx: ActionCtx,
   apiKey: string,
-): Layer.Layer<Memory | Suggestions | LanguageModel.LanguageModel> =>
-  Layer.mergeAll(memoryStoreLive(ctx), suggestionsStoreLive(ctx), languageModelLayer(apiKey));
+): Layer.Layer<Memory | BrandContext | Suggestions | LanguageModel.LanguageModel> =>
+  Layer.mergeAll(
+    memoryStoreLive(ctx),
+    brandContextLive(ctx),
+    suggestionsStoreLive(ctx),
+    languageModelLayer(apiKey),
+  );

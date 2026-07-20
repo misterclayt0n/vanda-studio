@@ -4,8 +4,15 @@ import type * as LanguageModel from "effect/unstable/ai/LanguageModel";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import { OpenRouterClient, OpenRouterLanguageModel } from "@effect/ai-openrouter";
 
-/** Default model for pipeline LLM calls. Deliberation (plan) may pass a stronger one. */
-export const DEFAULT_MODEL = "openai/gpt-4o-mini";
+/** Models are stage-addressable so quality can be evaluated and upgraded independently. */
+export const PIPELINE_MODELS = {
+  brandProfile: "openai/gpt-5-nano",
+  consolidate: "openai/gpt-5-nano",
+  plan: "openai/gpt-5-nano",
+  create: "openai/gpt-5-nano",
+} as const;
+
+export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
 
 /** OpenRouter-backed `LanguageModel`, wired over the platform fetch client. */
 export const languageModelLayer = (

@@ -22,7 +22,11 @@ export interface ConsolidationResult {
   readonly beliefs: ReadonlyArray<Belief>;
   readonly themes: ReadonlyArray<Theme>;
   readonly note: string;
-  readonly consumedSignals: ReadonlyArray<{ readonly id: string; readonly salience: number }>;
+  readonly consumedSignals: ReadonlyArray<{
+    readonly id: string;
+    readonly salience: number;
+    readonly discardedReason?: string | undefined;
+  }>;
 }
 
 /**

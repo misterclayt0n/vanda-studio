@@ -75,7 +75,10 @@ export const loadCreatableSuggestion = internalQuery({
  */
 export const brandCorpus = internalQuery({
   args: { accountId: v.id("accounts") },
-  handler: async (ctx, { accountId }): Promise<{ statements: string[]; themeSummary: string }> => {
+  handler: async (
+    ctx,
+    { accountId },
+  ): Promise<{ critical: string[]; statements: string[]; themeSummary: string }> => {
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
@@ -89,10 +92,8 @@ export const brandCorpus = internalQuery({
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
     return {
-      statements: [
-        ...canon.filter((c) => c.confirmedByOwner).map((c) => c.text),
-        ...beliefs.filter((b) => b.status !== "retired").map((b) => b.statement),
-      ],
+      critical: canon.filter((c) => c.confirmedByOwner).map((c) => `${c.kind}: ${c.text}`),
+      statements: beliefs.filter((b) => b.status !== "retired").map((b) => b.statement),
       themeSummary: themes.map((t) => `${t.name}: ${t.summary}`).join("; "),
     };
   },

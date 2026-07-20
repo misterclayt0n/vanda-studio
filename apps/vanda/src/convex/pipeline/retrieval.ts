@@ -9,6 +9,8 @@ import type * as Effect from "effect/Effect";
  * feeds the model alongside the suggestion it is composing.
  */
 export interface ContextBundle {
+  /** Owner-confirmed facts and restrictions that must never be retrieval-optional. */
+  readonly critical: ReadonlyArray<string>;
   /** Retrieved brand-knowledge snippets, most-relevant first. */
   readonly snippets: ReadonlyArray<string>;
   /** Summary of the theme the suggestion belongs to ("" when unknown). */
@@ -101,7 +103,9 @@ export const buildBundle = (
   query: string,
   corpus: ReadonlyArray<string>,
   themeSummary: string,
+  critical: ReadonlyArray<string> = [],
 ): ContextBundle => ({
+  critical,
   snippets: rankByRelevance(query, corpus, TOP_K),
   themeSummary,
 });

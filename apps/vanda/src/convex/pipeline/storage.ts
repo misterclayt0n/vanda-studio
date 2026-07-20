@@ -7,6 +7,7 @@ import {
   momenta,
   postTypes,
   signalSources,
+  signalSyncKinds,
   suggestionStatuses,
 } from "./constants";
 
@@ -25,6 +26,13 @@ export const signalColumns = {
   authorHandle: v.optional(v.string()),
   permalink: v.optional(v.string()),
   observedAt: v.number(),
+  ingestedAt: v.optional(v.number()),
+  syncKind: v.optional(v.union(...signalSyncKinds.map((kind) => v.literal(kind)))),
+  mediaExternalId: v.optional(v.string()),
+  mediaCaption: v.optional(v.string()),
+  mediaType: v.optional(v.string()),
+  mediaPublishedAt: v.optional(v.number()),
+  isSelf: v.optional(v.boolean()),
   consolidatedAt: v.optional(v.number()),
   // Importance the consolidate model gave this signal (0..1), stamped when folded;
   // drives the lineage's salient-vs-noise split.
@@ -32,6 +40,8 @@ export const signalColumns = {
   // Owner-flagged as noise from the lineage — dropped from belief support and
   // excluded from future evidence.
   noise: v.optional(v.boolean()),
+  actionable: v.optional(v.boolean()),
+  discardedReason: v.optional(v.string()),
 };
 
 /**
@@ -47,6 +57,7 @@ export const signalColumns = {
  */
 export const beliefColumns = {
   accountId: v.id("accounts"),
+  key: v.optional(v.string()),
   statement: v.string(),
   kind: v.union(...beliefKinds.map((kind) => v.literal(kind))),
   confidence: v.number(),
@@ -86,6 +97,7 @@ export const suggestionColumns = {
   format: v.optional(v.union(...postTypes.map((t) => v.literal(t)))),
   themeName: v.string(),
   beliefStatements: v.array(v.string()),
+  beliefKeys: v.optional(v.array(v.string())),
   signalIds: v.array(v.string()),
   status: v.union(...suggestionStatuses.map((s) => v.literal(s))),
   requiresApproval: v.boolean(),

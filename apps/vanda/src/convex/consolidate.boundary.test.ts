@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { consolidate, type SignalJudgment } from "./pipeline/consolidate";
 import { makeStubConsolidator } from "./pipeline/consolidate.testing";
 import { memoryStoreLive } from "./pipeline/liveMemory";
+import { brandContextLive } from "./pipeline/liveBrandContext";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -47,6 +48,7 @@ describe("consolidate through the ctx-backed memory store", () => {
       Effect.runPromise(
         consolidate(accountId, inputs).pipe(
           Effect.provide(memoryStoreLive(ctx)),
+          Effect.provide(brandContextLive(ctx)),
           Effect.provide(makeStubConsolidator(judge)),
         ),
       ),
@@ -114,6 +116,7 @@ describe("consolidate through the ctx-backed memory store", () => {
       Effect.runPromise(
         consolidate(accountId, inputs).pipe(
           Effect.provide(memoryStoreLive(ctx)),
+          Effect.provide(brandContextLive(ctx)),
           Effect.provide(makeStubConsolidator(judge)),
         ),
       ),

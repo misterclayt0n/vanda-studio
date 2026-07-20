@@ -11,6 +11,7 @@ type JsonObject = Record<string, unknown>;
 type WebhookConnection = {
   accountId: Id<"accounts">;
   igUserId: string;
+  handle: string | undefined;
   tokenCiphertext: string | undefined;
   tokenIv: string | undefined;
   tokenAuthTag: string | undefined;
@@ -65,8 +66,15 @@ const insertSignal = async (
     externalId: string;
     text: string;
     observedAt: number;
+    ingestedAt: number;
+    syncKind: "webhook";
     authorHandle?: string;
     permalink?: string;
+    mediaExternalId?: string;
+    mediaCaption?: string;
+    mediaType?: string;
+    mediaPublishedAt?: number;
+    isSelf?: boolean;
   },
 ): Promise<void> => {
   await ctx.runMutation(internal.instagramWebhook.insertWebhookSignal, signal);
@@ -86,8 +94,14 @@ const handleComment = async (
   const token = tokenFor(connection);
   const mediaId = string(media.id);
   const authorHandle = string(from.username);
-  const permalink =
-    token === null || mediaId === undefined ? undefined : await permalinkForMedia(token, mediaId);
+  const mediaDetails =
+    token === null || mediaId === undefined
+      ? null
+      : await graphGet(token, `/${mediaId}`, "id,caption,media_type,timestamp,permalink");
+  const permalink = string(mediaDetails?.permalink);
+  const mediaCaption = string(mediaDetails?.caption);
+  const mediaType = string(mediaDetails?.media_type);
+  const mediaPublishedAt = Date.parse(string(mediaDetails?.timestamp) ?? "") || undefined;
 
   await insertSignal(ctx, {
     accountId: connection.accountId,
@@ -95,8 +109,17 @@ const handleComment = async (
     externalId: id,
     text: string(value.text) ?? "",
     observedAt,
+    ingestedAt: Date.now(),
+    syncKind: "webhook",
     ...(authorHandle !== undefined ? { authorHandle } : {}),
     ...(permalink !== undefined ? { permalink } : {}),
+    ...(mediaId !== undefined ? { mediaExternalId: mediaId } : {}),
+    ...(mediaCaption !== undefined ? { mediaCaption } : {}),
+    ...(mediaType !== undefined ? { mediaType } : {}),
+    ...(mediaPublishedAt !== undefined ? { mediaPublishedAt } : {}),
+    ...(authorHandle !== undefined && connection.handle !== undefined
+      ? { isSelf: authorHandle.toLocaleLowerCase() === connection.handle.toLocaleLowerCase() }
+      : {}),
   });
 };
 
@@ -111,7 +134,8 @@ const handleMention = async (
   const mediaId = string(value.media_id);
 
   if (commentId !== undefined) {
-    const comment = token === null ? null : await graphGet(token, `/${commentId}`, "id,text,timestamp,username");
+    const comment =
+      token === null ? null : await graphGet(token, `/${commentId}`, "id,text,timestamp,username");
     const authorHandle = string(comment?.username);
     const permalink =
       token === null || mediaId === undefined ? undefined : await permalinkForMedia(token, mediaId);
@@ -121,24 +145,41 @@ const handleMention = async (
       externalId: commentId,
       text: string(comment?.text) ?? "@menção em comentário",
       observedAt: Date.parse(string(comment?.timestamp) ?? "") || observedAt,
+      ingestedAt: Date.now(),
+      syncKind: "webhook",
       ...(authorHandle !== undefined ? { authorHandle } : {}),
       ...(permalink !== undefined ? { permalink } : {}),
+      ...(mediaId !== undefined ? { mediaExternalId: mediaId } : {}),
     });
     return;
   }
 
   if (mediaId !== undefined) {
-    const media = token === null ? null : await graphGet(token, `/${mediaId}`, "id,caption,permalink,timestamp,username");
+    const media =
+      token === null
+        ? null
+        : await graphGet(
+            token,
+            `/${mediaId}`,
+            "id,caption,media_type,permalink,timestamp,username",
+          );
     const authorHandle = string(media?.username);
     const permalink = string(media?.permalink);
+    const mediaCaption = string(media?.caption);
+    const mediaType = string(media?.media_type);
     await insertSignal(ctx, {
       accountId: connection.accountId,
       source: "mentions",
       externalId: mediaId,
       text: string(media?.caption) ?? "@menção em mídia",
       observedAt: Date.parse(string(media?.timestamp) ?? "") || observedAt,
+      ingestedAt: Date.now(),
+      syncKind: "webhook",
       ...(authorHandle !== undefined ? { authorHandle } : {}),
       ...(permalink !== undefined ? { permalink } : {}),
+      mediaExternalId: mediaId,
+      ...(mediaCaption !== undefined ? { mediaCaption } : {}),
+      ...(mediaType !== undefined ? { mediaType } : {}),
     });
   }
 };
@@ -155,9 +196,12 @@ export const process = internalAction({
       const externalAccountId = string(rawEntry.id);
       if (externalAccountId === undefined) continue;
 
-      const connection = await ctx.runQuery(internal.instagramWebhook.accountConnectionByExternalId, {
-        externalAccountId,
-      });
+      const connection = await ctx.runQuery(
+        internal.instagramWebhook.accountConnectionByExternalId,
+        {
+          externalAccountId,
+        },
+      );
       if (connection === null) continue;
 
       const changes = Array.isArray(rawEntry.changes) ? rawEntry.changes : [];
@@ -167,8 +211,10 @@ export const process = internalAction({
         const value = isObject(rawChange.value) ? rawChange.value : null;
         if (value === null) continue;
 
-        if (field === "comments") await handleComment(ctx, connection, value, entryObservedAt(rawEntry));
-        if (field === "mentions") await handleMention(ctx, connection, value, entryObservedAt(rawEntry));
+        if (field === "comments")
+          await handleComment(ctx, connection, value, entryObservedAt(rawEntry));
+        if (field === "mentions")
+          await handleMention(ctx, connection, value, entryObservedAt(rawEntry));
       }
     }
   },

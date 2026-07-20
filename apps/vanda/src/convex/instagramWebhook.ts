@@ -22,6 +22,7 @@ export const accountConnectionByExternalId = internalQuery({
     return {
       accountId: account._id,
       igUserId: connection.externalAccountId,
+      handle: connection.handle,
       tokenCiphertext: connection.tokenCiphertext,
       tokenIv: connection.tokenIv,
       tokenAuthTag: connection.tokenAuthTag,
@@ -62,6 +63,7 @@ export const recordSubscriptionError = internalMutation({
 export type WebhookAccountConnection = {
   accountId: Id<"accounts">;
   igUserId: string;
+  handle: string | undefined;
   tokenCiphertext: string | undefined;
   tokenIv: string | undefined;
   tokenAuthTag: string | undefined;

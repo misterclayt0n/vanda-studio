@@ -20,9 +20,15 @@ export const observeAccount = internalAction({
     const connection = await ctx.runQuery(internal.observe.getAccountConnection, { accountId });
     if (connection === null) return;
     const config = { igUserId: connection.igUserId, token: decryptInstagramToken(connection) };
-    const adapters = [igCommentsAdapter(config), igMentionsAdapter(config)];
+    const options = {
+      accountHandle: connection.handle,
+      syncKind:
+        connection.lastSyncAt === undefined ? ("backfill" as const) : ("reconciliation" as const),
+    };
+    const adapters = [igCommentsAdapter(config, options), igMentionsAdapter(config, options)];
     await Effect.runPromise(
       observe(accountId, adapters).pipe(Effect.provide(signalsStoreLive(ctx))),
     );
+    await ctx.runMutation(internal.observe.recordObserveSuccess, { accountId });
   },
 });

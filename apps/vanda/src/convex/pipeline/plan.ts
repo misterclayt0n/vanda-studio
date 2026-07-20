@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
 import { isThemeSaturated, meetsEvidenceThreshold } from "./discernment";
+import { BrandContext, renderBrandContext } from "./brandContext";
 import {
   type AccountMode,
   type Belief,
@@ -22,6 +23,8 @@ export const Idea = Schema.Struct({
   themeName: Schema.String,
   /** The EXACT statements of the held beliefs this idea draws on (its provenance). */
   beliefStatements: Schema.Array(Schema.String),
+  /** Stable belief identities; legacy/test ideas may omit and fall back to statements. */
+  beliefKeys: Schema.optionalKey(Schema.Array(Schema.String)),
   rationale: Schema.String,
 });
 export type Idea = typeof Idea.Type;
@@ -44,38 +47,50 @@ const normalize = (statement: string): string => statement.trim().toLowerCase();
 
 const fmtPct = (n: number): string => `${Math.round(n * 100)}%`;
 
-const ideatePrompt = (beliefs: ReadonlyArray<Belief>, themes: ReadonlyArray<Theme>): string => {
+const ideatePrompt = (
+  beliefs: ReadonlyArray<Belief>,
+  themes: ReadonlyArray<Theme>,
+  brandContext: string,
+): string => {
   const beliefLines = beliefs
-    .map((b) => `- [${b.kind}] ${b.statement} (confidence ${fmtPct(b.confidence)})`)
+    .map(
+      (b, index) =>
+        `- [${b.key ?? `legacy:${index}`}] [${b.kind}] ${b.statement} ` +
+        `(confiança ${fmtPct(b.confidence)})`,
+    )
     .join("\n");
   const themeLines =
     themes.length === 0 ? "(none)" : themes.map((t) => `- ${t.name} (${t.momentum})`).join("\n");
   return (
-    `You are a brand's social-media strategist. From the well-evidenced beliefs ` +
-    `below, propose up to 3 concrete Instagram post ideas this brand should make. ` +
-    `Ground each idea in one or more of the listed beliefs (reuse their EXACT ` +
-    `wording in beliefStatements), choose a format (feed, reel, story, tweet, ` +
-    `image), name the theme it serves, and give a one-sentence rationale. Propose ` +
-    `nothing that isn't supported by a listed belief.\n\n` +
-    `Beliefs:\n${beliefLines}\n\nThemes:\n${themeLines}`
+    `Você é a estrategista de redes sociais de uma marca. A partir das crenças bem ` +
+    `fundamentadas abaixo, proponha até 3 ideias concretas de posts para Instagram. ` +
+    `Fundamente cada ideia em uma ou mais crenças listadas, copiando suas chaves em ` +
+    `beliefKeys e seu texto em beliefStatements. Escolha um formato (feed, reel, story, tweet ou ` +
+    `image), informe o tema e dê uma justificativa em uma frase. Escreva todo o ` +
+    `conteúdo em português do Brasil e não proponha nada sem apoio nas crenças.\n\n` +
+    `Contexto confirmado da marca:\n${brandContext || "(não informado)"}\n\n` +
+    `Crenças:\n${beliefLines}\n\nTemas:\n${themeLines}`
   );
 };
 
-const critiquePrompt = (idea: Idea): string =>
-  `You are a skeptical editor reviewing ONE proposed Instagram post for a small ` +
-  `business. Reject it if it is off-brand, generic, unsupported, or risky; accept ` +
-  `only when it is specific and clearly worth posting. Flag it sensitive if it ` +
-  `touches negative sentiment, a competitor, or anything needing owner sign-off.\n\n` +
-  `Title: ${idea.title}\nTheme: ${idea.themeName}\n` +
-  `Rationale: ${idea.rationale}`;
+const critiquePrompt = (idea: Idea, brandContext: string): string =>
+  `Você é uma editora criteriosa revisando UMA proposta de post para Instagram de um ` +
+  `pequeno negócio. Rejeite se for genérica, sem evidência, arriscada ou desalinhada ` +
+  `com a marca; aceite somente se for específica e claramente valer a publicação. ` +
+  `Marque sensitive quando envolver sentimento negativo, concorrentes ou decisão do dono. ` +
+  `Responda em português do Brasil.\n\nContexto confirmado da marca:\n` +
+  `${brandContext || "(não informado)"}\n\nTítulo: ${idea.title}\nTema: ${idea.themeName}\n` +
+  `Justificativa: ${idea.rationale}`;
 
 // --- Pure deliberation helpers --------------------------------------------
 
 /** The held beliefs an idea names (by exact, normalized statement). */
 const citedBeliefs = (idea: Idea, snapshot: MemorySnapshot): ReadonlyArray<Belief> =>
-  idea.beliefStatements
-    .map((statement) =>
-      snapshot.beliefs.find((b) => normalize(b.statement) === normalize(statement)),
+  (idea.beliefKeys ?? idea.beliefStatements)
+    .map((reference) =>
+      idea.beliefKeys !== undefined
+        ? snapshot.beliefs.find((belief) => belief.key === reference)
+        : snapshot.beliefs.find((belief) => normalize(belief.statement) === normalize(reference)),
     )
     .filter((b): b is Belief => b !== undefined);
 
@@ -126,6 +141,7 @@ const baseSuggestion = (
     rationale: idea.rationale,
     themeName: idea.themeName,
     beliefStatements: idea.beliefStatements,
+    ...(idea.beliefKeys !== undefined ? { beliefKeys: idea.beliefKeys } : {}),
     signalIds: provenanceSignals(citedBeliefs(idea, snapshot)),
     createdAt: now,
   };
@@ -166,15 +182,18 @@ const rejectedSuggestion = (
  */
 export const plan = Effect.fn("pipeline.plan")(function* (accountId: string) {
   const memory = yield* Memory;
+  const brands = yield* BrandContext;
   const suggestions = yield* Suggestions;
   const snapshot = yield* memory.loadSnapshot(accountId);
+  const brand = yield* brands.load(accountId);
+  const brandPrompt = renderBrandContext(brand);
   const now = yield* Clock.currentTimeMillis;
   const actionable = snapshot.beliefs.filter((b) => meetsEvidenceThreshold(b, snapshot.policy));
 
   let drafts: ReadonlyArray<Suggestion> = [];
   if (actionable.length > 0) {
     const ideated = yield* LanguageModel.generateObject({
-      prompt: ideatePrompt(actionable, snapshot.themes),
+      prompt: ideatePrompt(actionable, snapshot.themes, brandPrompt),
       schema: Ideas,
     });
     drafts = yield* Effect.forEach(
@@ -185,7 +204,7 @@ export const plan = Effect.fn("pipeline.plan")(function* (accountId: string) {
           if (rejection !== undefined)
             return rejectedSuggestion(idea, snapshot, accountId, rejection, now);
           const critique = yield* LanguageModel.generateObject({
-            prompt: critiquePrompt(idea),
+            prompt: critiquePrompt(idea, brandPrompt),
             schema: Critique,
           });
           return critique.value.verdict === "reject"

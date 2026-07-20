@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
-import type { SignalJudgment } from "./consolidate";
+import type { BatchJudgment, SignalJudgment } from "./consolidate";
 import { type AccountMode, type Belief, defaultPolicy, type Policy, type Theme } from "./memory";
 import {
   type ConsolidationResult,
@@ -11,9 +11,17 @@ import {
   type MemorySnapshot,
 } from "./memoryStore";
 import { makeStubLanguageModel } from "./testLanguageModel";
+import { BrandContext, type BrandContextSnapshot } from "./brandContext";
 
 /** Stub `LanguageModel` for consolidate: `generateObject` returns `judge(prompt)`. */
 export const makeStubConsolidator = (judge: (prompt: string) => SignalJudgment) =>
+  makeStubLanguageModel((prompt): BatchJudgment => {
+    const judgment = judge(prompt);
+    const signalIds = [...prompt.matchAll(/^- \[([^\]]+)\] \(/gm)].map((match) => match[1]!);
+    return { groups: [{ ...judgment, signalIds }], ignored: [] };
+  });
+
+export const makeBatchConsolidator = (judge: (prompt: string) => BatchJudgment) =>
   makeStubLanguageModel(judge);
 
 /** A stub model that always fails — for the model-failure-aborts-the-pass path. */
@@ -24,7 +32,7 @@ export const failingConsolidator = Layer.succeed(LanguageModel.LanguageModel, {
 } as unknown as LanguageModel.Service);
 
 export interface MemoryRecorder {
-  readonly layer: Layer.Layer<Memory>;
+  readonly layer: Layer.Layer<Memory | BrandContext>;
   /** Every result `apply` received, in order. */
   readonly applied: ReadonlyArray<ConsolidationResult>;
   /** The current persisted snapshot (reflects applied results). */
@@ -42,6 +50,7 @@ export const makeMemoryRecorder = (
     readonly themes?: ReadonlyArray<Theme>;
     readonly policy?: Policy;
     readonly mode?: AccountMode;
+    readonly brand?: BrandContextSnapshot;
   } = {},
 ): MemoryRecorder => {
   let beliefs: ReadonlyArray<Belief> = seed.beliefs ?? [];
@@ -50,7 +59,7 @@ export const makeMemoryRecorder = (
   const mode = seed.mode ?? "needs_approval";
   const applied: Array<ConsolidationResult> = [];
 
-  const layer = Layer.succeed(Memory, {
+  const memoryLayer = Layer.succeed(Memory, {
     loadSnapshot: () => Effect.sync(() => ({ beliefs, themes, policy, mode })),
     apply: (_accountId, result) =>
       Effect.sync(() => {
@@ -59,6 +68,20 @@ export const makeMemoryRecorder = (
         applied.push(result);
       }),
   } satisfies MemoryShape);
+  const layer = Layer.merge(
+    memoryLayer,
+    Layer.succeed(BrandContext, {
+      load: () =>
+        Effect.succeed(
+          seed.brand ?? {
+            locale: "pt-BR",
+            canon: [],
+            themes: [],
+            referenceImageUrls: [],
+          },
+        ),
+    }),
+  );
 
   return { layer, applied, snapshot: () => ({ beliefs, themes, policy, mode }) };
 };

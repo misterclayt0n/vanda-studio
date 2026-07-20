@@ -53,7 +53,7 @@ export const retrievalLive = (ctx: ActionCtx): Layer.Layer<Retrieval> =>
         Effect.tryPromise(() =>
           ctx.runQuery(internal.create.brandCorpus, { accountId: accountId as Id<"accounts"> }),
         ),
-        (corpus) => buildBundle(query, corpus.statements, corpus.themeSummary),
+        (corpus) => buildBundle(query, corpus.statements, corpus.themeSummary, corpus.critical),
       ),
   });
 

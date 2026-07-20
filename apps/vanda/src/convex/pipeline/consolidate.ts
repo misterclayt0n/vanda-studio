@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
 import type { StoredSignal } from "./domain";
+import { BrandContext, renderBrandContext } from "./brandContext";
 import { contradictBelief, decayBelief, reinforceBelief } from "./discernment";
 import { type Belief, BeliefKind, type Theme, UnitInterval } from "./memory";
 import { Memory, type ConsolidationResult, type MemorySnapshot } from "./memoryStore";
@@ -20,6 +21,7 @@ export type SignalRelation = typeof SignalRelation.Type;
  * This is perception only; turning beliefs into posts is plan's job.
  */
 export const SignalJudgment = Schema.Struct({
+  beliefKey: Schema.optionalKey(Schema.String),
   kind: BeliefKind,
   salience: UnitInterval,
   relation: SignalRelation,
@@ -27,6 +29,27 @@ export const SignalJudgment = Schema.Struct({
   themeName: Schema.String,
 });
 export type SignalJudgment = typeof SignalJudgment.Type;
+
+export const SignalGroup = Schema.Struct({
+  signalIds: Schema.Array(Schema.String),
+  beliefKey: Schema.optionalKey(Schema.String),
+  kind: BeliefKind,
+  salience: UnitInterval,
+  relation: SignalRelation,
+  beliefStatement: Schema.String,
+  themeName: Schema.String,
+});
+
+export const IgnoredSignal = Schema.Struct({
+  signalId: Schema.String,
+  reason: Schema.String,
+});
+
+export const BatchJudgment = Schema.Struct({
+  groups: Schema.Array(SignalGroup),
+  ignored: Schema.Array(IgnoredSignal),
+});
+export type BatchJudgment = typeof BatchJudgment.Type;
 
 /**
  * Delimiter after which the signal text is appended verbatim. A test stub keys
@@ -36,24 +59,43 @@ export type SignalJudgment = typeof SignalJudgment.Type;
  */
 export const SIGNAL_MARKER = "SIGNAL >>> ";
 
-const judgePrompt = (signal: StoredSignal, beliefs: ReadonlyArray<Belief>): string => {
+const judgePrompt = (
+  signals: ReadonlyArray<StoredSignal>,
+  beliefs: ReadonlyArray<Belief>,
+  brandContext: string,
+): string => {
   const known =
     beliefs.length === 0
       ? "(none yet)"
-      : beliefs.map((belief) => `- ${belief.statement}`).join("\n");
+      : beliefs
+          .map((belief, index) => `- [${belief.key ?? `legacy:${index}`}] ${belief.statement}`)
+          .join("\n");
+  const observations = signals
+    .map((signal) => {
+      const context = [
+        signal.mediaCaption ? `post: ${signal.mediaCaption}` : null,
+        signal.mediaType ? `tipo: ${signal.mediaType}` : null,
+        signal.authorHandle ? `autor: @${signal.authorHandle}` : null,
+        signal.syncKind ? `origem: ${signal.syncKind}` : null,
+      ]
+        .filter((value): value is string => value !== null)
+        .join(" | ");
+      return `- [${signal.id}] (${signal.source}) ${signal.text}${context ? ` | ${context}` : ""}`;
+    })
+    .join("\n");
   return (
-    `You maintain a small business's brand memory. Given a new signal and the ` +
-    `beliefs already held, decide which belief the signal bears on.\n` +
-    `Reuse a belief's EXACT wording when the signal supports or contradicts it; ` +
-    `otherwise write one new concise belief statement. Also return its kind, an ` +
-    `importance from 0 to 1, and a short recurring-theme name. Do not propose ` +
-    `any post or action.\n\n` +
-    `Known beliefs:\n${known}\n\n` +
-    `${SIGNAL_MARKER}(${signal.source}) ${signal.text}`
+    `Você mantém a memória de marca de um pequeno negócio. Analise os sinais em conjunto, ` +
+    `agrupando evidências semanticamente equivalentes em uma única crença útil e específica. ` +
+    `Um grupo pode conter vários signalIds. Para uma crença existente, copie sua chave em ` +
+    `beliefKey e preserve seu texto. Para uma crença nova, omita beliefKey. Classifique como ` +
+    `ignored sinais vazios, genéricos, autorreferentes ou sem informação estratégica. Não ` +
+    `transforme elogios vagos em conclusões genéricas. Escreva crenças, temas e motivos em ` +
+    `português do Brasil. Não proponha posts nem ações.\n\n` +
+    `Contexto confirmado da marca:\n${brandContext || "(não informado)"}\n\n` +
+    `Crenças existentes:\n${known}\n\n` +
+    `${SIGNAL_MARKER}\n${observations}`
   );
 };
-
-const JUDGE_CONCURRENCY = 4;
 
 const normalize = (statement: string): string => statement.trim().toLowerCase();
 
@@ -61,6 +103,37 @@ interface JudgedSignal {
   readonly signal: StoredSignal;
   readonly judgment: SignalJudgment;
 }
+
+const compact = (text: string): string => text.normalize("NFKC").trim().replace(/\s+/g, " ");
+
+const genericReactions = new Set([
+  "adorei",
+  "amei",
+  "legal",
+  "lindo",
+  "linda",
+  "show",
+  "sim",
+  "tb",
+  "top",
+  "toop",
+  "que interessante",
+]);
+
+export const discardReason = (signal: StoredSignal, now: number): string | undefined => {
+  const text = compact(signal.text);
+  if (text.length === 0) return "sinal vazio";
+  if (signal.isSelf === true) return "comentário da própria marca";
+  if (signal.syncKind === "backfill" && now - signal.observedAt > 90 * 24 * 60 * 60 * 1000)
+    return "fora da janela histórica de 90 dias";
+  const words = text
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .trim();
+  if (words.length === 0) return "reação sem texto";
+  if (genericReactions.has(words.replace(/(.)\1{2,}/g, "$1"))) return "reação genérica";
+  return undefined;
+};
 
 /**
  * Pure consolidation fold: decay every belief by elapsed time, then thread each
@@ -89,7 +162,9 @@ export const foldConsolidation = (
 
   for (const { signal, judgment } of entries) {
     const idx = beliefs.findIndex(
-      (belief) => normalize(belief.statement) === normalize(judgment.beliefStatement),
+      (belief) =>
+        (judgment.beliefKey !== undefined && belief.key === judgment.beliefKey) ||
+        normalize(belief.statement) === normalize(judgment.beliefStatement),
     );
 
     if (idx >= 0) {
@@ -102,11 +177,16 @@ export const foldConsolidation = (
         updated = reinforceBelief(current, signal.id, now, policy);
         reinforced += 1;
       }
-      beliefs = beliefs.map((belief, k) => (k === idx ? updated : belief));
+      const keyed =
+        current.key === undefined && judgment.beliefKey !== undefined
+          ? { ...updated, key: judgment.beliefKey }
+          : updated;
+      beliefs = beliefs.map((belief, k) => (k === idx ? keyed : belief));
     } else if (judgment.relation !== "contradicts") {
       // A signal that contradicts a belief we don't hold changes nothing.
       const fresh: Belief = {
         accountId,
+        key: judgment.beliefKey ?? `belief:${signal.id}`,
         statement: judgment.beliefStatement,
         kind: judgment.kind,
         confidence: 0,
@@ -144,8 +224,8 @@ export const foldConsolidation = (
   }
 
   const note =
-    `Consolidated ${entries.length} signal(s): ${created} new, ${reinforced} reinforced, ` +
-    `${contradicted} contradicted. Tracking ${themes.length} theme(s).`;
+    `Consolidei ${entries.length} sinal(is): ${created} nova(s), ${reinforced} reforçada(s), ` +
+    `${contradicted} contradita(s). Acompanhando ${themes.length} tema(s).`;
 
   return {
     beliefs,
@@ -160,8 +240,8 @@ export const foldConsolidation = (
 
 /**
  * The consolidate stage: perceive a batch of new signals against current memory.
- * Loads the memory snapshot, asks the model how each signal bears on the held
- * beliefs (concurrently, each seeing only the snapshot), folds those judgments in
+ * Loads the memory snapshot, asks the model to cluster the signal batch against held
+ * beliefs, folds those judgments in
  * (pure), and writes the deltas. A model failure aborts the pass without applying
  * anything, so the signals stay unconsolidated and are retried on the next cycle.
  */
@@ -170,18 +250,59 @@ export const consolidate = Effect.fn("pipeline.consolidate")(function* (
   signals: ReadonlyArray<StoredSignal>,
 ) {
   const memory = yield* Memory;
+  const brands = yield* BrandContext;
   const snapshot = yield* memory.loadSnapshot(accountId);
-  const entries = yield* Effect.forEach(
-    signals,
-    (signal) =>
-      LanguageModel.generateObject({
-        prompt: judgePrompt(signal, snapshot.beliefs),
-        schema: SignalJudgment,
-      }).pipe(Effect.map((response): JudgedSignal => ({ signal, judgment: response.value }))),
-    { concurrency: JUDGE_CONCURRENCY },
-  );
+  const brand = yield* brands.load(accountId);
+  const brandPrompt = renderBrandContext(brand);
   const now = yield* Clock.currentTimeMillis;
-  const result = foldConsolidation(accountId, snapshot, entries, now);
+  const eligible: Array<StoredSignal> = [];
+  const discarded: Array<{
+    readonly id: string;
+    readonly salience: number;
+    readonly discardedReason: string;
+  }> = [];
+  for (const signal of signals) {
+    const reason = discardReason(signal, now);
+    if (reason === undefined) eligible.push({ ...signal, text: compact(signal.text) });
+    else discarded.push({ id: signal.id, salience: 0, discardedReason: reason });
+  }
+
+  let entries: ReadonlyArray<JudgedSignal> = [];
+  if (eligible.length > 0) {
+    const response = yield* LanguageModel.generateObject({
+      prompt: judgePrompt(eligible, snapshot.beliefs, brandPrompt),
+      schema: BatchJudgment,
+    });
+    const byId = new Map(eligible.map((signal) => [signal.id, signal] as const));
+    const seen = new Set<string>();
+    const grouped: Array<JudgedSignal> = [];
+    for (const group of response.value.groups) {
+      for (const signalId of group.signalIds) {
+        const signal = byId.get(signalId);
+        if (signal === undefined || seen.has(signalId)) continue;
+        seen.add(signalId);
+        const { signalIds: _signalIds, ...judgment } = group;
+        grouped.push({ signal, judgment });
+      }
+    }
+    for (const ignored of response.value.ignored) {
+      if (!byId.has(ignored.signalId) || seen.has(ignored.signalId)) continue;
+      seen.add(ignored.signalId);
+      discarded.push({ id: ignored.signalId, salience: 0, discardedReason: ignored.reason });
+    }
+    for (const signal of eligible) {
+      if (!seen.has(signal.id))
+        discarded.push({ id: signal.id, salience: 0, discardedReason: "modelo não classificou" });
+    }
+    entries = grouped;
+  }
+
+  const folded = foldConsolidation(accountId, snapshot, entries, now);
+  const result: ConsolidationResult = {
+    ...folded,
+    note: `${folded.note} ${discarded.length} sinal(is) descartado(s).`,
+    consumedSignals: [...folded.consumedSignals, ...discarded],
+  };
   yield* memory.apply(accountId, result);
   return result;
 });

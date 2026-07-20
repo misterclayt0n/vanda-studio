@@ -6,7 +6,7 @@ import { type PlanResult, Suggestions, type SuggestionsShape } from "./suggestio
 import { makeStubLanguageModel } from "./testLanguageModel";
 
 /** Critique prompts contain this; ideate prompts don't — lets the stub route calls. */
-const CRITIQUE_HINT = "skeptical editor";
+const CRITIQUE_HINT = "editora criteriosa";
 
 /**
  * Stub `LanguageModel` for plan: returns `{ ideas }` for the ideate call and
@@ -18,7 +18,7 @@ export const makePlannerStub = (
 ) =>
   makeStubLanguageModel((prompt) => {
     if (prompt.includes(CRITIQUE_HINT)) {
-      const title = /Title: (.*)/.exec(prompt)?.[1] ?? "";
+      const title = /Título: (.*)/.exec(prompt)?.[1] ?? "";
       return critique(title);
     }
     return { ideas };

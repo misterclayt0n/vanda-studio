@@ -59,6 +59,8 @@ export type SuggestionStatus = typeof SuggestionStatus.Type;
  */
 export const Belief = Schema.Struct({
   accountId: Schema.String,
+  /** Stable model-facing identity; statements remain owner-editable display text. */
+  key: Schema.optionalKey(Schema.String),
   statement: Schema.String,
   kind: BeliefKind,
   confidence: UnitInterval,
@@ -167,6 +169,7 @@ export const Suggestion = Schema.Struct({
   format: Schema.optionalKey(PostType),
   themeName: Schema.String,
   beliefStatements: Schema.Array(Schema.String),
+  beliefKeys: Schema.optionalKey(Schema.Array(Schema.String)),
   signalIds: Schema.Array(Schema.String),
   status: SuggestionStatus,
   requiresApproval: Schema.Boolean,
