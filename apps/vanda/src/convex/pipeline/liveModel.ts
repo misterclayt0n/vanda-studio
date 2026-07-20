@@ -14,6 +14,14 @@ export const PIPELINE_MODELS = {
 
 export const DEFAULT_MODEL = PIPELINE_MODELS.consolidate;
 
+export const PROMPT_VERSIONS = {
+  brandProfile: "brand-profile/pt-br-v1",
+  consolidate: "consolidate/batch-brand-v1",
+  plan: "plan/brand-grounded-pt-br-v1",
+  create: "create/brand-grounded-pt-br-v1",
+  embedding: "knowledge/openai-embedding-v1",
+} as const;
+
 /** OpenRouter-backed `LanguageModel`, wired over the platform fetch client. */
 export const languageModelLayer = (
   apiKey: string,

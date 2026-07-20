@@ -3,7 +3,7 @@ import type * as LanguageModel from "effect/unstable/ai/LanguageModel";
 import type { ActionCtx } from "../_generated/server";
 import { memoryStoreLive } from "./liveMemory";
 import { brandContextLive } from "./liveBrandContext";
-import { languageModelLayer } from "./liveModel";
+import { languageModelLayer, PIPELINE_MODELS } from "./liveModel";
 import type { BrandContext } from "./brandContext";
 import type { Memory } from "./memoryStore";
 
@@ -15,4 +15,8 @@ export const consolidateLayer = (
   ctx: ActionCtx,
   apiKey: string,
 ): Layer.Layer<Memory | BrandContext | LanguageModel.LanguageModel> =>
-  Layer.mergeAll(memoryStoreLive(ctx), brandContextLive(ctx), languageModelLayer(apiKey));
+  Layer.mergeAll(
+    memoryStoreLive(ctx),
+    brandContextLive(ctx),
+    languageModelLayer(apiKey, PIPELINE_MODELS.consolidate),
+  );

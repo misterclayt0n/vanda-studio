@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 import * as LanguageModel from "effect/unstable/ai/LanguageModel";
 import type { StoredSignal } from "./domain";
 import { BrandContext, renderBrandContext } from "./brandContext";
-import { contradictBelief, decayBelief, reinforceBelief } from "./discernment";
+import { contradictBelief, decayBelief, reinforceIndependentEvidence } from "./discernment";
 import { type Belief, BeliefKind, type Theme, UnitInterval } from "./memory";
 import { Memory, type ConsolidationResult, type MemorySnapshot } from "./memoryStore";
 
@@ -66,7 +66,7 @@ const judgePrompt = (
 ): string => {
   const known =
     beliefs.length === 0
-      ? "(none yet)"
+      ? "(nenhuma ainda)"
       : beliefs
           .map((belief, index) => `- [${belief.key ?? `legacy:${index}`}] ${belief.statement}`)
           .join("\n");
@@ -98,6 +98,15 @@ const judgePrompt = (
 };
 
 const normalize = (statement: string): string => statement.trim().toLowerCase();
+
+export const evidenceKeyForSignal = (signal: StoredSignal): string => {
+  const author = signal.authorHandle?.trim().toLocaleLowerCase("pt-BR");
+  if (author !== undefined && signal.mediaExternalId !== undefined)
+    return `author:${author}:media:${signal.mediaExternalId}`;
+  if (author !== undefined) return `author:${author}`;
+  if (signal.mediaExternalId !== undefined) return `media:${signal.mediaExternalId}`;
+  return `signal:${signal.id}`;
+};
 
 interface JudgedSignal {
   readonly signal: StoredSignal;
@@ -174,7 +183,13 @@ export const foldConsolidation = (
         updated = contradictBelief(current, now, policy);
         contradicted += 1;
       } else {
-        updated = reinforceBelief(current, signal.id, now, policy);
+        updated = reinforceIndependentEvidence(
+          current,
+          signal.id,
+          evidenceKeyForSignal(signal),
+          now,
+          policy,
+        );
         reinforced += 1;
       }
       const keyed =
@@ -195,7 +210,10 @@ export const foldConsolidation = (
         confidenceAsOf: now,
         status: "retired",
       };
-      beliefs = [...beliefs, reinforceBelief(fresh, signal.id, now, policy)];
+      beliefs = [
+        ...beliefs,
+        reinforceIndependentEvidence(fresh, signal.id, evidenceKeyForSignal(signal), now, policy),
+      ];
       created += 1;
     }
 

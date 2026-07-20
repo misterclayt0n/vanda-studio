@@ -4,6 +4,8 @@ import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import { consolidate } from "./pipeline/consolidate";
 import { consolidateLayer } from "./pipeline/liveConsolidate";
+import { PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import { runTracked } from "./pipeline/liveTelemetry";
 
 /**
  * Consolidate one account: fold its pending signals into belief/theme memory
@@ -37,8 +39,22 @@ export const consolidateAccount = internalAction({
         : {}),
       ...(signal.isSelf !== undefined ? { isSelf: signal.isSelf } : {}),
     }));
-    await Effect.runPromise(
-      consolidate(accountId, inputs).pipe(Effect.provide(consolidateLayer(ctx, apiKey))),
+    await runTracked(
+      ctx,
+      {
+        accountId,
+        stage: "consolidate",
+        model: PIPELINE_MODELS.consolidate,
+        promptVersion: PROMPT_VERSIONS.consolidate,
+        inputIds: inputs.map((signal) => signal.id),
+      },
+      () =>
+        Effect.runPromise(
+          consolidate(accountId, inputs).pipe(Effect.provide(consolidateLayer(ctx, apiKey))),
+        ),
+      (result) =>
+        `${result.beliefs.length} crenças; ${result.themes.length} temas; ` +
+        `${result.consumedSignals.length} sinais`,
     );
   },
 });

@@ -3,6 +3,8 @@ import * as Effect from "effect/Effect";
 import { internalAction } from "./_generated/server";
 import { plan } from "./pipeline/plan";
 import { planLayer } from "./pipeline/livePlan";
+import { PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import { runTracked } from "./pipeline/liveTelemetry";
 
 /**
  * Plan one account: deliberate over its consolidated memory and persist the
@@ -14,6 +16,17 @@ export const planAccount = internalAction({
   handler: async (ctx, { accountId }) => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
-    await Effect.runPromise(plan(accountId).pipe(Effect.provide(planLayer(ctx, apiKey))));
+    await runTracked(
+      ctx,
+      {
+        accountId,
+        stage: "plan",
+        model: PIPELINE_MODELS.plan,
+        promptVersion: PROMPT_VERSIONS.plan,
+        inputIds: [],
+      },
+      () => Effect.runPromise(plan(accountId).pipe(Effect.provide(planLayer(ctx, apiKey)))),
+      (result) => `${result.suggestions.length} propostas`,
+    );
   },
 });

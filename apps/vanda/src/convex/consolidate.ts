@@ -23,6 +23,7 @@ const toBelief = (b: Doc<"beliefs">): Belief => ({
   kind: b.kind,
   confidence: b.confidence,
   supportingSignalIds: b.supportingSignalIds,
+  ...(b.supportingEvidence === undefined ? {} : { supportingEvidence: b.supportingEvidence }),
   firstSeenAt: b.firstSeenAt,
   confidenceAsOf: b.confidenceAsOf,
   status: b.status,
@@ -157,6 +158,7 @@ export const applyConsolidation = internalMutation({
         ...(discardedReason !== undefined ? { discardedReason } : {}),
       });
     }
+    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, { accountId });
   },
 });
 

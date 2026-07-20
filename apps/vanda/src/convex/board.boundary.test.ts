@@ -238,7 +238,13 @@ describe("board.observing — the Observando rail", () => {
     const dayAgo = now - 24 * 60 * 60 * 1000;
 
     const { noise } = await t.run(async (ctx) => {
-      const signal = (externalId: string, salience: number, observedAt: number, noise?: boolean) =>
+      const signal = (
+        externalId: string,
+        salience: number,
+        observedAt: number,
+        noise?: boolean,
+        actionable = true,
+      ) =>
         ctx.db.insert("signals", {
           accountId,
           source: "comments" as const,
@@ -246,9 +252,10 @@ describe("board.observing — the Observando rail", () => {
           text: externalId,
           observedAt,
           salience,
+          actionable,
           ...(noise ? { noise: true } : {}),
         });
-      // 6 live within 24h + 1 old live (48h) + 1 noise (highest salience).
+      // 6 live within 24h + 1 old live (48h) + 1 noise + 2 discarded reactions.
       await signal("s090", 0.9, now);
       await signal("s075", 0.75, now);
       await signal("s060", 0.6, now);
@@ -257,13 +264,15 @@ describe("board.observing — the Observando rail", () => {
       await signal("s015", 0.15, now);
       await signal("sOld", 0.5, dayAgo - 60_000); // old but live → notable-eligible, not "today"
       const noise = await signal("sNoise", 0.99, now, true); // highest salience, still excluded
+      await signal("discarded-1", 0.1, now, false, false);
+      await signal("discarded-2", 0.2, now, false, false);
       return { noise };
     });
 
     const obs = await t.withIdentity({ subject: OWNER }).query(api.board.observing, { accountId });
 
     // totalToday counts every signal in the last 24h (noise included), old ones excluded.
-    expect(obs.totalToday).toBe(7); // 6 recent live + 1 noise; old one is 48h back
+    expect(obs.totalToday).toBe(9); // 6 recent live + 1 noise + 2 discarded
 
     // notable: salient-first, capped at 5, noise excluded despite its 0.99.
     expect(obs.notable).toHaveLength(5);
@@ -272,7 +281,7 @@ describe("board.observing — the Observando rail", () => {
     expect(obs.notable[0]!.source).toBe("comments");
     expect(obs.notable[0]!.text).toBe("s090");
 
-    // routineCount = live (7) minus the 5 notable = 2.
+    // Routine is the explicitly discarded low-information set, not overflow.
     expect(obs.routineCount).toBe(2);
   });
 
@@ -296,24 +305,38 @@ describe("board.observing — the Observando rail", () => {
         text: "b",
         observedAt: now,
       });
-      const belief = (statement: string, confidence: number, opts?: Partial<{ retired: boolean; support: string[] }>) =>
+      const sigC = await ctx.db.insert("signals", {
+        accountId,
+        source: "comments",
+        externalId: "c",
+        text: "c",
+        observedAt: now,
+      });
+      const belief = (
+        statement: string,
+        confidence: number,
+        opts?: Partial<{ retired: boolean; support: string[] }>,
+      ) =>
         ctx.db.insert("beliefs", {
           accountId,
           statement,
           kind: "audience" as const,
           confidence,
-          supportingSignalIds: opts?.support ?? [],
+          supportingSignalIds: opts?.support ?? [sigA, sigB, sigC],
           firstSeenAt: now,
           confidenceAsOf: now,
           status: opts?.retired ? ("retired" as const) : ("active" as const),
         });
-      const agenda = await belief("S_agenda", 0.9, { support: [sigA, sigB] });
+      const agenda = await belief("S_agenda", 0.9);
       const needsYou = await belief("S_needs", 0.8);
       const idea = await belief("S_idea", 0.7);
       const none = await belief("S_null", 0.6);
       const retired = await belief("S_retired", 0.99, { retired: true }); // top confidence, still excluded
 
-      const cite = (statement: string, status: "scheduled" | "needs_you" | "suggestion" | "dismissed") =>
+      const cite = (
+        statement: string,
+        status: "scheduled" | "needs_you" | "suggestion" | "dismissed",
+      ) =>
         ctx.db.insert("suggestions", {
           accountId,
           title: statement,
@@ -347,9 +370,9 @@ describe("board.observing — the Observando rail", () => {
     expect(byId.get(ids.idea)!.hint).toBe("idea");
     expect(byId.get(ids.none)!.hint).toBeNull();
 
-    // signalCount = supportingSignalIds length.
-    expect(byId.get(ids.agenda)!.signalCount).toBe(2);
-    expect(byId.get(ids.idea)!.signalCount).toBe(0);
+    // signalCount is independent evidence count.
+    expect(byId.get(ids.agenda)!.signalCount).toBe(3);
+    expect(byId.get(ids.idea)!.signalCount).toBe(3);
   });
 
   it("rejects a non-owner", async () => {
@@ -477,10 +500,14 @@ describe("board.lineage — intervir na linhagem", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: OWNER }).query(api.board.lineage, { suggestionId: suggestionId.ghost }),
+      t
+        .withIdentity({ subject: OWNER })
+        .query(api.board.lineage, { suggestionId: suggestionId.ghost }),
     ).rejects.toThrow(/suggestion not found/);
     await expect(
-      t.withIdentity({ subject: INTRUDER }).query(api.board.lineage, { suggestionId: suggestionId.real }),
+      t
+        .withIdentity({ subject: INTRUDER })
+        .query(api.board.lineage, { suggestionId: suggestionId.real }),
     ).rejects.toThrow(/account not found/);
   });
 });

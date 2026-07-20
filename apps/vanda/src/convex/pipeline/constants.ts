@@ -31,6 +31,8 @@ export const postStatuses = ["draft", "ready", "scheduled", "published"] as cons
 export const scheduledStatuses = ["scheduled", "publishing", "published", "failed"] as const;
 export const signalSources = ["comments", "mentions", "competitors", "trends", "posts"] as const;
 export const signalSyncKinds = ["backfill", "reconciliation", "webhook"] as const;
+export const knowledgeKinds = ["canon", "belief", "caption", "post", "feedback"] as const;
+export const modelStages = ["brand_profile", "consolidate", "plan", "create", "embedding"] as const;
 export const suggestionStatuses = [
   "suggestion",
   "needs_you",

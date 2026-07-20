@@ -5,6 +5,7 @@ import { requireOwnedAccount } from "./authz";
 import { BrandAnalysis, type BrandCanonKind } from "./pipeline/brand";
 import { brandAnalysisArgs } from "./pipeline/storage";
 import { accountModes } from "./pipeline/constants";
+import { internal } from "./_generated/api";
 
 /**
  * The Instagram connection (id + encrypted token) for an account the caller owns.
@@ -136,6 +137,7 @@ export const approveBrandProfile = mutation({
     if (account.ownerUserId !== undefined) {
       await ctx.db.patch(account.ownerUserId, { activeAccountId: accountId, updatedAt: now });
     }
+    await ctx.scheduler.runAfter(0, internal.knowledge.refreshAccount, { accountId });
   },
 });
 

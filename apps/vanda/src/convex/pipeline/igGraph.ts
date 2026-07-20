@@ -28,6 +28,12 @@ export const graphGet = (config: IgConfig, path: string, fields: string): Promis
   });
 };
 
+const graphGetUrl = (url: string): Promise<unknown> =>
+  fetch(url).then(async (response) => {
+    if (!response.ok) throw new Error(`graph page -> HTTP ${response.status}`);
+    return response.json();
+  });
+
 /** Instagram timestamps are RFC-3339; fall back to now when absent/unparseable. */
 export const parseTimestamp = (timestamp: string | undefined): number => {
   if (timestamp === undefined) return Date.now();
@@ -50,6 +56,29 @@ export const fetchAndDecode = <A>(
 ): Effect.Effect<A, SourceFetchFailed> =>
   Effect.tryPromise({
     try: () => graphGet(config, path, fields),
+    catch: (error) =>
+      new SourceFetchFailed({
+        source,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+  }).pipe(
+    Effect.flatMap((json) =>
+      decodeUnknownEffect(schema)(json).pipe(
+        Effect.mapError(
+          (error) => new SourceFetchFailed({ source, message: `decode failed: ${error}` }),
+        ),
+      ),
+    ),
+  );
+
+/** Decode a `paging.next` URL returned by Meta using the same typed failure contract. */
+export const fetchUrlAndDecode = <A>(
+  source: SignalSource,
+  url: string,
+  schema: Schema.Codec<A, unknown>,
+): Effect.Effect<A, SourceFetchFailed> =>
+  Effect.tryPromise({
+    try: () => graphGetUrl(url),
     catch: (error) =>
       new SourceFetchFailed({
         source,

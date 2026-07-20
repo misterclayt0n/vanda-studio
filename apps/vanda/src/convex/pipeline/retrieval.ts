@@ -15,6 +15,8 @@ export interface ContextBundle {
   readonly snippets: ReadonlyArray<string>;
   /** Summary of the theme the suggestion belongs to ("" when unknown). */
   readonly themeSummary: string;
+  /** Owner-uploaded visual references that creation must preserve when relevant. */
+  readonly referenceImageUrls?: ReadonlyArray<string>;
 }
 
 /**
@@ -50,13 +52,24 @@ const STOP_WORDS = new Set([
   "from",
   "have",
   "has",
+  "uma",
+  "para",
+  "com",
+  "que",
+  "por",
+  "dos",
+  "das",
+  "seu",
+  "sua",
 ]);
 
 /** Lowercase, split on non-word chars, drop short/stop tokens. */
 export const tokenize = (text: string): ReadonlyArray<string> =>
   text
     .toLowerCase()
-    .split(/[^a-z0-9]+/)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
 
 /**
@@ -104,8 +117,10 @@ export const buildBundle = (
   corpus: ReadonlyArray<string>,
   themeSummary: string,
   critical: ReadonlyArray<string> = [],
+  referenceImageUrls: ReadonlyArray<string> = [],
 ): ContextBundle => ({
   critical,
   snippets: rankByRelevance(query, corpus, TOP_K),
   themeSummary,
+  referenceImageUrls,
 });

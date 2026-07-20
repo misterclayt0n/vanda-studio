@@ -60,7 +60,7 @@ const ideatePrompt = (
     )
     .join("\n");
   const themeLines =
-    themes.length === 0 ? "(none)" : themes.map((t) => `- ${t.name} (${t.momentum})`).join("\n");
+    themes.length === 0 ? "(nenhum)" : themes.map((t) => `- ${t.name} (${t.momentum})`).join("\n");
   return (
     `Você é a estrategista de redes sociais de uma marca. A partir das crenças bem ` +
     `fundamentadas abaixo, proponha até 3 ideias concretas de posts para Instagram. ` +

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
-import { CheckCircle2, PencilLine, Plus } from "lucide-react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { CheckCircle2, PencilLine, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@vanda-studio/ui/components/button";
 import { Skeleton } from "@vanda-studio/ui/components/skeleton";
 import { StatusPill } from "@vanda-studio/ui/components/status-pill";
@@ -35,9 +35,11 @@ function AutomaticoPage() {
   const delegate = useMutation(api.create.delegate);
   const approveAll = useMutation(api.create.approveAll);
   const dismiss = useMutation(api.board.dismiss);
+  const reanalyze = useAction(api.pipelineAdminActions.reanalyze);
 
   const [selected, setSelected] = useState<Id<"suggestions"> | null>(null);
   const [optimisticMode, setOptimisticMode] = useState<Mode | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   useEffect(() => {
     setOptimisticMode(null);
@@ -83,6 +85,20 @@ function AutomaticoPage() {
           ao vivo
         </span>
         <span className="flex-1" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          title="Reanalisar agora"
+          aria-label="Reanalisar agora"
+          disabled={reanalyzing}
+          onClick={() => {
+            setReanalyzing(true);
+            void reanalyze({ accountId: active.id }).finally(() => setReanalyzing(false));
+          }}
+        >
+          <RefreshCw className={reanalyzing ? "animate-spin" : undefined} />
+        </Button>
         <ModeToggle mode={mode} onChange={changeMode} />
       </header>
 

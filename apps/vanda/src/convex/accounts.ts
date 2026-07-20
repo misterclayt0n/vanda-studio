@@ -146,6 +146,18 @@ export const remove = mutation({
       .collect();
     await deleteRows(brandCanon, (id) => ctx.db.delete(id));
 
+    const knowledge = await ctx.db
+      .query("knowledgeChunks")
+      .withIndex("by_account_source", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(knowledge, (id) => ctx.db.delete(id));
+
+    const modelRuns = await ctx.db
+      .query("modelRuns")
+      .withIndex("by_account_started", (q) => q.eq("accountId", accountId))
+      .collect();
+    await deleteRows(modelRuns, (id) => ctx.db.delete(id));
+
     for (const status of suggestionStatuses) {
       const suggestions = await ctx.db
         .query("suggestions")

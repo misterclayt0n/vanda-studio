@@ -23,7 +23,8 @@ import {
   retrieveContext,
 } from "./pipeline/create";
 import { createLayer, imageGenLive, retrievalLive } from "./pipeline/liveCreate";
-import { languageModelLayer } from "./pipeline/liveModel";
+import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import { runTracked } from "./pipeline/liveTelemetry";
 import type { PostType } from "./pipeline/memory";
 import { postTypes } from "./pipeline/constants";
 
@@ -78,7 +79,12 @@ export const brandCorpus = internalQuery({
   handler: async (
     ctx,
     { accountId },
-  ): Promise<{ critical: string[]; statements: string[]; themeSummary: string }> => {
+  ): Promise<{
+    critical: string[];
+    statements: string[];
+    themeSummary: string;
+    referenceImageUrls: string[];
+  }> => {
     const canon = await ctx.db
       .query("brandCanon")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
@@ -91,10 +97,28 @@ export const brandCorpus = internalQuery({
       .query("themes")
       .withIndex("by_account", (q) => q.eq("accountId", accountId))
       .collect();
+    const referenceImages = (
+      await ctx.db
+        .query("images")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .collect()
+    ).filter((image) => image.purpose === "reference");
+    const referenceImageUrls = (
+      await Promise.all(
+        referenceImages.map((image) =>
+          image.externalUrl !== undefined
+            ? Promise.resolve(image.externalUrl)
+            : image.storageId === undefined
+              ? Promise.resolve(null)
+              : ctx.storage.getUrl(image.storageId),
+        ),
+      )
+    ).filter((url): url is string => url !== null);
     return {
       critical: canon.filter((c) => c.confirmedByOwner).map((c) => `${c.kind}: ${c.text}`),
       statements: beliefs.filter((b) => b.status !== "retired").map((b) => b.statement),
       themeSummary: themes.map((t) => `${t.name}: ${t.summary}`).join("; "),
+      referenceImageUrls,
     };
   },
 });
@@ -171,12 +195,25 @@ export const planComposition = internalAction({
     const suggestion = await ctx.runQuery(internal.create.loadCreatableSuggestion, {
       suggestionId,
     });
-    const composition = await Effect.runPromise(
-      retrieveContext(suggestion).pipe(
-        Effect.flatMap((bundle) => composeCaption(suggestion, bundle)),
-        Effect.provide(retrievalLive(ctx)),
-        Effect.provide(languageModelLayer(apiKey)),
-      ),
+    const composition = await runTracked(
+      ctx,
+      {
+        accountId: suggestion.accountId as Id<"accounts">,
+        stage: "create",
+        model: PIPELINE_MODELS.create,
+        promptVersion: PROMPT_VERSIONS.create,
+        inputIds: [suggestion.suggestionId],
+      },
+      () =>
+        Effect.runPromise(
+          retrieveContext(suggestion).pipe(
+            Effect.flatMap((bundle) => composeCaption(suggestion, bundle)),
+            Effect.provide(retrievalLive(ctx, apiKey)),
+            Effect.provide(languageModelLayer(apiKey, PIPELINE_MODELS.create)),
+          ),
+        ),
+      (result) =>
+        `${result.imagePrompts.length} imagens; legenda de ${result.caption.length} caracteres`,
     );
     return {
       accountId: suggestion.accountId,

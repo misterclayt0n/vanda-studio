@@ -62,6 +62,9 @@ export const beliefColumns = {
   kind: v.union(...beliefKinds.map((kind) => v.literal(kind))),
   confidence: v.number(),
   supportingSignalIds: v.array(v.string()),
+  supportingEvidence: v.optional(
+    v.array(v.object({ signalId: v.string(), evidenceKey: v.string() })),
+  ),
   firstSeenAt: v.number(),
   confidenceAsOf: v.number(),
   status: v.union(...beliefStatuses.map((status) => v.literal(status))),

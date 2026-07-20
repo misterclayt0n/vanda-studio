@@ -269,6 +269,29 @@ describe("consolidate (program, stub model)", () => {
     }),
   );
 
+  it("keeps repeated reactions from one author and post as provenance without inflating confidence", () => {
+    const entries = ["s1", "s2"].map((id) => ({
+      signal: {
+        ...signal(id, "quero também"),
+        authorHandle: "cliente",
+        mediaExternalId: "post-1",
+      },
+      judgment: {
+        kind: "audience" as const,
+        salience: 0.8,
+        relation: "supports" as const,
+        beliefStatement: "Clientes demonstram intenção de compra",
+        themeName: "Intenção de compra",
+      },
+    }));
+
+    const result = foldConsolidation("acct_1", empty, entries, 1);
+
+    expect(result.beliefs[0]!.supportingSignalIds).toEqual(["s1", "s2"]);
+    expect(result.beliefs[0]!.supportingEvidence).toHaveLength(2);
+    expect(result.beliefs[0]!.confidence).toBeCloseTo(defaultPolicy.learningRate);
+  });
+
   it.effect("lowers confidence when a signal contradicts a held belief", () =>
     Effect.gen(function* () {
       const seeded: Belief = {

@@ -44,6 +44,32 @@ export const reinforceBelief = (
   };
 };
 
+/** Add provenance while only increasing confidence for an independent source. */
+export const reinforceIndependentEvidence = (
+  belief: Belief,
+  signalId: string,
+  evidenceKey: string,
+  now: number,
+  policy: Policy,
+): Belief => {
+  if (belief.supportingSignalIds.includes(signalId)) return belief;
+  const evidence =
+    belief.supportingEvidence ??
+    belief.supportingSignalIds.map((id) => ({ signalId: id, evidenceKey: `legacy:${id}` }));
+  const isIndependent = !evidence.some((entry) => entry.evidenceKey === evidenceKey);
+  const next = isIndependent
+    ? reinforceBelief(belief, signalId, now, policy)
+    : { ...belief, supportingSignalIds: [...belief.supportingSignalIds, signalId] };
+  return { ...next, supportingEvidence: [...evidence, { signalId, evidenceKey }] };
+};
+
+export const independentEvidenceCount = (
+  belief: Pick<Belief, "supportingSignalIds" | "supportingEvidence">,
+): number =>
+  belief.supportingEvidence === undefined
+    ? belief.supportingSignalIds.length
+    : new Set(belief.supportingEvidence.map((entry) => entry.evidenceKey)).size;
+
 /**
  * Remove one signal's evidence from a belief: peel exactly one reinforcement off
  * the CURRENT confidence — the algebraic inverse of reinforceBelief's
@@ -62,6 +88,20 @@ export const dropSignal = (
   if (!belief.supportingSignalIds.includes(signalId)) {
     return withConfidence(belief, belief.confidence, policy);
   }
+  const removedEvidence = belief.supportingEvidence?.find((entry) => entry.signalId === signalId);
+  const remainingEvidence = belief.supportingEvidence?.filter(
+    (entry) => entry.signalId !== signalId,
+  );
+  const stillSupported =
+    removedEvidence !== undefined &&
+    remainingEvidence?.some((entry) => entry.evidenceKey === removedEvidence.evidenceKey) === true;
+  if (stillSupported) {
+    return {
+      ...withConfidence(belief, belief.confidence, policy),
+      supportingSignalIds: belief.supportingSignalIds.filter((id) => id !== signalId),
+      supportingEvidence: remainingEvidence,
+    };
+  }
   // Policy guarantees learningRate < 1, so (1 − r) > 0; withConfidence still
   // clamps any non-finite result defensively.
   const r = policy.learningRate;
@@ -69,6 +109,7 @@ export const dropSignal = (
   return {
     ...withConfidence(belief, raw, policy),
     supportingSignalIds: belief.supportingSignalIds.filter((id) => id !== signalId),
+    ...(remainingEvidence === undefined ? {} : { supportingEvidence: remainingEvidence }),
     confidenceAsOf: now,
   };
 };
@@ -103,7 +144,7 @@ export const contradictBelief = (belief: Belief, now: number, policy: Policy): B
 export const meetsEvidenceThreshold = (belief: Belief, policy: Policy): boolean =>
   belief.status === "active" &&
   belief.confidence >= policy.minConfidence &&
-  belief.supportingSignalIds.length >= policy.minEvidence;
+  independentEvidenceCount(belief) >= policy.minEvidence;
 
 /** Whether a theme was posted too recently to post about again. */
 export const isThemeSaturated = (theme: Theme, now: number, policy: Policy): boolean =>

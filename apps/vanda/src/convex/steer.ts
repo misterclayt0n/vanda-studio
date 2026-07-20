@@ -13,6 +13,7 @@ const toBelief = (b: Doc<"beliefs">): Belief => ({
   kind: b.kind,
   confidence: b.confidence,
   supportingSignalIds: b.supportingSignalIds,
+  ...(b.supportingEvidence === undefined ? {} : { supportingEvidence: b.supportingEvidence }),
   firstSeenAt: b.firstSeenAt,
   confidenceAsOf: b.confidenceAsOf,
   status: b.status,
@@ -84,6 +85,9 @@ export const markSignalNoiseImpl = async (
       confidence: updated.confidence,
       confidenceAsOf: updated.confidenceAsOf,
       supportingSignalIds: [...updated.supportingSignalIds],
+      ...(updated.supportingEvidence === undefined
+        ? {}
+        : { supportingEvidence: [...updated.supportingEvidence] }),
       status: updated.status,
     });
     await rethinkBelief(ctx, updated, policy);

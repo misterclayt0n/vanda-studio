@@ -5,7 +5,8 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { CreateStore, type GeneratedImage, ImageGen } from "./create";
-import { languageModelLayer } from "./liveModel";
+import { Embeddings, embeddingsLive } from "./embeddings";
+import { languageModelLayer, PIPELINE_MODELS } from "./liveModel";
 import { buildBundle, Retrieval } from "./retrieval";
 
 /**
@@ -41,21 +42,68 @@ export const imageGenLive: Layer.Layer<ImageGen> = Layer.succeed(ImageGen, {
 });
 
 /**
- * RAG retrieval over the account's brand knowledge: load the belief corpus + the
- * theme "voice" from Convex and rank it lexically against the query. A vector
- * index (embeddings) is the documented scale path — swap this layer and nothing
- * in `create` changes.
+ * Hybrid RAG: semantic search over persisted account-scoped memory, with lexical
+ * fallback while the vector index is empty or updating. Confirmed canon is always
+ * returned separately and never depends on retrieval rank.
  */
-export const retrievalLive = (ctx: ActionCtx): Layer.Layer<Retrieval> =>
-  Layer.succeed(Retrieval, {
-    retrieve: (accountId, query) =>
-      Effect.map(
-        Effect.tryPromise(() =>
-          ctx.runQuery(internal.create.brandCorpus, { accountId: accountId as Id<"accounts"> }),
-        ),
-        (corpus) => buildBundle(query, corpus.statements, corpus.themeSummary, corpus.critical),
-      ),
-  });
+export const retrievalLive = (ctx: ActionCtx, apiKey: string): Layer.Layer<Retrieval> =>
+  Layer.effect(
+    Retrieval,
+    Effect.map(Embeddings, (embeddings) => ({
+      retrieve: (accountId: string, query: string) => {
+        const id = accountId as Id<"accounts">;
+        const loadCorpus = Effect.tryPromise(() =>
+          ctx.runQuery(internal.create.brandCorpus, { accountId: id }),
+        );
+        const lexical = Effect.map(loadCorpus, (corpus) =>
+          buildBundle(
+            query,
+            corpus.statements,
+            corpus.themeSummary,
+            corpus.critical,
+            corpus.referenceImageUrls,
+          ),
+        );
+        const semantic = Effect.gen(function* () {
+          const corpus = yield* loadCorpus;
+          const [vector] = yield* embeddings.embed([query]);
+          const matches = yield* Effect.tryPromise(() =>
+            ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+              vector: [...vector!],
+              limit: 8,
+              filter: (filter) => filter.eq("accountId", id),
+            }),
+          );
+          const chunks = yield* Effect.tryPromise(() =>
+            ctx.runQuery(internal.knowledge.byIds, { ids: matches.map((match) => match._id) }),
+          );
+          const byId = new Map(chunks.map((chunk) => [chunk._id, chunk] as const));
+          const vectorSnippets = matches.flatMap((match) => {
+            const chunk = byId.get(match._id);
+            return chunk === undefined || chunk.kind === "canon" ? [] : [chunk.text];
+          });
+          const fallback = buildBundle(
+            query,
+            corpus.statements,
+            corpus.themeSummary,
+            corpus.critical,
+            corpus.referenceImageUrls,
+          );
+          return {
+            ...fallback,
+            snippets: [...new Set([...vectorSnippets, ...fallback.snippets])].slice(0, 8),
+          };
+        });
+        return semantic.pipe(
+          Effect.catch((error) =>
+            Effect.logWarning(`retrieval semântico indisponível: ${String(error)}`).pipe(
+              Effect.andThen(lexical),
+            ),
+          ),
+        );
+      },
+    })),
+  ).pipe(Layer.provide(embeddingsLive(apiKey)));
 
 /** Persist the composed carousel + promote the suggestion via a Convex mutation. */
 export const createStoreLive = (ctx: ActionCtx): Layer.Layer<CreateStore> =>
@@ -84,8 +132,8 @@ export const createLayer = (
   apiKey: string,
 ): Layer.Layer<Retrieval | ImageGen | CreateStore | LanguageModel.LanguageModel> =>
   Layer.mergeAll(
-    retrievalLive(ctx),
+    retrievalLive(ctx, apiKey),
     imageGenLive,
     createStoreLive(ctx),
-    languageModelLayer(apiKey),
+    languageModelLayer(apiKey, PIPELINE_MODELS.create),
   );

@@ -8,7 +8,8 @@ import { decryptInstagramToken } from "./instagramToken";
 import type { BrandAnalysis, CorpusStats } from "./pipeline/brand";
 import { proposeBrandProfile } from "./pipeline/brandProfile";
 import { fetchBrandCorpus } from "./pipeline/liveBrand";
-import { languageModelLayer } from "./pipeline/liveModel";
+import { languageModelLayer, PIPELINE_MODELS, PROMPT_VERSIONS } from "./pipeline/liveModel";
+import { runTracked } from "./pipeline/liveTelemetry";
 
 /**
  * Onboarding's "Vanda is reading your account" step: resolve the caller's owned
@@ -30,15 +31,27 @@ export const analyzeAccount = action({
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the Convex deployment");
     const token = decryptInstagramToken(connection);
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const { corpus, stats } = yield* fetchBrandCorpus({
-          igUserId: connection.igUserId,
-          token,
-        });
-        const analysis = yield* proposeBrandProfile(corpus);
-        return { analysis, stats };
-      }).pipe(Effect.provide(languageModelLayer(apiKey))),
+    return runTracked(
+      ctx,
+      {
+        accountId,
+        stage: "brand_profile",
+        model: PIPELINE_MODELS.brandProfile,
+        promptVersion: PROMPT_VERSIONS.brandProfile,
+        inputIds: [connection.igUserId],
+      },
+      () =>
+        Effect.runPromise(
+          Effect.gen(function* () {
+            const { corpus, stats } = yield* fetchBrandCorpus({
+              igUserId: connection.igUserId,
+              token,
+            });
+            const analysis = yield* proposeBrandProfile(corpus);
+            return { analysis, stats };
+          }).pipe(Effect.provide(languageModelLayer(apiKey, PIPELINE_MODELS.brandProfile))),
+        ),
+      ({ stats }) => `${stats.posts} posts; ${stats.comments} comentários`,
     );
   },
 });

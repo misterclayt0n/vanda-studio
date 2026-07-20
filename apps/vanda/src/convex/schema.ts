@@ -13,6 +13,8 @@ import {
   brandKinds,
   imageOrigins,
   imagePurposes,
+  knowledgeKinds,
+  modelStages,
   postStatuses,
   postTypes,
   scheduledStatuses,
@@ -130,6 +132,36 @@ export default defineSchema({
   // identity — one editable row per fact. Confirmed canon grounds create's RAG
   // corpus (create.brandCorpus); the "what Vanda knows" panel reads it too.
   brandCanon: defineTable(brandCanonColumns).index("by_account", ["accountId"]),
+
+  knowledgeChunks: defineTable({
+    accountId: v.id("accounts"),
+    kind: v.union(...knowledgeKinds.map((kind) => v.literal(kind))),
+    sourceId: v.string(),
+    text: v.string(),
+    embedding: v.array(v.float64()),
+    active: v.boolean(),
+    observedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_account_source", ["accountId", "sourceId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536,
+      filterFields: ["accountId", "active"],
+    }),
+
+  modelRuns: defineTable({
+    accountId: v.id("accounts"),
+    stage: v.union(...modelStages.map((stage) => v.literal(stage))),
+    model: v.string(),
+    promptVersion: v.string(),
+    inputIds: v.array(v.string()),
+    status: v.union(v.literal("running"), v.literal("succeeded"), v.literal("failed")),
+    outputSummary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_account_started", ["accountId", "startedAt"]),
 
   // Suggestions (plan stage): composed post ideas with control status + provenance.
   // Rejected candidates are kept (status "rejected" + rejectionReason) for inspectable autonomy.

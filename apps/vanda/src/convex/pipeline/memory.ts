@@ -53,10 +53,15 @@ export type SuggestionStatus = typeof SuggestionStatus.Type;
 
 /**
  * A probabilistic claim Vanda holds about the world around a brand. Confidence
- * rises with independent evidence and decays without it. `supportingSignalIds`
- * is the deduplicated evidence set, so the evidence count is its length — there
- * is no separate counter to drift out of sync.
+ * rises with independent evidence and decays without it. Every supporting signal
+ * remains available for lineage, while `supportingEvidence` groups repeated
+ * reactions from the same author on the same post into one confidence event.
  */
+export const SupportingEvidence = Schema.Struct({
+  signalId: Schema.String,
+  evidenceKey: Schema.String,
+});
+
 export const Belief = Schema.Struct({
   accountId: Schema.String,
   /** Stable model-facing identity; statements remain owner-editable display text. */
@@ -65,6 +70,7 @@ export const Belief = Schema.Struct({
   kind: BeliefKind,
   confidence: UnitInterval,
   supportingSignalIds: Schema.Array(Schema.String),
+  supportingEvidence: Schema.optionalKey(Schema.Array(SupportingEvidence)),
   firstSeenAt: Timestamp,
   /** Decay anchor: the time the stored `confidence` is valid as-of (advances on every confidence change). */
   confidenceAsOf: Timestamp,

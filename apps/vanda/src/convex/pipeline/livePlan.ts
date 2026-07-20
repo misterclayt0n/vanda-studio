@@ -7,7 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { memoryStoreLive } from "./liveMemory";
 import { brandContextLive } from "./liveBrandContext";
-import { languageModelLayer, type Mutable } from "./liveModel";
+import { languageModelLayer, type Mutable, PIPELINE_MODELS } from "./liveModel";
 import type { Memory } from "./memoryStore";
 import type { BrandContext } from "./brandContext";
 import { type PlanResult, Suggestions, type SuggestionsShape } from "./suggestions";
@@ -42,5 +42,5 @@ export const planLayer = (
     memoryStoreLive(ctx),
     brandContextLive(ctx),
     suggestionsStoreLive(ctx),
-    languageModelLayer(apiKey),
+    languageModelLayer(apiKey, PIPELINE_MODELS.plan),
   );

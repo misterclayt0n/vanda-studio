@@ -4,6 +4,7 @@ import * as FastCheck from "effect/testing/FastCheck";
 import {
   contradictBelief,
   decayBelief,
+  independentEvidenceCount,
   dropSignal,
   isThemeSaturated,
   meetsEvidenceThreshold,
@@ -192,7 +193,7 @@ describe("meetsEvidenceThreshold", () => {
     if (!meetsEvidenceThreshold(belief, policy)) return;
     expect(belief.status).toBe("active");
     expect(belief.confidence).toBeGreaterThanOrEqual(policy.minConfidence);
-    expect(belief.supportingSignalIds.length).toBeGreaterThanOrEqual(policy.minEvidence);
+    expect(independentEvidenceCount(belief)).toBeGreaterThanOrEqual(policy.minEvidence);
   });
 
   it("accepts a belief exactly at the confidence and evidence bar", () => {

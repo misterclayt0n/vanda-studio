@@ -9,7 +9,37 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
 
   it("flattens comments across recent media into raw signals", async () => {
     vi.stubGlobal("fetch", async (url: string | URL) => {
-      expect(String(url)).toContain("/ig1/media");
+      const request = String(url);
+      if (request === "https://next/comments") {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: "k2",
+                text: "quero um",
+                timestamp: "2024-01-02T00:00:00+0000",
+                username: "bob",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (request === "https://next/media") {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: "m4",
+                permalink: "https://p/4",
+                comments: { data: [{ id: "k3", text: "quanto custa?" }] },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      expect(request).toContain("/ig1/media");
       return new Response(
         JSON.stringify({
           data: [
@@ -28,18 +58,20 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
                     username: "alice",
                   },
                 ],
+                paging: { next: "https://next/comments" },
               },
             },
             { id: "m2", permalink: "https://p/2", comments: { data: [] } },
             { id: "m3", permalink: "https://p/3" },
           ],
+          paging: { next: "https://next/media" },
         }),
         { status: 200 },
       );
     });
 
     const signals = await Effect.runPromise(igCommentsAdapter(config).fetch());
-    expect(signals).toHaveLength(1);
+    expect(signals).toHaveLength(3);
     expect(signals[0]).toMatchObject({
       source: "comments",
       externalId: "k1",
@@ -52,6 +84,7 @@ describe("igCommentsAdapter (fetch-mocked)", () => {
       syncKind: "reconciliation",
     });
     expect(signals[0]!.observedAt).toBe(Date.parse("2024-01-01T00:00:00+0000"));
+    expect(signals.map((signal) => signal.externalId)).toEqual(["k1", "k2", "k3"]);
   });
 
   it("fails SourceFetchFailed on a non-2xx response", async () => {
@@ -66,7 +99,12 @@ describe("igMentionsAdapter (fetch-mocked)", () => {
 
   it("maps tagged media into mention signals", async () => {
     vi.stubGlobal("fetch", async (url: string | URL) => {
-      expect(String(url)).toContain("/ig1/tags");
+      const request = String(url);
+      if (request === "https://next/tags")
+        return new Response(JSON.stringify({ data: [{ id: "t2", caption: "outra marcação" }] }), {
+          status: 200,
+        });
+      expect(request).toContain("/ig1/tags");
       return new Response(
         JSON.stringify({
           data: [
@@ -77,13 +115,14 @@ describe("igMentionsAdapter (fetch-mocked)", () => {
               username: "bob",
             },
           ],
+          paging: { next: "https://next/tags" },
         }),
         { status: 200 },
       );
     });
 
     const signals = await Effect.runPromise(igMentionsAdapter(config).fetch());
-    expect(signals).toHaveLength(1);
+    expect(signals).toHaveLength(2);
     expect(signals[0]).toMatchObject({
       source: "mentions",
       externalId: "t1",

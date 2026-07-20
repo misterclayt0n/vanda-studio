@@ -4,7 +4,9 @@ import { components } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx, query } from "./_generated/server";
 import { requireOwnedAccount } from "./authz";
+import { independentEvidenceCount } from "./pipeline/discernment";
 import { correctBeliefImpl, markSignalNoiseImpl } from "./steer";
+import { defaultPolicy } from "./pipeline/memory";
 
 // ============================================================================
 // The public app-API for the Automático screen. Everything is auth-gated on the
@@ -84,6 +86,7 @@ export interface LearnedBelief {
 /** The Observando rail snapshot. */
 export interface ObservingSnapshot {
   totalToday: number;
+  lastSyncedAt: number | null;
   notable: NotableSignal[];
   routineCount: number;
   learned: LearnedBelief[];
@@ -234,7 +237,11 @@ export const observing = query({
   args: { accountId: v.id("accounts") },
   handler: async (ctx, { accountId }): Promise<ObservingSnapshot> => {
     await requireOwnedAccount(ctx, accountId);
+    const account = await ctx.db.get(accountId);
+    const connection =
+      account?.connectionId === undefined ? null : await ctx.db.get(account.connectionId);
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
     const recent = await ctx.db
       .query("signals")
       .withIndex("by_account_observedAt", (q) => q.eq("accountId", accountId))
@@ -251,7 +258,10 @@ export const observing = query({
     ).length;
 
     // The rail surfaces the salient few; the rest fold into "+N rotineiros".
-    const live = recent.filter((s) => s.noise !== true);
+    const inWindow = recent.filter(
+      (signal) => signal.observedAt >= ninetyDaysAgo && signal.noise !== true,
+    );
+    const live = inWindow.filter((signal) => signal.actionable === true);
     const notable: NotableSignal[] = [...live]
       .sort((a, b) => (b.salience ?? 0) - (a.salience ?? 0))
       .slice(0, 5)
@@ -264,15 +274,25 @@ export const observing = query({
         observedAt: s.observedAt,
         salience: s.salience ?? null,
       }));
-    const routineCount = Math.max(0, live.length - notable.length);
+    const routineCount = inWindow.filter((signal) => signal.actionable === false).length;
 
     const beliefs = await ctx.db
       .query("beliefs")
       .withIndex("by_account_status", (q) => q.eq("accountId", accountId))
       .collect();
     const suggestions = await activeSuggestions(ctx, accountId);
+    const policy =
+      (await ctx.db
+        .query("policies")
+        .withIndex("by_account", (q) => q.eq("accountId", accountId))
+        .first()) ?? defaultPolicy;
     const learned: LearnedBelief[] = beliefs
-      .filter((b) => b.status !== "retired")
+      .filter(
+        (belief) =>
+          belief.status === "active" &&
+          belief.confidence >= policy.minConfidence &&
+          independentEvidenceCount(belief) >= policy.minEvidence,
+      )
       .sort((a, b) => b.confidence - a.confidence)
       .slice(0, 6)
       .map((b) => ({
@@ -280,11 +300,20 @@ export const observing = query({
         statement: b.statement,
         confidence: b.confidence,
         kind: b.kind,
-        signalCount: b.supportingSignalIds.length,
+        signalCount:
+          b.supportingEvidence === undefined
+            ? b.supportingSignalIds.length
+            : new Set(b.supportingEvidence.map((entry) => entry.evidenceKey)).size,
         hint: hintFor(b.statement, suggestions),
       }));
 
-    return { totalToday, notable, routineCount, learned };
+    return {
+      totalToday,
+      lastSyncedAt: connection?.lastSyncAt ?? null,
+      notable,
+      routineCount,
+      learned,
+    };
   },
 });
 

@@ -104,10 +104,14 @@ const captionPrompt = (suggestion: CreatableSuggestion, bundle: ContextBundle): 
       : bundle.critical.map((statement) => `- ${statement}`).join("\n");
   const cited =
     suggestion.beliefStatements.length === 0
-      ? "(none)"
+      ? "(nenhuma)"
       : suggestion.beliefStatements.map((statement) => `- ${statement}`).join("\n");
   const context =
-    bundle.snippets.length === 0 ? "(none)" : bundle.snippets.map((s) => `- ${s}`).join("\n");
+    bundle.snippets.length === 0 ? "(nenhum)" : bundle.snippets.map((s) => `- ${s}`).join("\n");
+  const references =
+    bundle.referenceImageUrls === undefined || bundle.referenceImageUrls.length === 0
+      ? "(nenhuma)"
+      : bundle.referenceImageUrls.map((url) => `- ${url}`).join("\n");
   return (
     `Você é a redatora de redes sociais de uma marca. Crie o ${resolveType(suggestion)} ` +
     `para Instagram a partir da ideia abaixo: uma legenda em português do Brasil, alinhada ` +
@@ -117,7 +121,10 @@ const captionPrompt = (suggestion: CreatableSuggestion, bundle: ContextBundle): 
     `Contexto confirmado obrigatório:\n${critical}\n\n` +
     `Ideia: ${suggestion.title}\nTema: ${suggestion.themeName}` +
     `${bundle.themeSummary ? ` — ${bundle.themeSummary}` : ""}\n\n` +
-    `Crenças que fundamentam a ideia:\n${cited}\n\nOutro contexto relevante da marca:\n${context}`
+    `Crenças que fundamentam a ideia:\n${cited}\n\nOutro contexto relevante da marca:\n${context}\n\n` +
+    `Referências visuais aprovadas pelo proprietário:\n${references}\n` +
+    `Quando houver referências, descreva nos prompts visuais que a identidade, os personagens ` +
+    `e os elementos reconhecíveis dessas imagens devem ser preservados.`
   );
 };
 

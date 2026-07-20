@@ -22,9 +22,7 @@ function SignalRow({ signal }: { signal: NotableSignal }) {
           <Icon className={cn("size-3 shrink-0", meta.tone)} />
           <span className={cn("text-micro font-semibold", meta.tone)}>{meta.label}</span>
           <span className="flex-1" />
-          <span className="text-micro text-text-5">
-            {relativeTime(signal.observedAt)}
-          </span>
+          <span className="text-micro text-text-5">{relativeTime(signal.observedAt)}</span>
         </div>
         <p className="line-clamp-2 text-caption text-text-3">
           {signal.authorHandle ? (
@@ -40,12 +38,12 @@ function SignalRow({ signal }: { signal: NotableSignal }) {
 function BeliefCard({ belief }: { belief: LearnedBelief }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
-      <p className="mb-2.5 text-body-sm font-medium text-pretty text-text">
-        {belief.statement}
-      </p>
+      <p className="mb-2.5 text-body-sm font-medium text-pretty text-text">{belief.statement}</p>
       <div className="mb-2.5 flex items-center gap-2.5">
         <ConfidenceBar value={belief.confidence} tone="peri" />
-        <span className="text-micro font-medium text-peri">{confidencePct(belief.confidence)}%</span>
+        <span className="text-micro font-medium text-peri">
+          {confidencePct(belief.confidence)}%
+        </span>
       </div>
       <div className="flex items-center gap-2 text-micro text-text-4">
         <Layers className="size-3 shrink-0 text-text-6" />
@@ -77,6 +75,11 @@ export function ObservingRail({ data }: { data: ObservingSnapshot | undefined })
           {data?.totalToday ?? 0} hoje
         </span>
       </div>
+      {data?.lastSyncedAt ? (
+        <p className="px-5 pb-2 text-micro text-text-6">
+          Sincronizado {relativeTime(data.lastSyncedAt)}
+        </p>
+      ) : null}
       <div className="flex shrink-0 flex-col gap-2 px-3.5 pb-2.5">
         {data?.notable.map((signal) => (
           <SignalRow key={signal.id} signal={signal} />
